@@ -42,6 +42,9 @@ CONTROL_RIGHT_WIDTH = max(
     max(len(f"edge: {style}") for style in EDGE_STYLES),
 )
 CONTROL_SEPARATOR = " │ "
+CONTROL_SHORTCUT_FOREGROUND = "5f7a82"
+CONTROL_SEPARATOR_FOREGROUND = "3f4552"
+CONTROL_ACTION_FOREGROUND = "777d89"
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
     f"{(f'edge: {DEFAULT_EDGE_STYLE}' if shortcut == 'e' else action):<{CONTROL_RIGHT_WIDTH}}"
@@ -118,9 +121,10 @@ def render_control_line(
         return f"{panel_style(ansi)}{truncate_cells(plain, width)}"
     padding = " " * ((width - display_width(plain)) // 2)
     return (
-        f"{panel_style(ansi)}{padding}{_fg('8be9fd', ansi)}{shortcut}"
-        f"{_fg('6272a4', ansi)}{CONTROL_SEPARATOR}"
-        f"{_fg('f8f8f2', ansi)}{action}"
+        f"{panel_style(ansi)}{padding}"
+        f"{_fg(CONTROL_SHORTCUT_FOREGROUND, ansi)}{shortcut}"
+        f"{_fg(CONTROL_SEPARATOR_FOREGROUND, ansi)}{CONTROL_SEPARATOR}"
+        f"{_fg(CONTROL_ACTION_FOREGROUND, ansi)}{action}"
     )
 
 

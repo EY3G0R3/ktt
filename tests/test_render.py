@@ -3,7 +3,9 @@ import re
 
 from ktt.model import TabRecord, TreeRow
 from ktt.render import (
+    CONTROL_ACTION_FOREGROUND,
     CONTROL_LINES,
+    CONTROL_SHORTCUT_FOREGROUND,
     EDGE_STYLES,
     FLAME_RIGHT_CAP,
     LEFT_CAP,
@@ -203,6 +205,21 @@ class RenderTests(unittest.TestCase):
             [], 0, 1, 48, 8, ansi=False, edge_style="rounded"
         )
         self.assertIn("e │ edge: rounded", screen)
+
+    def test_control_legend_is_dimmer_than_tab_text(self) -> None:
+        line = render_control_line("e", "edge: tapered", 48)
+        shortcut_rgb = tuple(
+            int(CONTROL_SHORTCUT_FOREGROUND[offset:offset + 2], 16)
+            for offset in (0, 2, 4)
+        )
+        action_rgb = tuple(
+            int(CONTROL_ACTION_FOREGROUND[offset:offset + 2], 16)
+            for offset in (0, 2, 4)
+        )
+        self.assertIn(f"\x1b[38;2;{';'.join(map(str, shortcut_rgb))}m", line)
+        self.assertIn(f"\x1b[38;2;{';'.join(map(str, action_rgb))}m", line)
+        self.assertLess(sum(shortcut_rgb), sum((216, 222, 233)))
+        self.assertLess(sum(action_rgb), sum((216, 222, 233)))
 
     def test_long_tab_list_uses_all_available_rows(self) -> None:
         self.assertEqual(vertical_padding(20, 10), 0)
