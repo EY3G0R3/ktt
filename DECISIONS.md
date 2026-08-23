@@ -86,12 +86,13 @@ back to the default Powerline caps.
 
 Added August 23, 2026 (PDT).
 
-Show repository, directory, branch, upstream divergence, and worktree state at
+Show repository, directory, branch, and worktree state at
 the top of the sidebar for the active main-window tab. The panel may replace up
 to three existing blank padding rows, but must not reduce tab-card height or
 capacity. It compacts before it disappears as the tree grows.
 
-Kitty's active-window `cwd` is the path authority. A cached, read-only Git
-porcelain query supplies repository state every three seconds; fancylog remains
-an independent application rather than a runtime dependency. This keeps status
-consistent with Git while avoiding a subprocess on every 20 Hz render frame.
+Kitty's active-window `cwd` is the path authority. ktt passes it, the available
+row count, and the sidebar width to `fancylog --status-only`, then caches the
+rendered rows for three seconds. fancylog owns repository discovery—including
+yadm—status semantics, palette, and truncation. ktt treats command failure as
+an absent panel and carries no fallback Git parser.

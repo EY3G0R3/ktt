@@ -33,7 +33,7 @@ from .render import (
     vertical_padding,
     visible_start,
 )
-from .repository import RepositoryMonitor, RepositoryStatus, active_window_cwd
+from .repository import FancylogMonitor, active_window_cwd
 
 
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
@@ -173,8 +173,8 @@ def run_tui(
     collapsed_tab_ids: set[int] = set()
     os_window_id = target_os_window_id or 0
     error: str | None = None
-    repository_status: RepositoryStatus | None = None
-    repository_monitor = RepositoryMonitor()
+    repository_path: str | None = None
+    repository_monitor = FancylogMonitor()
     next_poll = 0.0
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
@@ -217,20 +217,25 @@ def run_tui(
                     )
                     rows = tree_rows(records, collapsed_tab_ids)
                     selected_index = active_row_index(rows)
-                    repository_status = repository_monitor.update(
-                        active_window_cwd(os_window), now
-                    )
+                    repository_path = active_window_cwd(os_window)
                     error = None
                 except (KittyError, ValueError) as caught:
                     error = str(caught)
                 next_poll = now + poll_interval
 
             width, height = shutil.get_terminal_size((40, 24))
+            card_height = adaptive_card_height(len(rows), height)
+            repository_lines = repository_monitor.update(
+                repository_path,
+                width,
+                min(3, vertical_padding(len(rows), height, card_height)),
+                now,
+            )
             screen = render_screen(
                 rows, selected_index, os_window_id, width, height,
                 total_tabs=len(records), error=error, now=now,
                 edge_style=edge_style,
-                repository_status=repository_status,
+                repository_lines=repository_lines,
             )
             # Erase with ktt's own black background. Kitty's configured default
             # can change when the OS window gains focus, which otherwise makes

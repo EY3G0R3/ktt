@@ -74,6 +74,10 @@ repeats on every physical row to form one continuous serrated status edge. The
 rounded-outline theme keeps its corner glyphs and shows the verdict cap on the
 content row.
 
+Waiting agents—the Workmux `waiting` state currently projected as `💬`—use an
+off-white attention card with dark text. An active waiting tab becomes slightly
+brighter, while the speech bubble and rounded cap remain unchanged.
+
 The status area is a fixed two terminal cells wide. Wide emoji, narrow
 Powerline/braille glyphs, and an empty status therefore leave every root title
 in the same column; only parent-child depth moves a title to the right. ktt no
@@ -83,18 +87,22 @@ longer renders family dots, reserves a family-marker column, or parses
 ## Active repository context
 
 The otherwise-unused top padding shows the active main tab's repository,
-working directory, branch, upstream divergence, and clean/dirty summary. It
-uses three lines when available, compacts to two or one, and disappears when
+working directory, branch, and clean/dirty summary. It uses two lines when
+available, compacts to one, and disappears when
 the tab tree needs every content row. Card height, capacity, centering, and
 mouse coordinates therefore do not change to make room for the panel.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
-runs one read-only `git status --porcelain=v2 --branch` at most once every
-three seconds. The command has a 750 ms timeout and disables optional Git
-locks. A tab or directory change refreshes immediately; a non-Git directory
-simply hides the panel. Linked Git worktrees display the main repository's
-name while retaining the active worktree directory. ktt does not invoke or parse
-fancylog, and the renderer never runs Git once per animation frame.
+asks `fancylog --status-only` to render a width-bounded identity/count row plus
+a branch row. The result is cached for three seconds with a 750 ms subprocess
+timeout. A tab, directory, width, or available-height change refreshes
+immediately. If fancylog is unavailable or the directory has no supported
+repository, the panel stays hidden.
+
+fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
+worktree-status, palette, and truncation policy. ktt neither parses its output
+nor carries a second Git/yadm implementation; it only places the returned ANSI
+rows into spare padding.
 
 During development, changes to `ktt/*.py` restart the TUI automatically after
 restoring terminal input mode. To replace a sidebar started by an older version

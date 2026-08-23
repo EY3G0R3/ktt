@@ -2,7 +2,6 @@ import unittest
 import re
 
 from ktt.model import TabRecord, TreeRow
-from ktt.repository import RepositoryStatus
 from ktt.render import (
     CONTROL_ACTION_FOREGROUND,
     CONTROL_LINES,
@@ -12,11 +11,13 @@ from ktt.render import (
     LEFT_CAP,
     READY_RIGHT_CAP,
     RIGHT_CAP,
+    WAITING_BACKGROUNDS,
     WEDGE_BOTTOM_LEFT,
     WEDGE_BOTTOM_RIGHT,
     WEDGE_TOP_LEFT,
     WEDGE_TOP_RIGHT,
     adaptive_card_height,
+    card_background,
     card_content_line,
     display_width,
     panel_style,
@@ -25,7 +26,6 @@ from ktt.render import (
     render_card,
     render_row,
     render_screen,
-    render_repository_status,
     status_icon,
     vertical_padding,
 )
@@ -33,25 +33,36 @@ from ktt.render import (
 
 class RenderTests(unittest.TestCase):
     def test_repository_status_reuses_top_padding_without_moving_cards(self) -> None:
-        status = RepositoryStatus(
-            "ktt", "~/src/ktt", "main", changed=2,
-            staged=1, unstaged=1, ahead=1,
-        )
         rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
         screen = render_screen(
-            rows, 0, 1, 48, 15, ansi=False, repository_status=status
+            rows,
+            0,
+            1,
+            48,
+            15,
+            ansi=False,
+            repository_lines=["fancylog status", " main"],
         )
         lines = screen.splitlines()
-        self.assertIn("ktt  ~/src/ktt", lines[0])
-        self.assertIn(" main ↑1", lines[1])
-        self.assertIn("1 staged · 1 modified", lines[2])
+        self.assertEqual(lines[0], "fancylog status")
+        self.assertEqual(lines[1], " main")
+        self.assertEqual(lines[2], "")
         self.assertIn("one", lines[4])
 
-    def test_repository_status_compacts_to_one_available_line(self) -> None:
-        status = RepositoryStatus("ktt", "~/src/ktt", "main")
-        lines = render_repository_status(status, 40, 1, ansi=False)
-        self.assertEqual(len(lines), 1)
-        self.assertIn("ktt ·  main · ✓ clean", lines[0])
+    def test_repository_status_is_clipped_to_available_padding(self) -> None:
+        rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
+        screen = render_screen(
+            rows,
+            0,
+            1,
+            40,
+            11,
+            ansi=False,
+            repository_lines=["fancylog status", " main"],
+        )
+        lines = screen.splitlines()
+        self.assertEqual(lines[0], "fancylog status")
+        self.assertNotIn(" main", screen)
 
     def test_panel_uses_explicit_black_background(self) -> None:
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")
@@ -83,6 +94,32 @@ class RenderTests(unittest.TestCase):
         self.assertIn("\x1b[48;2;122;32;41m", render_row(
             TreeRow(blocked, 0, None), selected=False, width=80
         ))
+
+    def test_waiting_row_uses_a_white_attention_card_with_dark_text(self) -> None:
+        waiting = TreeRow(
+            TabRecord(2, 1, "question", (20,), status="💬"), 0, None
+        )
+        rendered = render_row(waiting, selected=False, width=40)
+        background = tuple(
+            int(WAITING_BACKGROUNDS[0][offset:offset + 2], 16)
+            for offset in (0, 2, 4)
+        )
+        self.assertIn(
+            f"\x1b[48;2;{';'.join(map(str, background))}m", rendered
+        )
+        self.assertIn("\x1b[38;2;32;35;42m", rendered)
+        self.assertIn(RIGHT_CAP, rendered)
+
+    def test_active_waiting_row_is_brighter_than_inactive_waiting(self) -> None:
+        inactive = card_background(TreeRow(
+            TabRecord(1, 1, "question", (10,), status="💬"), 0, None
+        ))
+        active = card_background(TreeRow(
+            TabRecord(1, 1, "question", (10,), status="💬", is_active=True),
+            0,
+            None,
+        ))
+        self.assertEqual((inactive, active), WAITING_BACKGROUNDS)
 
     def test_short_tab_list_is_centered_above_multiline_controls(self) -> None:
         rows = [

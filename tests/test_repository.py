@@ -1,62 +1,57 @@
-import tempfile
+import subprocess
 import unittest
-from pathlib import Path
+from unittest.mock import patch
 
-from ktt.repository import (
-    RepositoryMonitor,
-    find_repository_root,
-    parse_porcelain,
-    repository_name,
-)
+from ktt.repository import FancylogMonitor
 
 
 class RepositoryTests(unittest.TestCase):
-    def test_parses_branch_tracking_and_worktree_categories(self) -> None:
-        status = parse_porcelain(
-            "\n".join((
-                "# branch.oid 0123456789abcdef",
-                "# branch.head feature/status-panel",
-                "# branch.ab +2 -1",
-                "1 M. N... 100644 100644 100644 a b staged.py",
-                "1 .M N... 100644 100644 100644 a b modified.py",
-                "1 MM N... 100644 100644 100644 a b both.py",
-                "u UU N... 100644 100644 100644 100644 a b c conflict.py",
-                "? new.py",
-            )),
-            root=Path("/tmp/project"),
-            directory=Path("/tmp/project/src"),
+    @patch("ktt.repository.subprocess.run")
+    def test_monitor_requests_bounded_status_only_output(self, run) -> None:
+        run.return_value = subprocess.CompletedProcess(
+            [], 0, "header row\nbranch row\n", ""
         )
-        self.assertEqual(status.branch, "feature/status-panel")
-        self.assertEqual((status.ahead, status.behind), (2, 1))
-        self.assertEqual(status.changed, 5)
-        self.assertEqual((status.staged, status.unstaged), (2, 2))
-        self.assertEqual((status.untracked, status.conflicted), (1, 1))
+        monitor = FancylogMonitor(executable="/usr/bin/fancylog")
 
-    def test_discovers_a_repository_from_a_nested_directory(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "project"
-            nested = root / "src" / "feature"
-            (root / ".git").mkdir(parents=True)
-            nested.mkdir(parents=True)
-            self.assertEqual(find_repository_root(nested), root)
+        lines = monitor.update("/work/project", 48, 2, now=10.0)
 
-    def test_linked_worktree_uses_the_parent_repository_name(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
-            parent = base / "project"
-            child = base / "worktrees" / "feature"
-            control = parent / ".git" / "worktrees" / "feature"
-            control.mkdir(parents=True)
-            (child / ".git").parent.mkdir(parents=True)
-            (child / ".git").write_text(f"gitdir: {control}\n")
-            self.assertEqual(repository_name(child), "project")
+        self.assertEqual(lines, ["header row", "branch row"])
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "/usr/bin/fancylog")
+        self.assertIn("--status-only", command)
+        self.assertEqual(command[command.index("--width") + 1], "48")
+        self.assertEqual(command[command.index("--height") + 1], "2")
+        self.assertEqual(command[-1], "/work/project")
+        self.assertEqual(run.call_args.kwargs["timeout"], 0.75)
 
-    def test_monitor_caches_until_its_refresh_deadline(self) -> None:
-        monitor = RepositoryMonitor(interval=2.0)
-        monitor.path = "/tmp/project"
-        monitor.next_refresh = 12.0
-        self.assertIsNone(monitor.update("/tmp/project", now=11.0))
-        self.assertEqual(monitor.next_refresh, 12.0)
+    @patch("ktt.repository.subprocess.run")
+    def test_monitor_caches_output_until_refresh_deadline(self, run) -> None:
+        run.return_value = subprocess.CompletedProcess([], 0, "status\n", "")
+        monitor = FancylogMonitor(interval=3.0)
+        self.assertEqual(monitor.update("/work/project", 40, 1, now=10.0), ["status"])
+        self.assertEqual(monitor.update("/work/project", 40, 1, now=12.9), ["status"])
+        self.assertEqual(run.call_count, 1)
+
+    @patch("ktt.repository.subprocess.run")
+    def test_path_or_geometry_change_refreshes_immediately(self, run) -> None:
+        run.return_value = subprocess.CompletedProcess([], 0, "status\n", "")
+        monitor = FancylogMonitor(interval=3.0)
+        monitor.update("/work/one", 40, 1, now=10.0)
+        monitor.update("/work/two", 40, 2, now=10.1)
+        self.assertEqual(run.call_count, 2)
+
+    @patch("ktt.repository.subprocess.run")
+    def test_failed_refresh_keeps_the_last_good_panel(self, run) -> None:
+        run.side_effect = [
+            subprocess.CompletedProcess([], 0, "status\n", ""),
+            subprocess.TimeoutExpired(["fancylog"], 0.75),
+        ]
+        monitor = FancylogMonitor(interval=3.0)
+        monitor.update("/work/project", 40, 1, now=10.0)
+        self.assertEqual(
+            monitor.update("/work/project", 40, 1, now=13.0),
+            ["status"],
+        )
 
 
 if __name__ == "__main__":
