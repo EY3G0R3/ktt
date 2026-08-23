@@ -205,6 +205,10 @@ Launch the experimental bottom-bar view without replacing the vertical view:
 python3 -m ktt --orientation horizontal launch
 ```
 
+The separate OS-window launcher remains available for comparison. The current
+direction is a fixed-height bottom pane inside an agent's Kitty tab, documented
+in [COCKPIT.md](COCKPIT.md).
+
 The horizontal window uses the distinct `ktt-horizontal` window class so dwm
 or another window manager can assign it a shallow bottom region independently
 of the vertical `ktt` sidebar. Both views share folds, active-tab state,

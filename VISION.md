@@ -121,9 +121,14 @@ tree must collapse aggressively under pressure.
 
 The existing Kitty snapshot, parent-edge model, folding state, status policy,
 and focus commands should remain shared. Only layout, hit testing, navigation,
-and density would differ. The first experiment should run in a separate,
-shallow ktt OS window tiled below the main Kitty window; Kitty's single-row
-custom tab renderer is not assumed to provide a multi-row drawing surface.
+and density differ. The separate-OS-window experiment exposed an undesirable
+dependency on window-manager geometry. The next experiment therefore embeds a
+shallow horizontal ktt window inside every agent cockpit tab. Kitty's
+single-row custom tab renderer remains useful only as a compact fallback; it
+cannot provide a multi-row drawing surface.
+
+The complete cockpit requirements, screen designs, ownership boundaries, and
+prototype sequence live in [COCKPIT.md](COCKPIT.md).
 
 Questions to resolve in the experiment:
 
