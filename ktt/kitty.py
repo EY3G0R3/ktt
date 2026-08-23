@@ -12,6 +12,7 @@ from .model import PARENT_VAR
 
 SIDEBAR_VAR = "ktt_sidebar"
 TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
+SIDEBAR_BACKGROUND = "#000000"
 
 
 class KittyError(RuntimeError):
@@ -107,6 +108,8 @@ class RemoteControl:
             "--os-window-name=ktt",
             "--os-window-title=Kitty Tab Tree",
             "--title=ktt",
+            "--color",
+            f"background={SIDEBAR_BACKGROUND}",
             f"--cwd={package_root}",
             "--var",
             f"{SIDEBAR_VAR}=1",
@@ -137,6 +140,8 @@ class RemoteControl:
             "--type=window",
             "--location=after",
             "--title=ktt",
+            "--color",
+            f"background={SIDEBAR_BACKGROUND}",
             f"--cwd={package_root}",
             "--var",
             f"{SIDEBAR_VAR}=1",

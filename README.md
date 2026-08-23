@@ -48,6 +48,11 @@ line. A black separator row distinguishes tall cards; every row inside the
 card boundary remains part of the mouse target. Compact one-line mode omits
 separators.
 
+When ktt opens or refreshes its sidebar, it sets only that Kitty window's
+background to the panel's black. This also colors any fractional-cell filler
+left around Kitty's grid by a tiling window manager, avoiding a thin border
+without changing the main terminal or Kitty's configured colors globally.
+
 Five edge styles render against the real tree rather than a separate preview:
 `tapered` (the default), `stacked`, `straight`, `rounded`, and `wedge`. Press
 `e` to cycle them in that order; the footer names the active style. Select a
