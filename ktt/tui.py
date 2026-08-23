@@ -29,25 +29,9 @@ from .order import VisibleOrderPublisher
 from .render import (
     DEFAULT_EDGE_STYLE,
     DEFAULT_ORIENTATION,
-    REPOSITORY_BOTTOM_MARGIN,
-    REPOSITORY_TOP_GAP,
     SPINNER_INTERVAL,
-    TREE_INDENT_WIDTH,
-    adaptive_card_height,
-    card_gap,
-    card_content_line,
-    content_height,
-    horizontal_disclosure_column,
-    horizontal_index_at_mouse,
-    horizontal_layout,
-    horizontal_repository_capacity,
     panel_style,
     next_edge_style,
-    render_screen,
-    render_horizontal_screen,
-    vertical_bottom_padding,
-    vertical_padding,
-    visible_start,
 )
 from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
@@ -55,6 +39,7 @@ from .repository import (
     MAX_REPOSITORY_LINES,
     active_window_cwd,
 )
+from .views import view_for
 
 
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
@@ -95,32 +80,6 @@ def parse_mouse_event(value: str) -> MouseEvent | None:
         row=int(row),
         pressed=terminator == "M",
     )
-
-
-def row_index_at_mouse(
-    mouse_row: int,
-    *,
-    start: int,
-    row_count: int,
-    height: int,
-    top_padding: int = 0,
-    card_height: int = 1,
-) -> int | None:
-    first_row = 1 + top_padding
-    last_content_row = content_height(height)
-    if mouse_row < first_row or mouse_row > last_content_row:
-        return None
-    offset = mouse_row - first_row
-    stride = card_height + card_gap(card_height)
-    line_in_stride = offset % stride
-    if line_in_stride >= card_height:
-        return None
-    index = start + offset // stride
-    return index if index < row_count else None
-
-
-def disclosure_column(row: TreeRow) -> int:
-    return 2 + TREE_INDENT_WIDTH * row.depth
 
 
 active_row_index = active_tree_row_index
@@ -249,6 +208,7 @@ def run_tui(
     orientation: str = DEFAULT_ORIENTATION,
     embedded: bool = False,
 ) -> int:
+    view = view_for(orientation)
     selected_index = 0
     records: list[TabRecord] = []
     rows: list[TreeRow] = []
@@ -344,19 +304,12 @@ def run_tui(
 
             order_publisher.publish(os_window_id, rows)
             width, height = shutil.get_terminal_size((40, 24))
-            card_height = (
-                adaptive_card_height(len(rows), height)
-                if orientation == "vertical"
-                else 1
-            )
-            repository_capacity = (
-                min(MAX_REPOSITORY_LINES, vertical_bottom_padding(
-                    len(rows), height, card_height
-                ) - REPOSITORY_TOP_GAP - REPOSITORY_BOTTOM_MARGIN)
-                if orientation == "vertical"
-                else min(MAX_REPOSITORY_LINES, horizontal_repository_capacity(
-                    rows, width, height, selected_index
-                ))
+            card_height = view.card_height(len(rows), height)
+            repository_capacity = min(
+                MAX_REPOSITORY_LINES,
+                view.repository_capacity(
+                    rows, width, height, selected_index, card_height
+                ),
             )
             repository_lines = repository_monitor.update(
                 repository_path,
@@ -381,12 +334,7 @@ def run_tui(
                 current_animation_frame,
             )
             if render_signature != last_render_signature:
-                renderer = (
-                    render_screen
-                    if orientation == "vertical"
-                    else render_horizontal_screen
-                )
-                screen = renderer(
+                screen = view.renderer(
                     rows, selected_index, os_window_id, width, height,
                     total_tabs=len(records), error=error, now=render_now,
                     edge_style=edge_style,
@@ -430,55 +378,16 @@ def run_tui(
                     if selected_index != previous_index:
                         preview_selected()
                 else:
-                    horizontal_placements = horizontal_layout(
-                        rows, width, height, selected_index
-                    ) if orientation == "horizontal" else []
-                    if orientation == "horizontal":
-                        clicked_index = horizontal_index_at_mouse(
-                            mouse.column, mouse.row, horizontal_placements
-                        )
-                    else:
-                        card_height = adaptive_card_height(len(rows), height)
-                        start = visible_start(
-                            len(rows), selected_index, height, card_height
-                        )
-                        top_padding = vertical_padding(
-                            len(rows), height, card_height
-                        )
-                        clicked_index = row_index_at_mouse(
-                            mouse.row,
-                            start=start,
-                            row_count=len(rows),
-                            height=height,
-                            top_padding=top_padding,
-                            card_height=card_height,
-                        )
+                    hit_target = view.hit_target(
+                        rows, width, height, selected_index, card_height,
+                        mouse.column, mouse.row,
+                    )
+                    clicked_index = hit_target.index
                     if clicked_index is not None:
                         clicked = rows[clicked_index]
-                        placement = next(
-                            (
-                                item for item in horizontal_placements
-                                if item.index == clicked_index
-                            ),
-                            None,
-                        )
                         toggle = clicked.has_children and (
                             mouse.button == "right"
-                            or (
-                                orientation == "horizontal"
-                                and placement is not None
-                                and mouse.column == horizontal_disclosure_column(
-                                    clicked, placement
-                                )
-                            )
-                            or (
-                                orientation == "vertical"
-                                and (
-                                    mouse.row - 1 - top_padding
-                                ) % (card_height + card_gap(card_height))
-                                == card_content_line(card_height)
-                                and mouse.column == disclosure_column(clicked)
-                            )
+                            or hit_target.disclosure
                         )
                         if toggle:
                             if clicked.tab.id in collapsed_tab_ids:

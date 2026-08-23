@@ -4,15 +4,14 @@ from ktt.model import TabRecord, TreeRow
 from ktt.tui import (
     active_row_index,
     animation_frame,
-    disclosure_column,
     next_wake_timeout,
     parse_mouse_event,
     reload_candidate,
     restart_arguments,
-    row_index_at_mouse,
     window_is_focused,
 )
 from ktt.repository import active_window_cwd
+from ktt.views import disclosure_column, row_index_at_mouse, view_for
 
 
 class SchedulerTests(unittest.TestCase):
@@ -127,6 +126,10 @@ class MouseTests(unittest.TestCase):
         tab = TabRecord(1, 1, "parent", (10,))
         self.assertEqual(disclosure_column(TreeRow(tab, 0, None)), 2)
         self.assertEqual(disclosure_column(TreeRow(tab, 2, None)), 10)
+
+    def test_view_selection_keeps_vertical_as_default(self) -> None:
+        self.assertEqual(view_for().name, "vertical")
+        self.assertEqual(view_for("horizontal").name, "horizontal")
 
     def test_active_row_uses_visible_folded_ancestor(self) -> None:
         inactive = TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)

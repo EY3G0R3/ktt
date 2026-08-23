@@ -37,6 +37,11 @@ placement, and width. `ktt` will not move or resize top-level windows.
 
 This avoids coupling the application to X11, Wayland, or one window manager.
 
+An embedded horizontal pane is not a top-level placement exception. Kitty's
+`splits` layout owns geometry inside the existing OS window; dwm continues to
+see and tile one ordinary Kitty client. Ktt must not add application-specific
+weights, docks, or reserved regions to dwm's generic layouts.
+
 ## 3. Rows expand when vertical space permits
 
 Use two- or three-line cards to provide a larger mouse target and richer
@@ -118,3 +123,26 @@ row count, and the sidebar width to `fancylog --status-only`, then caches the
 rendered rows for three seconds. fancylog owns repository discovery—including
 yadm—status semantics, palette, and truncation. ktt treats command failure as
 an absent panel and carries no fallback Git parser.
+
+## 8. Orientations share one branch behind a view boundary
+
+Added August 23, 2026 (PDT).
+
+Keep vertical and horizontal ktt on the same main branch. They are two
+presentations of one Kitty snapshot, hierarchy, status contract, fold store,
+visible order, and navigation system. A permanent horizontal experiment branch
+would duplicate fixes in all of those layers, drift over time, and make the
+required one-action orientation switch depend on changing installed code.
+
+Vertical remains the default and horizontal remains explicitly experimental.
+The TUI talks to a selected view object for rendering, density, repository
+capacity, and mouse hit-testing; it does not branch through horizontal and
+vertical geometry itself. Orientation-specific behavior belongs behind that
+boundary. The initial adapter is `ktt/views.py` and preserves the existing
+renderers without changing their output.
+
+Short-lived development branches remain appropriate for risky refactors, but
+orientation is not a product branch. If either renderer grows materially,
+split its implementation into a dedicated module while retaining the same view
+interface and shared model. Do not solve growth by copying shared runtime code
+into a long-lived branch.
