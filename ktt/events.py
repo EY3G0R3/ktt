@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import errno
 import os
 from pathlib import Path
 import socket
@@ -56,6 +57,16 @@ def event_socket_path(
         raw_pid = os.environ.get("KITTY_PID", "")
         pid = int(raw_pid) if raw_pid.isdigit() else 0
     return Path(runtime) / EVENT_DIRECTORY / f"kitty-{pid}-os-{os_window_id}.sock"
+
+
+def _remove_refused_socket(path: Path, error: OSError, inode: int | None) -> None:
+    if error.errno != errno.ECONNREFUSED or inode is None:
+        return
+    try:
+        if path.stat().st_ino == inode:
+            path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 class TabEventListener:
@@ -154,8 +165,13 @@ def send_navigation(
     try:
         for path in candidates:
             try:
-                sender.sendto(navigation_event(direction), str(path))
+                inode = path.stat().st_ino
             except OSError:
+                inode = None
+            try:
+                sender.sendto(navigation_event(direction), str(path))
+            except OSError as error:
+                _remove_refused_socket(path, error, inode)
                 continue
             return True
         return False

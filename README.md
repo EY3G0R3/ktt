@@ -52,7 +52,9 @@ one-second polling interval remains the recovery fallback. Title, spinner, and
 status-only tab-bar redraws are filtered inside Kitty and do not wake ktt. When
 both orientations watch the same Kitty OS window, passive tab-change wake-ups
 are broadcast to both views while one listener remains the owner of external
-tree-navigation commands.
+tree-navigation commands. Refused socket paths left behind by abruptly closed
+views are removed after an inode check, avoiding repeated failed sends without
+touching live or concurrently replaced listeners.
 
 Snapshot reads use Kitty's documented framed-JSON
 [remote-control protocol](https://sw.kovidgoyal.net/kitty/rc_protocol/)

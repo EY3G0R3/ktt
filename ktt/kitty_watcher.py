@@ -7,6 +7,7 @@ changed.
 
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path
 import socket
@@ -19,6 +20,16 @@ TAB_STATE_EVENT_PREFIX = b"tabs:"
 def event_socket_path(os_window_id: int) -> Path:
     runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
     return Path(runtime) / "ktt" / f"kitty-{os.getpid()}-os-{os_window_id}.sock"
+
+
+def _remove_refused_socket(path: Path, error: OSError, inode: int | None) -> None:
+    if error.errno != errno.ECONNREFUSED or inode is None:
+        return
+    try:
+        if path.stat().st_ino == inode:
+            path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def _tab_state_event(
@@ -45,8 +56,13 @@ def _notify(
     try:
         for path in paths:
             try:
-                sender.sendto(event, str(path))
+                inode = path.stat().st_ino
             except OSError:
+                inode = None
+            try:
+                sender.sendto(event, str(path))
+            except OSError as error:
+                _remove_refused_socket(path, error, inode)
                 continue
     finally:
         sender.close()

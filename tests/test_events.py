@@ -1,4 +1,6 @@
+import errno
 import os
+from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -104,6 +106,59 @@ class EventTests(unittest.TestCase):
         with patch("ktt.events.socket.socket", return_value=sender):
             self.assertTrue(send_navigation(3, 1))
         sender.sendto.assert_called_once()
+
+    def test_navigation_removes_refused_stale_socket(self) -> None:
+        path = Path("/tmp/stale.sock")
+        sender = MagicMock()
+        sender.sendto.side_effect = ConnectionRefusedError(
+            errno.ECONNREFUSED, "refused"
+        )
+        fake_stat = MagicMock(st_ino=7)
+        with (
+            patch("ktt.events.event_socket_path", return_value=path),
+            patch("ktt.events.Path.glob", return_value=[]),
+            patch("ktt.events.Path.stat", return_value=fake_stat),
+            patch("ktt.events.Path.unlink") as unlink,
+            patch("ktt.events.socket.socket", return_value=sender),
+        ):
+            self.assertFalse(send_navigation(3, 1))
+        unlink.assert_called_once_with()
+
+    def test_watcher_removes_refused_stale_socket(self) -> None:
+        path = Path("/tmp/stale.sock")
+        sender = MagicMock()
+        sender.sendto.side_effect = ConnectionRefusedError(
+            errno.ECONNREFUSED, "refused"
+        )
+        fake_stat = MagicMock(st_ino=7)
+        with (
+            patch("ktt.kitty_watcher.event_socket_path", return_value=path),
+            patch("ktt.kitty_watcher.Path.glob", return_value=[]),
+            patch("ktt.kitty_watcher.Path.stat", return_value=fake_stat),
+            patch("ktt.kitty_watcher.Path.unlink") as unlink,
+            patch("ktt.kitty_watcher.socket.socket", return_value=sender),
+        ):
+            _notify(3, 10, (10,))
+        unlink.assert_called_once_with()
+
+    def test_refused_send_keeps_a_concurrently_replaced_socket(self) -> None:
+        path = Path("/tmp/replaced.sock")
+        sender = MagicMock()
+        sender.sendto.side_effect = ConnectionRefusedError(
+            errno.ECONNREFUSED, "refused"
+        )
+        with (
+            patch("ktt.events.event_socket_path", return_value=path),
+            patch("ktt.events.Path.glob", return_value=[]),
+            patch(
+                "ktt.events.Path.stat",
+                side_effect=[MagicMock(st_ino=7), MagicMock(st_ino=8)],
+            ),
+            patch("ktt.events.Path.unlink") as unlink,
+            patch("ktt.events.socket.socket", return_value=sender),
+        ):
+            self.assertFalse(send_navigation(3, 1))
+        unlink.assert_not_called()
 
     def test_navigation_event_round_trips_direction(self) -> None:
         self.assertEqual(navigation_direction(navigation_event(1)), 1)
