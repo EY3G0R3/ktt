@@ -1,0 +1,66 @@
+import unittest
+
+from ktt.model import TabRecord, TreeRow
+from ktt.tui import (
+    active_row_index,
+    disclosure_column,
+    parse_mouse_event,
+    row_index_at_mouse,
+)
+
+
+class MouseTests(unittest.TestCase):
+    def test_parses_left_click_and_wheel(self) -> None:
+        click = parse_mouse_event("\x1b[<0;12;4M")
+        self.assertEqual((click.button, click.column, click.row, click.pressed), (
+            "left", 12, 4, True
+        ))
+        self.assertEqual(parse_mouse_event("\x1b[<65;2;3M").button, "wheel_down")
+
+    def test_ignores_release_and_motion_at_action_layer(self) -> None:
+        self.assertFalse(parse_mouse_event("\x1b[<0;12;4m").pressed)
+        self.assertIsNone(parse_mouse_event("\x1b[<32;12;4M"))
+
+    def test_uses_press_when_press_and_release_share_a_read(self) -> None:
+        event = parse_mouse_event("\x1b[<0;12;4M\x1b[<0;12;4m")
+        self.assertTrue(event.pressed)
+        self.assertEqual(event.button, "left")
+
+    def test_maps_screen_row_after_scroll(self) -> None:
+        self.assertEqual(
+            row_index_at_mouse(1, start=5, row_count=20, height=10), 5
+        )
+        self.assertEqual(
+            row_index_at_mouse(5, start=5, row_count=20, height=10), 9
+        )
+        self.assertIsNone(
+            row_index_at_mouse(6, start=5, row_count=20, height=10)
+        )
+
+    def test_maps_centered_screen_row(self) -> None:
+        self.assertIsNone(row_index_at_mouse(
+            1, start=0, row_count=2, height=10, top_padding=1
+        ))
+        self.assertEqual(row_index_at_mouse(
+            2, start=0, row_count=2, height=10, top_padding=1
+        ), 0)
+        self.assertEqual(row_index_at_mouse(
+            3, start=0, row_count=2, height=10, top_padding=1
+        ), 1)
+
+    def test_disclosure_column_tracks_depth(self) -> None:
+        tab = TabRecord(1, 1, "parent", (10,))
+        self.assertEqual(disclosure_column(TreeRow(tab, 0, None)), 2)
+        self.assertEqual(disclosure_column(TreeRow(tab, 2, None)), 6)
+
+    def test_active_row_uses_visible_folded_ancestor(self) -> None:
+        inactive = TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)
+        folded = TreeRow(
+            TabRecord(2, 1, "parent", (20,)), 0, None,
+            has_children=True, is_collapsed=True, has_active_descendant=True,
+        )
+        self.assertEqual(active_row_index([inactive, folded]), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
