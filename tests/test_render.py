@@ -56,6 +56,8 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(by_index[3].screen_row, 0)
         self.assertEqual(by_index[0].width, by_index[1].width)
         self.assertEqual(by_index[1].width, by_index[2].width)
+        self.assertEqual(by_index[2].width, by_index[3].width)
+        self.assertEqual(by_index[0].width, 40)
         self.assertEqual(by_index[1].left - by_index[0].left, 4)
         self.assertEqual(by_index[1].left, by_index[2].left)
         self.assertLess(by_index[0].left, by_index[3].left)
@@ -91,7 +93,16 @@ class RenderTests(unittest.TestCase):
         placements = horizontal_layout(rows, 80, 5, 0)
         self.assertEqual([item.screen_row for item in placements], [0, 1, 2])
         self.assertEqual(len({item.width for item in placements}), 1)
-        self.assertEqual([item.left for item in placements], [0, 4, 8])
+        self.assertEqual([item.left for item in placements], [15, 19, 23])
+
+    def test_horizontal_root_group_is_narrow_and_centered(self) -> None:
+        rows = [
+            TreeRow(TabRecord(index, 1, f"tab-{index}", (index,)), 0, None)
+            for index in range(1, 4)
+        ]
+        placements = horizontal_layout(rows, 200, 4, 0)
+        self.assertEqual([item.width for item in placements], [40, 40, 40])
+        self.assertEqual([item.left for item in placements], [38, 79, 120])
 
     def test_horizontal_layout_compacts_to_active_centered_strip(self) -> None:
         rows = [

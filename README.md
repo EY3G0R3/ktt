@@ -14,10 +14,12 @@ reference while working in the main window. It is vertically centered inside
 otherwise-unused space above the centered tab stack, so showing or hiding it
 does not move cards or mouse targets.
 
-Horizontal mode allocates each root a left-to-right span and grows descendants
-downward through proportional child spans. It uses a compact one-line help
-legend and falls back to an active-centered one-row tab strip when the window
-is too narrow to show useful tree lanes.
+Horizontal mode gives each root tree a fixed-width column and stacks its
+descendants downward with four-cell indentation. Cards are capped at forty
+terminal cells and the complete group is centered, avoiding an edge-to-edge
+ribbon on wide displays. It uses a compact one-line help legend and falls back
+to an active-centered one-row tab strip when the window is too narrow or short
+to show useful tree lanes.
 
 See [VISION.md](VISION.md) for the original product vision and architecture.
 The resolved product choices are in [DECISIONS.md](DECISIONS.md).

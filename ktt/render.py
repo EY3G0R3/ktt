@@ -33,6 +33,7 @@ DEFAULT_ORIENTATION = ORIENTATIONS[0]
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
 HORIZONTAL_MIN_CARD_WIDTH = 14
+HORIZONTAL_MAX_CARD_WIDTH = 40
 HORIZONTAL_TREE_INDENT = 4
 HORIZONTAL_CONTROL_TEXT = (
     "j/k switch · Enter/click enter · Space fold · e edges · t tabs · ? help · q quit"
@@ -206,16 +207,13 @@ def _compact_horizontal_layout(
         max(0, selected_index - capacity // 2),
         max(0, len(rows) - capacity),
     )
-    slot_width = usable // capacity
+    slot_width = min(HORIZONTAL_MAX_CARD_WIDTH + 1, usable // capacity)
+    group_left = max(0, (usable - capacity * slot_width) // 2)
     return [
         HorizontalPlacement(
             index=index,
-            left=offset * slot_width,
-            width=(
-                usable - offset * slot_width
-                if offset == capacity - 1
-                else slot_width
-            ) - 1,
+            left=group_left + offset * slot_width,
+            width=slot_width - 1,
             screen_row=0,
         )
         for offset, index in enumerate(range(start, start + capacity))
@@ -243,32 +241,29 @@ def horizontal_layout(
         return [index, *descendants]
 
     subtrees = [subtree(root) for root in roots]
-    lane_width = usable // max(1, len(roots))
-    deepest_indent = max(
-        (
-            max(rows[index].depth - rows[root].depth for index in indexes)
-            * HORIZONTAL_TREE_INDENT
-            for root, indexes in zip(roots, subtrees)
-        ),
-        default=0,
+    tree_depths = [
+        max(rows[index].depth - rows[root].depth for index in indexes)
+        for root, indexes in zip(roots, subtrees)
+    ]
+    lane_overhead = sum(
+        tree_depth * HORIZONTAL_TREE_INDENT + 1
+        for tree_depth in tree_depths
+    )
+    available_card_width = (
+        (usable - lane_overhead) // len(roots) if roots else 0
     )
     if (
         not roots
-        or lane_width - deepest_indent - 1 < HORIZONTAL_MIN_CARD_WIDTH
+        or available_card_width < HORIZONTAL_MIN_CARD_WIDTH
         or max((len(indexes) for indexes in subtrees), default=0) > height
     ):
         return _compact_horizontal_layout(rows, width, selected_index)
 
+    card_width = min(HORIZONTAL_MAX_CARD_WIDTH, available_card_width)
+    group_width = lane_overhead + len(roots) * card_width
+    lane_left = max(0, (usable - group_width) // 2)
     placements: list[HorizontalPlacement] = []
-    for lane, (root, indexes) in enumerate(zip(roots, subtrees)):
-        lane_left = lane * usable // len(roots)
-        lane_right = (lane + 1) * usable // len(roots)
-        tree_depth = max(
-            rows[index].depth - rows[root].depth for index in indexes
-        )
-        card_width = max(
-            1, lane_right - lane_left - tree_depth * HORIZONTAL_TREE_INDENT - 1
-        )
+    for root, indexes, tree_depth in zip(roots, subtrees, tree_depths):
         for screen_row, index in enumerate(indexes):
             relative_depth = rows[index].depth - rows[root].depth
             placements.append(
@@ -279,6 +274,7 @@ def horizontal_layout(
                     screen_row,
                 )
             )
+        lane_left += card_width + tree_depth * HORIZONTAL_TREE_INDENT + 1
     return placements
 
 

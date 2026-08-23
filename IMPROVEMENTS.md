@@ -268,8 +268,9 @@ repository or global preference.
 The first live renderer now places roots left to right and grows descendants
 downward. Each root owns a fixed-width column; descendants keep the root card's
 width, stack in preorder on immediately following rows, and shift right by four
-cells per generation. Card contents are centered within their lanes. The
-renderer reuses the same
+cells per generation. Cards are capped at forty terminal cells and the complete
+tree group is centered rather than stretched across the screen. Card contents
+are centered within their lanes. The renderer reuses the same
 Kitty snapshot, `ktt_parent_window_id` graph, statuses, fold state, visible
 order, and focus operations as the vertical sidebar.
 
