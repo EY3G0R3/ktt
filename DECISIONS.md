@@ -81,3 +81,17 @@ names the current style.
 All styles share the same tree, status, density, scrolling, and mouse-hit
 model. In one-line compact mode, shapes that require vertical geometry fall
 back to the default Powerline caps.
+
+## 7. Repository context occupies only spare padding
+
+Added August 23, 2026 (PDT).
+
+Show repository, directory, branch, upstream divergence, and worktree state at
+the top of the sidebar for the active main-window tab. The panel may replace up
+to three existing blank padding rows, but must not reduce tab-card height or
+capacity. It compacts before it disappears as the tree grows.
+
+Kitty's active-window `cwd` is the path authority. A cached, read-only Git
+porcelain query supplies repository state every three seconds; fancylog remains
+an independent application rather than a runtime dependency. This keeps status
+consistent with Git while avoiding a subprocess on every 20 Hz render frame.

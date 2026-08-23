@@ -183,6 +183,11 @@ After measuring that change, consider speaking Kitty's remote-control protocol
 directly over the existing Unix socket instead of spawning `kitten @ ls` twice
 per second. A Kitty watcher/event bridge can later make polling a recovery path.
 
+The active-repository panel adds one bounded Git status subprocess every three
+seconds, only for the active tab. Include it in idle measurements. If it is
+material, refresh from filesystem/Kitty events or share a structured metadata
+provider with fancylog rather than increasing the polling interval blindly.
+
 Target: below 0.3% of one CPU core while idle, measured with short-lived child
 processes included.
 
@@ -194,8 +199,15 @@ fallback. Every colored card row maps to the same mouse target. One black row
 separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
-The first extra fields should be repository/branch, agent phase, and the latest
-readiness or blocker reason. Edge comparison is now live rather than a static
+Repository, directory, branch, upstream divergence, and worktree state now use
+otherwise-empty padding above the tree. This gives the active tab ambient
+context without consuming card rows. A later card-specific expansion can still
+show repository/branch for several tabs at once, plus agent phase and the
+latest readiness or blocker reason. Add yadm and unusual bare-repository
+discovery only through a bounded metadata provider; conventional and linked Git
+worktrees are the current supported paths.
+
+Edge comparison is now live rather than a static
 mockup: `tapered`, `stacked`, `straight`, `rounded`, and `wedge` are selectable
 at startup and cycle in-place with `e`. Tapered remains the default, while the
 other styles stay available as themes instead of being discarded after the

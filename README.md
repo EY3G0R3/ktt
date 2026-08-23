@@ -80,6 +80,22 @@ in the same column; only parent-child depth moves a title to the right. ktt no
 longer renders family dots, reserves a family-marker column, or parses
 `workmux_family`. Hierarchy comes exclusively from `ktt_parent_window_id`.
 
+## Active repository context
+
+The otherwise-unused top padding shows the active main tab's repository,
+working directory, branch, upstream divergence, and clean/dirty summary. It
+uses three lines when available, compacts to two or one, and disappears when
+the tab tree needs every content row. Card height, capacity, centering, and
+mouse coordinates therefore do not change to make room for the panel.
+
+ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
+runs one read-only `git status --porcelain=v2 --branch` at most once every
+three seconds. The command has a 750 ms timeout and disables optional Git
+locks. A tab or directory change refreshes immediately; a non-Git directory
+simply hides the panel. Linked Git worktrees display the main repository's
+name while retaining the active worktree directory. ktt does not invoke or parse
+fancylog, and the renderer never runs Git once per animation frame.
+
 During development, changes to `ktt/*.py` restart the TUI automatically after
 restoring terminal input mode. To replace a sidebar started by an older version
 without replacing its top-level Kitty window, run:

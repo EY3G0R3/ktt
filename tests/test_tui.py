@@ -8,9 +8,24 @@ from ktt.tui import (
     restart_arguments,
     row_index_at_mouse,
 )
+from ktt.repository import active_window_cwd
 
 
 class MouseTests(unittest.TestCase):
+    def test_repository_cwd_follows_the_active_tab_window(self) -> None:
+        os_window = {"tabs": [
+            {"is_active": False, "windows": [{"id": 1, "cwd": "/old"}]},
+            {
+                "is_active": True,
+                "active_window_history": [3, 2],
+                "windows": [
+                    {"id": 2, "cwd": "/inactive"},
+                    {"id": 3, "cwd": "/active"},
+                ],
+            },
+        ]}
+        self.assertEqual(active_window_cwd(os_window), "/active")
+
     def test_parses_left_click_and_wheel(self) -> None:
         click = parse_mouse_event("\x1b[<0;12;4M")
         self.assertEqual((click.button, click.column, click.row, click.pressed), (

@@ -2,6 +2,7 @@ import unittest
 import re
 
 from ktt.model import TabRecord, TreeRow
+from ktt.repository import RepositoryStatus
 from ktt.render import (
     CONTROL_ACTION_FOREGROUND,
     CONTROL_LINES,
@@ -24,12 +25,34 @@ from ktt.render import (
     render_card,
     render_row,
     render_screen,
+    render_repository_status,
     status_icon,
     vertical_padding,
 )
 
 
 class RenderTests(unittest.TestCase):
+    def test_repository_status_reuses_top_padding_without_moving_cards(self) -> None:
+        status = RepositoryStatus(
+            "ktt", "~/src/ktt", "main", changed=2,
+            staged=1, unstaged=1, ahead=1,
+        )
+        rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
+        screen = render_screen(
+            rows, 0, 1, 48, 15, ansi=False, repository_status=status
+        )
+        lines = screen.splitlines()
+        self.assertIn("ktt  ~/src/ktt", lines[0])
+        self.assertIn(" main ↑1", lines[1])
+        self.assertIn("1 staged · 1 modified", lines[2])
+        self.assertIn("one", lines[4])
+
+    def test_repository_status_compacts_to_one_available_line(self) -> None:
+        status = RepositoryStatus("ktt", "~/src/ktt", "main")
+        lines = render_repository_status(status, 40, 1, ansi=False)
+        self.assertEqual(len(lines), 1)
+        self.assertIn("ktt ·  main · ✓ clean", lines[0])
+
     def test_panel_uses_explicit_black_background(self) -> None:
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")
 

@@ -33,6 +33,7 @@ from .render import (
     vertical_padding,
     visible_start,
 )
+from .repository import RepositoryMonitor, RepositoryStatus, active_window_cwd
 
 
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
@@ -172,6 +173,8 @@ def run_tui(
     collapsed_tab_ids: set[int] = set()
     os_window_id = target_os_window_id or 0
     error: str | None = None
+    repository_status: RepositoryStatus | None = None
+    repository_monitor = RepositoryMonitor()
     next_poll = 0.0
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
@@ -214,6 +217,9 @@ def run_tui(
                     )
                     rows = tree_rows(records, collapsed_tab_ids)
                     selected_index = active_row_index(rows)
+                    repository_status = repository_monitor.update(
+                        active_window_cwd(os_window), now
+                    )
                     error = None
                 except (KittyError, ValueError) as caught:
                     error = str(caught)
@@ -224,6 +230,7 @@ def run_tui(
                 rows, selected_index, os_window_id, width, height,
                 total_tabs=len(records), error=error, now=now,
                 edge_style=edge_style,
+                repository_status=repository_status,
             )
             # Erase with ktt's own black background. Kitty's configured default
             # can change when the OS window gains focus, which otherwise makes
@@ -328,6 +335,7 @@ def run_tui(
                 except KittyError as caught:
                     error = str(caught)
             elif key == "r":
+                repository_monitor.invalidate()
                 next_poll = 0.0
             elif key == "e":
                 edge_style = next_edge_style(edge_style)

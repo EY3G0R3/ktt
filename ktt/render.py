@@ -4,6 +4,7 @@ import time
 import unicodedata
 
 from .model import TabRecord, TreeRow
+from .repository import RepositoryStatus
 
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -45,6 +46,10 @@ CONTROL_SEPARATOR = " │ "
 CONTROL_SHORTCUT_FOREGROUND = "5f7a82"
 CONTROL_SEPARATOR_FOREGROUND = "3f4552"
 CONTROL_ACTION_FOREGROUND = "777d89"
+REPOSITORY_FOREGROUND = "8a93a3"
+REPOSITORY_BRANCH_FOREGROUND = "5f7a82"
+REPOSITORY_CLEAN_FOREGROUND = "698a72"
+REPOSITORY_DIRTY_FOREGROUND = "9a7650"
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
     f"{(f'edge: {DEFAULT_EDGE_STYLE}' if shortcut == 'e' else action):<{CONTROL_RIGHT_WIDTH}}"
@@ -126,6 +131,93 @@ def render_control_line(
         f"{_fg(CONTROL_SEPARATOR_FOREGROUND, ansi)}{CONTROL_SEPARATOR}"
         f"{_fg(CONTROL_ACTION_FOREGROUND, ansi)}{action}"
     )
+
+
+def repository_state_text(status: RepositoryStatus, detailed: bool = True) -> str:
+    if status.clean:
+        return "✓ clean"
+    if not detailed:
+        return f"● {status.changed} changed"
+    parts = []
+    if status.conflicted:
+        parts.append(f"{status.conflicted} conflict")
+    if status.staged:
+        parts.append(f"{status.staged} staged")
+    if status.unstaged:
+        parts.append(f"{status.unstaged} modified")
+    if status.untracked:
+        parts.append(f"{status.untracked} untracked")
+    return "● " + " · ".join(parts or [f"{status.changed} changed"])
+
+
+def repository_branch_text(status: RepositoryStatus) -> str:
+    tracking = ""
+    if status.ahead:
+        tracking += f" ↑{status.ahead}"
+    if status.behind:
+        tracking += f" ↓{status.behind}"
+    return f" {status.branch}{tracking}"
+
+
+def _render_repository_line(
+    text: str,
+    width: int,
+    color: str,
+    *,
+    ansi: bool,
+    bold: bool = False,
+) -> str:
+    text = truncate_cells(text, width)
+    padding = " " * max(0, (width - display_width(text)) // 2)
+    weight = "\x1b[1m" if ansi and bold else ""
+    return f"{panel_style(ansi)}{padding}{_fg(color, ansi)}{weight}{text}"
+
+
+def render_repository_status(
+    status: RepositoryStatus,
+    width: int,
+    max_lines: int,
+    *,
+    ansi: bool = True,
+) -> list[str]:
+    if max_lines <= 0 or width <= 0:
+        return []
+    branch = repository_branch_text(status)
+    state = repository_state_text(status)
+    state_color = (
+        REPOSITORY_CLEAN_FOREGROUND
+        if status.clean
+        else REPOSITORY_DIRTY_FOREGROUND
+    )
+    if max_lines >= 3:
+        return [
+            _render_repository_line(
+                f"{status.name}  {status.directory}", width,
+                REPOSITORY_FOREGROUND, ansi=ansi, bold=True,
+            ),
+            _render_repository_line(
+                branch, width, REPOSITORY_BRANCH_FOREGROUND, ansi=ansi,
+            ),
+            _render_repository_line(state, width, state_color, ansi=ansi),
+        ]
+    if max_lines == 2:
+        return [
+            _render_repository_line(
+                f"{status.name}  {status.directory}", width,
+                REPOSITORY_FOREGROUND, ansi=ansi, bold=True,
+            ),
+            _render_repository_line(
+                f"{branch} · {state}", width, state_color, ansi=ansi,
+            ),
+        ]
+    return [
+        _render_repository_line(
+            f"{status.name} · {branch} · {repository_state_text(status, False)}",
+            width,
+            state_color,
+            ansi=ansi,
+        )
+    ]
 
 
 def status_icon(status: str | None, now: float | None = None) -> tuple[str, str | None]:
@@ -392,15 +484,23 @@ def render_screen(
     now: float | None = None,
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_status: RepositoryStatus | None = None,
 ) -> str:
     available = content_height(height)
     card_height = adaptive_card_height(len(rows), height)
     capacity = card_capacity(available, card_height)
     start = visible_start(len(rows), selected_index, height, card_height)
     visible = rows[start:start + capacity]
-    output = [
-        "" for _ in range(vertical_padding(len(rows), height, card_height))
-    ]
+    top_padding = vertical_padding(len(rows), height, card_height)
+    repository_lines = (
+        render_repository_status(
+            repository_status, width, min(3, top_padding), ansi=ansi
+        )
+        if repository_status is not None
+        else []
+    )
+    output = [*repository_lines]
+    output.extend("" for _ in range(top_padding - len(repository_lines)))
     for offset, row in enumerate(visible):
         if offset:
             output.extend("" for _ in range(card_gap(card_height)))
