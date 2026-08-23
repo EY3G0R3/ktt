@@ -59,11 +59,13 @@ latest blocker or readiness reason.
 
 This favors fast switching without making a small pointer error destructive.
 
-## 5. Polling is the state-delivery baseline
+## 5. Events drive tab selection; polling is recovery
 
-Kitty JSON is polled every 500 ms, while spinner animation remains local. A
-watcher/event bridge will be considered only if measured idle cost or latency
-becomes noticeable with roughly 50 or more tabs.
+Kitty's global `on_tab_bar_dirty` watcher sends ktt a nonblocking Unix-datagram
+wake-up when the active tab or ordered tab membership changes. ktt immediately
+reads one fresh Kitty snapshot. Title, spinner, and status-only redraws are
+filtered inside Kitty. The 500 ms JSON poll remains as a recovery path when the
+watcher is absent or an event is lost.
 
 Development reload is separate from Kitty-state delivery: a source change
 automatically restarts the running TUI in place after restoring terminal mode.

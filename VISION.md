@@ -100,9 +100,10 @@ These were deferred during the first slice. They were decided on August 22,
 4. **Interaction.** Mouse selection and collapse/expand are now implemented.
    **Decision:** explicit command-based reparenting and no destructive close
    affordance on the main row.
-5. **Event delivery.** Polling is sufficient for v1. A Kitty watcher or a small
-   event bridge can reduce latency and idle work later. **Decision:** retain
-   500 ms polling until measurements justify an event bridge.
+5. **Event delivery.** External active-tab changes need lower latency than a
+   human-visible polling interval. **Decision:** use Kitty's documented global
+   tab-bar watcher to wake ktt immediately, filter cosmetic redraws at the
+   source, and retain the 500 ms poll only as recovery.
 
 ## Future direction: horizontal tree bar
 

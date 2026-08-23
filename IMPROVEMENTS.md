@@ -24,10 +24,13 @@ agent records ready_to_merge|blocked
 With the current configuration, workmux's lifecycle icons are `🤖` for working,
 `💬` for waiting, and `✅` for done. `ready_to_merge` and `blocked` remain semantic
 strings. ktt reads `workmux_status` from the `user_vars` in `kitten @ ls`; title
-cleanup only removes agent spinner/title decoration and never determines state.
+cleanup normally only removes decoration. One narrow precedence rule handles
+conflicting black-box signals without a timer: an animated working title
+overrides a simultaneous `💬`, so transient permission-hook state cannot flash
+the strongest attention card while work is visibly continuing.
 
-There is no duplicated status detection inside ktt. There is duplicated policy
-and some duplicated runtime writing:
+There is no general prompt/output inference inside ktt. There is duplicated
+presentation policy and some duplicated runtime writing:
 
 - `ktt/render.py` and Kitty's `tab_bar.py` separately define status icons,
   spinner frames, verdict colors, and title cleanup.
@@ -175,13 +178,15 @@ preferable to importing personal configuration directly.
 
 ## 4. Reduce idle CPU and subprocess churn
 
-Render only when Kitty state, input, terminal size, or the visible spinner frame
-changes. Stop redrawing at 20 Hz when no working status is visible. Use adaptive
-polling: fast after interaction, slower while idle.
+The active-tab latency path is event-assisted now. A global Kitty watcher
+caches the active tab and ordered membership for each OS window, ignores
+title/status animation churn, and wakes ktt over a nonblocking local datagram.
+The existing 500 ms poll is recovery rather than the primary switch path.
 
-After measuring that change, consider speaking Kitty's remote-control protocol
-directly over the existing Unix socket instead of spawning `kitten @ ls` twice
-per second. A Kitty watcher/event bridge can later make polling a recovery path.
+Next, render only when Kitty state, input, terminal size, or the visible spinner
+frame changes. Stop redrawing at 20 Hz when no working status is visible, and
+consider speaking Kitty's remote-control protocol directly over the existing
+Unix socket instead of spawning `kitten @ ls` twice per second.
 
 The active-repository panel adds one bounded `fancylog --status-only`
 subprocess every three seconds, only for the active tab. Include it in idle

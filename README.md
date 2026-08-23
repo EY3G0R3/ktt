@@ -3,12 +3,15 @@
 `ktt` is an early vertical, tree-shaped tab bar for Kitty. It runs in a
 separate Kitty OS window, watches the tabs in a main Kitty OS window, and uses
 Kitty remote control to focus the active tab. Short tab lists are centered
-vertically above a six-line controls footer. Cards use three terminal rows
+vertically above a seven-line controls footer. Cards use three terminal rows
 when the whole tree fits, squeeze to two rows when necessary, and fall back to
 one row under pressure. The normal TUI has no diagnostic
 header; target-window details remain available through commands and errors
 without permanently consuming a row. The footer is a centered two-column
-legend with a visible separator between shortcuts and their actions.
+legend with a visible separator between shortcuts and their actions. The
+legend appears while the ktt OS window has focus; `?` pins or unpins it for
+reference while working in the main window. Its rows remain reserved while
+hidden, so cards and mouse targets do not jump when focus changes.
 
 See [VISION.md](VISION.md) for the original product vision and architecture.
 The resolved product choices are in [DECISIONS.md](DECISIONS.md).
@@ -24,6 +27,19 @@ reachable `KITTY_LISTEN_ON` socket.
 python3 -m ktt list
 python3 -m ktt
 ```
+
+For immediate external tab-switch updates, load ktt's global Kitty watcher.
+Run `ktt watcher-path`, then paste the printed absolute path into `kitty.conf`:
+
+```conf
+watcher /absolute/path/printed/by/ktt-watcher-path
+```
+
+The watcher sends a nonblocking local Unix-datagram wake-up only when the
+active tab or ordered tab membership changes. ktt then takes one immediate
+Kitty snapshot; its normal polling interval remains the recovery fallback.
+Title, spinner, and status-only tab-bar redraws are filtered inside Kitty and
+do not wake ktt.
 
 Inside the tree:
 
@@ -77,6 +93,10 @@ content row.
 Waiting agents—the Workmux `waiting` state currently projected as `💬`—use an
 off-white attention card with dark text. An active waiting tab becomes slightly
 brighter, while the speech bubble and rounded cap remain unchanged.
+When that user variable transiently says `💬` while the live Kitty title still
+starts with an animated working spinner, ktt treats the tab as working. This is
+a direct precedence rule rather than a timer: the white card appears as soon as
+the working signal is absent.
 
 The status area is a fixed two terminal cells wide. Wide emoji, narrow
 Powerline/braille glyphs, and an empty status therefore leave every root title
@@ -86,10 +106,11 @@ longer renders family dots, reserves a family-marker column, or parses
 
 ## Active repository context
 
-The otherwise-unused top padding shows the active main tab's repository,
+The otherwise-unused bottom padding shows the active main tab's repository,
 working directory, branch, and clean/dirty summary. It uses two lines when
 available, compacts to one, and disappears when
-the tab tree needs every content row. Card height, capacity, centering, and
+the tab tree needs every content row. It is anchored to the final screen rows,
+below the contextual keyboard legend. Card height, capacity, centering, and
 mouse coordinates therefore do not change to make room for the panel.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
@@ -104,13 +125,15 @@ worktree-status, palette, and truncation policy. ktt neither parses its output
 nor carries a second Git/yadm implementation; it only places the returned ANSI
 rows into spare padding.
 
-ktt defaults that embedded panel to fancylog's neutral `graphite` palette so
-it recedes behind the tab cards. Choose another palette without changing
-standalone fancylog configuration:
+ktt defaults that embedded panel to fancylog's `terminal` palette, which uses
+the active terminal's ANSI colors and therefore follows Kitty scheme changes
+and inactive-window fading. `dracula` is also available as a fixed truecolor
+reference. Choose another palette without changing standalone fancylog
+configuration:
 
 ```bash
-ktt --repository-palette quiet launch
-KTT_REPOSITORY_PALETTE=amber ktt refresh
+ktt --repository-palette dracula launch
+KTT_REPOSITORY_PALETTE=quiet ktt refresh
 ```
 
 During development, changes to `ktt/*.py` restart the TUI automatically after
