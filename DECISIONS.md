@@ -66,13 +66,19 @@ OS-window focus. Folded subtrees are skipped exactly as rendered. The kitten
 computes the complete tree itself when no ktt listener or snapshot is
 available; no path reorders native tabs.
 
+Fold state is local to one Kitty process and target OS window, but durable
+across ktt process replacement. Store the collapsed tab-ID set atomically in
+the owner-only runtime directory, reload it before building the first tree, and
+prune IDs when their tabs disappear. Do not promote this interaction state into
+repository configuration or a global cross-Kitty preference.
+
 ## 5. Events drive tab selection; polling is recovery
 
 Kitty's global `on_tab_bar_dirty` watcher sends ktt a nonblocking Unix-datagram
 wake-up when the active tab or ordered tab membership changes. ktt immediately
 reads one fresh Kitty snapshot. Title, spinner, and status-only redraws are
-filtered inside Kitty. The one-second JSON poll remains as a recovery path when the
-watcher is absent or an event is lost.
+filtered inside Kitty. The one-second JSON poll remains as a recovery path when
+the watcher is absent or an event is lost.
 
 Rendering is independently demand-driven. A signature covers the visible tree,
 selection, geometry, focus/help state, repository rows, errors, theme, and the

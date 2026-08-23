@@ -239,9 +239,10 @@ other styles stay available as themes instead of being discarded after the
 visual experiment.
 
 Choose density deterministically from terminal height and visible-tab count so
-resizing does not flicker between modes. Consider persistence for fold state
-only after the interaction model is stable; local fold state remains the
-current default.
+resizing does not flicker between modes. Fold state now persists across ktt
+reloads and refreshes in an atomic owner-only runtime file scoped to the Kitty
+PID and target OS window. It remains local interaction state rather than a
+repository or global preference.
 
 ## 6. Prototype a horizontal tree-bar view
 

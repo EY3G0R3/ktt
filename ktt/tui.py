@@ -12,6 +12,7 @@ import time
 import tty
 
 from .events import TabEventListener, navigation_direction
+from .folds import read_folded_tab_ids, write_folded_tab_ids
 from .kitty import KittyError, RemoteControl
 from .model import (
     TabRecord,
@@ -244,6 +245,7 @@ def run_tui(
     records: list[TabRecord] = []
     rows: list[TreeRow] = []
     collapsed_tab_ids: set[int] = set()
+    fold_state_os_window_id: int | None = None
     os_window_id = target_os_window_id or 0
     error: str | None = None
     repository_path: str | None = None
@@ -299,11 +301,17 @@ def run_tui(
                         snapshot, target_os_window_id, self_window_id
                     )
                     os_window_id = int(os_window["id"])
+                    if fold_state_os_window_id != os_window_id:
+                        collapsed_tab_ids = read_folded_tab_ids(os_window_id)
+                        fold_state_os_window_id = os_window_id
                     tab_events.bind(os_window_id)
                     records = records_for_os_window(os_window)
+                    previous_collapsed_tab_ids = collapsed_tab_ids.copy()
                     collapsed_tab_ids.intersection_update(
                         record.id for record in records
                     )
+                    if collapsed_tab_ids != previous_collapsed_tab_ids:
+                        write_folded_tab_ids(os_window_id, collapsed_tab_ids)
                     rows = tree_rows(records, collapsed_tab_ids)
                     selected_index = active_row_index(rows)
                     repository_path = active_window_cwd(os_window)
@@ -426,6 +434,9 @@ def run_tui(
                                 collapsed_tab_ids.remove(clicked.tab.id)
                             else:
                                 collapsed_tab_ids.add(clicked.tab.id)
+                            write_folded_tab_ids(
+                                os_window_id, collapsed_tab_ids
+                            )
                             rows = tree_rows(records, collapsed_tab_ids)
                             selected_index = active_row_index(rows)
                         elif mouse.button == "left":
@@ -464,6 +475,7 @@ def run_tui(
                     collapsed_tab_ids.add(selected.tab.id)
                 elif should_expand:
                     collapsed_tab_ids.discard(selected.tab.id)
+                write_folded_tab_ids(os_window_id, collapsed_tab_ids)
                 rows = tree_rows(records, collapsed_tab_ids)
                 selected_index = active_row_index(rows)
             elif key in {"\r", "\n"} and rows:

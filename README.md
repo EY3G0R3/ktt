@@ -74,6 +74,11 @@ Inside the tree:
 - `t` toggles Kitty's native tab bar while preserving its configured style;
 - `r` refreshes immediately; `q` exits.
 
+Fold choices persist in an atomic owner-only runtime file keyed by Kitty PID
+and target OS-window ID. They survive ktt source reloads and in-place refreshes
+without becoming cross-session configuration; closed tab IDs are pruned on the
+next snapshot.
+
 The current main-window tab is the single highlighted/selected state and uses
 a higher-contrast background without a separate marker gutter. Folding does
 not create another selection. When the active tab is hidden inside a folded
