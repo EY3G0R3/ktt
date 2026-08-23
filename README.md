@@ -37,9 +37,15 @@ watcher /absolute/path/printed/by/ktt-watcher-path
 
 The watcher sends a nonblocking local Unix-datagram wake-up only when the
 active tab or ordered tab membership changes. ktt then takes one immediate
-Kitty snapshot; its normal polling interval remains the recovery fallback.
+Kitty snapshot; its one-second polling interval remains the recovery fallback.
 Title, spinner, and status-only tab-bar redraws are filtered inside Kitty and
 do not wake ktt.
+
+ktt also caches the complete visible render signature. An unchanged recovery
+poll does not rebuild or repaint the screen. With no working spinner, the TUI
+sleeps until the next poll, source check, or input/event wake-up instead of
+waking 20 times per second. Working rows schedule only their 120 ms animation
+boundaries, preserving smooth dots without imposing that cadence while idle.
 
 To make Kitty-wide `Alt-j`/`Alt-k` navigation follow ktt's visible tree order,
 run `ktt navigation-kitten-path`, then map the printed absolute path:

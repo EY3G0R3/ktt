@@ -16,6 +16,7 @@ from .kitty import KittyError, RemoteControl
 from .model import (
     TabRecord,
     TreeRow,
+    WORKING_STATUS,
     active_tree_row_index,
     adjacent_tree_tab_id,
     choose_os_window,
@@ -28,6 +29,7 @@ from .render import (
     DEFAULT_EDGE_STYLE,
     REPOSITORY_BOTTOM_MARGIN,
     REPOSITORY_TOP_GAP,
+    SPINNER_INTERVAL,
     TREE_INDENT_WIDTH,
     adaptive_card_height,
     card_gap,
@@ -49,6 +51,7 @@ from .repository import (
 
 
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
+SOURCE_CHECK_INTERVAL = 1.0
 
 
 @dataclass(frozen=True)
@@ -114,6 +117,28 @@ def disclosure_column(row: TreeRow) -> int:
 
 
 active_row_index = active_tree_row_index
+
+
+def animation_frame(rows: list[TreeRow], now: float) -> int | None:
+    if not any(row.tab.status == WORKING_STATUS for row in rows):
+        return None
+    return int(now / SPINNER_INTERVAL)
+
+
+def next_wake_timeout(
+    now: float,
+    *,
+    next_poll: float,
+    next_source_check: float,
+    animated: bool,
+    auto_reload: bool,
+) -> float:
+    deadlines = [next_poll]
+    if auto_reload:
+        deadlines.append(next_source_check)
+    if animated:
+        deadlines.append((int(now / SPINNER_INTERVAL) + 1) * SPINNER_INTERVAL)
+    return max(0.0, min(deadlines) - now)
 
 
 def restart_arguments(arguments: list[str], edge_style: str) -> list[str]:
@@ -230,6 +255,7 @@ def run_tui(
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
     pending_source_stamp: SourceStamp | None = None
+    last_render_signature: tuple[object, ...] | None = None
     restart = False
     self_window_id = int(os.environ["KITTY_WINDOW_ID"]) if os.environ.get("KITTY_WINDOW_ID", "").isdigit() else None
 
@@ -264,7 +290,7 @@ def run_tui(
                 if stable:
                     restart = True
                     break
-                next_source_check = now + 0.5
+                next_source_check = now + SOURCE_CHECK_INTERVAL
             if now >= next_poll:
                 try:
                     snapshot = remote.snapshot()
@@ -308,21 +334,44 @@ def run_tui(
                 ) - REPOSITORY_TOP_GAP - REPOSITORY_BOTTOM_MARGIN),
                 now,
             )
-            screen = render_screen(
-                rows, selected_index, os_window_id, width, height,
-                total_tabs=len(records), error=error, now=now,
-                edge_style=edge_style,
-                repository_lines=repository_lines,
-                show_controls=sidebar_focused or help_pinned,
-                help_pinned=help_pinned,
+            render_now = time.monotonic()
+            current_animation_frame = animation_frame(rows, render_now)
+            render_signature: tuple[object, ...] = (
+                tuple(rows),
+                selected_index,
+                os_window_id,
+                width,
+                height,
+                error,
+                edge_style,
+                tuple(repository_lines),
+                sidebar_focused,
+                help_pinned,
+                current_animation_frame,
             )
-            # Erase with ktt's own black background. Kitty's configured default
-            # can change when the OS window gains focus, which otherwise makes
-            # inactive gray cards disappear into the panel.
-            sys.stdout.write(panel_style() + "\x1b[H\x1b[2J" + screen)
-            sys.stdout.flush()
+            if render_signature != last_render_signature:
+                screen = render_screen(
+                    rows, selected_index, os_window_id, width, height,
+                    total_tabs=len(records), error=error, now=render_now,
+                    edge_style=edge_style,
+                    repository_lines=repository_lines,
+                    show_controls=sidebar_focused or help_pinned,
+                    help_pinned=help_pinned,
+                )
+                # Erase with ktt's own black background. Kitty's configured
+                # default can change when the OS window gains focus, which
+                # otherwise makes inactive cards disappear into the panel.
+                sys.stdout.write(panel_style() + "\x1b[H\x1b[2J" + screen)
+                sys.stdout.flush()
+                last_render_signature = render_signature
             key, tab_event_messages = terminal.read_key(
-                min(0.05, max(0.0, next_poll - time.monotonic())),
+                next_wake_timeout(
+                    time.monotonic(),
+                    next_poll=next_poll,
+                    next_source_check=next_source_check,
+                    animated=current_animation_frame is not None,
+                    auto_reload=auto_reload,
+                ),
                 tab_events,
             )
             if tab_event_messages:

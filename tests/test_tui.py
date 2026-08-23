@@ -3,7 +3,9 @@ import unittest
 from ktt.model import TabRecord, TreeRow
 from ktt.tui import (
     active_row_index,
+    animation_frame,
     disclosure_column,
+    next_wake_timeout,
     parse_mouse_event,
     reload_candidate,
     restart_arguments,
@@ -11,6 +13,35 @@ from ktt.tui import (
     window_is_focused,
 )
 from ktt.repository import active_window_cwd
+
+
+class SchedulerTests(unittest.TestCase):
+    def test_animation_frame_exists_only_for_working_rows(self) -> None:
+        idle = [TreeRow(TabRecord(1, 1, "idle", (10,)), 0, None)]
+        working = [TreeRow(
+            TabRecord(2, 1, "working", (20,), status="🤖"), 0, None
+        )]
+        self.assertIsNone(animation_frame(idle, 10.0))
+        self.assertEqual(animation_frame(working, 0.24), 2)
+
+    def test_idle_waits_for_poll_but_spinner_wakes_on_frame_boundary(self) -> None:
+        idle = next_wake_timeout(
+            10.0,
+            next_poll=10.5,
+            next_source_check=11.0,
+            animated=False,
+            auto_reload=True,
+        )
+        animated = next_wake_timeout(
+            10.0,
+            next_poll=10.5,
+            next_source_check=11.0,
+            animated=True,
+            auto_reload=True,
+        )
+        self.assertEqual(idle, 0.5)
+        self.assertGreater(animated, 0.0)
+        self.assertLessEqual(animated, 0.12)
 
 
 class MouseTests(unittest.TestCase):

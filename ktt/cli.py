@@ -27,8 +27,8 @@ def _parser() -> argparse.ArgumentParser:
         "--target-os-window", type=int, help="Kitty OS window ID to display"
     )
     parser.add_argument(
-        "--poll-interval", type=float, default=0.5,
-        help="seconds between Kitty state polls (default: 0.5)",
+        "--poll-interval", type=float, default=1.0,
+        help="seconds between Kitty state polls (default: 1.0)",
     )
     parser.add_argument(
         "--no-auto-reload", action="store_false", dest="auto_reload",

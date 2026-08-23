@@ -1,6 +1,6 @@
 import unittest
 
-from ktt.cli import _validate_link
+from ktt.cli import _parser, _validate_link
 
 
 def window(window_id, parent=None):
@@ -11,6 +11,9 @@ def window(window_id, parent=None):
 
 
 class LinkValidationTests(unittest.TestCase):
+    def test_default_recovery_poll_is_one_second(self) -> None:
+        self.assertEqual(_parser().parse_args([]).poll_interval, 1.0)
+
     def test_rejects_a_new_cycle(self) -> None:
         snapshot = [{
             "id": 1,

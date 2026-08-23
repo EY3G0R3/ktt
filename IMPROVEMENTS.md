@@ -181,12 +181,16 @@ preferable to importing personal configuration directly.
 The active-tab latency path is event-assisted now. A global Kitty watcher
 caches the active tab and ordered membership for each OS window, ignores
 title/status animation churn, and wakes ktt over a nonblocking local datagram.
-The existing 500 ms poll is recovery rather than the primary switch path.
+The existing one-second poll is recovery rather than the primary switch path.
 
-Next, render only when Kitty state, input, terminal size, or the visible spinner
-frame changes. Stop redrawing at 20 Hz when no working status is visible, and
-consider speaking Kitty's remote-control protocol directly over the existing
-Unix socket instead of spawning `kitten @ ls` twice per second.
+Rendering is now demand-driven. A complete visible-state signature suppresses
+both rendering and terminal writes after unchanged recovery polls. The input
+loop sleeps until the next poll, source check, or event when idle; working rows
+alone add their 120 ms spinner-frame deadline. This removes the former fixed
+20 Hz redraw cadence without reducing active-tab event latency.
+
+Next, consider speaking Kitty's remote-control protocol directly over the
+existing Unix socket instead of spawning `kitten @ ls` twice per second.
 
 The active-repository panel adds one bounded `fancylog --status-only`
 subprocess every three seconds, only for the active tab. Include it in idle
@@ -195,6 +199,13 @@ from filesystem/Kitty events rather than duplicating its Git logic in ktt.
 
 Target: below 0.3% of one CPU core while idle, measured with short-lived child
 processes included.
+
+The first live no-spinner sample after demand-driven rendering measured 0.30%
+for the long-lived Python process over ten seconds with a one-second recovery
+poll. A comparable 500 ms sample measured 0.40%. This confirms the fixed redraw
+loop is gone, but does not close the target: `pidstat` did not attribute the
+short-lived Kitty/Fancylog children to that percentage. Keep the inclusive
+measurement and direct-socket experiment on the docket.
 
 ## 5. Enrich adaptive multi-line tab cards
 

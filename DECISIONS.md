@@ -71,8 +71,14 @@ available; no path reorders native tabs.
 Kitty's global `on_tab_bar_dirty` watcher sends ktt a nonblocking Unix-datagram
 wake-up when the active tab or ordered tab membership changes. ktt immediately
 reads one fresh Kitty snapshot. Title, spinner, and status-only redraws are
-filtered inside Kitty. The 500 ms JSON poll remains as a recovery path when the
+filtered inside Kitty. The one-second JSON poll remains as a recovery path when the
 watcher is absent or an event is lost.
+
+Rendering is independently demand-driven. A signature covers the visible tree,
+selection, geometry, focus/help state, repository rows, errors, theme, and the
+current spinner frame. ktt repaints only when that signature changes. Without a
+working row, input waits until the next poll or source deadline rather than a
+fixed 50 ms timer; working rows add their next 120 ms frame boundary.
 
 Development reload is separate from Kitty-state delivery: a source change
 automatically restarts the running TUI in place after restoring terminal mode.
