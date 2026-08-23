@@ -41,6 +41,15 @@ Kitty snapshot; its one-second polling interval remains the recovery fallback.
 Title, spinner, and status-only tab-bar redraws are filtered inside Kitty and
 do not wake ktt.
 
+Snapshot reads use Kitty's documented framed-JSON
+[remote-control protocol](https://sw.kovidgoyal.net/kitty/rc_protocol/)
+directly over a filesystem or Linux abstract `KITTY_LISTEN_ON` Unix socket.
+This avoids starting `kitten @ ls` for every recovery poll. Commands that
+change Kitty state still use the official `kitten` client because they are
+interactive and infrequent. If the direct request fails—for example, because
+the listener requires protocol features ktt does not implement—ktt disables
+that path and falls back to `kitten @ ls` for the rest of the process.
+
 ktt also caches the complete visible render signature. An unchanged recovery
 poll does not rebuild or repaint the screen. With no working spinner, the TUI
 sleeps until the next poll, source check, or input/event wake-up instead of

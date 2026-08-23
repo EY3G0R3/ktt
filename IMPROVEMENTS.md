@@ -189,8 +189,12 @@ loop sleeps until the next poll, source check, or event when idle; working rows
 alone add their 120 ms spinner-frame deadline. This removes the former fixed
 20 Hz redraw cadence without reducing active-tab event latency.
 
-Next, consider speaking Kitty's remote-control protocol directly over the
-existing Unix socket instead of spawning `kitten @ ls` twice per second.
+Recovery snapshots now speak Kitty's documented framed-JSON remote-control
+protocol directly over `KITTY_LISTEN_ON` when it names a filesystem or Linux
+abstract Unix socket. State-changing commands remain on the official `kitten`
+client. A failed direct request permanently selects the subprocess fallback for
+that ktt process, preserving compatibility with unsupported or encrypted
+listeners without retrying both paths on every poll.
 
 The active-repository panel adds one bounded `fancylog --status-only`
 subprocess every three seconds, only for the active tab. Include it in idle
@@ -198,14 +202,29 @@ measurements. If it is material, add a long-lived fancylog protocol or refresh
 from filesystem/Kitty events rather than duplicating its Git logic in ktt.
 
 Target: below 0.3% of one CPU core while idle, measured with short-lived child
-processes included.
+processes included. Use `pidstat -u -T ALL -p PID 1 15`: the TASK report covers
+the long-lived Python process, while the CHILD report includes CPU collected
+from completed descendants as milliseconds per one-second sample.
 
 The first live no-spinner sample after demand-driven rendering measured 0.30%
 for the long-lived Python process over ten seconds with a one-second recovery
-poll. A comparable 500 ms sample measured 0.40%. This confirms the fixed redraw
-loop is gone, but does not close the target: `pidstat` did not attribute the
-short-lived Kitty/Fancylog children to that percentage. Keep the inclusive
-measurement and direct-socket experiment on the docket.
+poll. A comparable 500 ms sample measured 0.40%. After direct snapshots, a
+repeatable 15-second no-spinner sample measured 0.27% for Python and 11 ms of
+inclusive task-and-completed-child CPU per second. The process itself therefore
+meets the target; the complete feature currently uses about 1.1% of one core.
+
+An isolated 50-snapshot comparison against Kitty 0.45.0 measured 1.059 seconds
+wall/0.045 seconds CPU through the direct socket, versus 3.152 seconds
+wall/2.824 seconds child-inclusive CPU through `kitten @ ls`. Direct snapshots
+remove roughly 98% of the client CPU attributable to this request.
+
+The remaining inclusive idle cost is the three-second Fancylog refresh. Its
+existing watch mode still recomputes repository state on an interval and emits
+terminal redraw frames, so adopting it directly would complicate parsing
+without eliminating the underlying work. Prefer a long-lived, width-bounded
+Fancylog request/response protocol or a change-notification interface before
+replacing the current bounded subprocess. Do not duplicate its Git/yadm logic
+inside ktt merely to meet the CPU target.
 
 ## 5. Enrich adaptive multi-line tab cards
 
