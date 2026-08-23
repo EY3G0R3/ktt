@@ -25,7 +25,7 @@ WEDGE_TOP_LEFT = ""
 WEDGE_TOP_RIGHT = ""
 WEDGE_BOTTOM_LEFT = ""
 WEDGE_BOTTOM_RIGHT = ""
-EDGE_STYLES = ("tapered", "stacked", "straight", "rounded", "wedge")
+EDGE_STYLES = ("tapered", "straight", "rounded", "wedge")
 DEFAULT_EDGE_STYLE = EDGE_STYLES[0]
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
@@ -48,7 +48,7 @@ CONTROL_SEPARATOR = " │ "
 CONTROL_SHORTCUT_FOREGROUND = "5f7a82"
 CONTROL_SEPARATOR_FOREGROUND = "3f4552"
 CONTROL_ACTION_FOREGROUND = "777d89"
-REPOSITORY_HELP_GAP = 1
+REPOSITORY_TOP_GAP = 1
 REPOSITORY_BOTTOM_MARGIN = 1
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
@@ -262,7 +262,7 @@ def render_row(
         if card_height == 1 and edge_style in {"rounded", "wedge"}
         else edge_style
     )
-    if show_caps and effective_style in {"tapered", "stacked"}:
+    if show_caps and effective_style == "tapered":
         left_cap = f"{cap_style}{LEFT_CAP}{base}"
         right_cap = f"{cap_style}{verdict_cap or RIGHT_CAP}"
     elif show_caps and effective_style == "straight":
@@ -329,11 +329,6 @@ def render_card_blank(
         return (
             f"{panel_style(ansi)}{left} {base}{' ' * body_width}{reset}"
             f"{right_edge}{reset}"
-        )
-    if edge_style == "stacked":
-        return (
-            f"{panel_style(ansi)}{left}{cap_style}{LEFT_CAP}{base}"
-            f"{' ' * body_width}{cap_style}{verdict_cap or RIGHT_CAP}{reset}"
         )
     if edge_style == "straight":
         right_edge = f"{cap_style}{verdict_cap}" if verdict_cap else f"{base} "
@@ -417,14 +412,13 @@ def render_screen(
     visible = rows[start:start + capacity]
     top_padding = vertical_padding(len(rows), height, card_height)
     bottom_padding = vertical_bottom_padding(len(rows), height, card_height)
-    context_spacing = REPOSITORY_HELP_GAP + REPOSITORY_BOTTOM_MARGIN
+    context_spacing = REPOSITORY_TOP_GAP + REPOSITORY_BOTTOM_MARGIN
     context = (repository_lines or [])[:max(0, bottom_padding - context_spacing)]
-    context_rows = len(context) + context_spacing if context else 0
-    output = ["" for _ in range(top_padding)]
+    cards: list[str] = []
     for offset, row in enumerate(visible):
         if offset:
-            output.extend("" for _ in range(card_gap(card_height)))
-        output.extend(
+            cards.extend("" for _ in range(card_gap(card_height)))
+        cards.extend(
             render_card(
                 row,
                 selected=(start + offset == selected_index),
@@ -435,12 +429,13 @@ def render_screen(
                 edge_style=edge_style,
             )
         )
-    while len(output) < available - context_rows:
-        output.append("")
-    if error and output:
-        output[-1] = f" error: {error}"[:width]
-    if show_controls:
-        output.extend(
+    output = ["" for _ in range(height)]
+    for index, line in enumerate(cards, start=top_padding):
+        if index >= height:
+            break
+        output[index] = line
+    if show_controls and top_padding >= len(CONTROL_ROWS):
+        controls = list(
             render_control_line(
                 shortcut,
                 f"edge: {edge_style}"
@@ -453,17 +448,25 @@ def render_screen(
             )
             for shortcut, action in CONTROL_ROWS
         )
-    else:
-        output.extend("" for _ in CONTROL_ROWS)
+        control_start = (top_padding - len(controls)) // 2
+        output[control_start:control_start + len(controls)] = controls
     if context:
-        output.extend("" for _ in range(REPOSITORY_HELP_GAP))
-        output.extend(context)
-        output.extend("" for _ in range(REPOSITORY_BOTTOM_MARGIN))
-    return "\n".join(output[:height])
+        context_start = height - REPOSITORY_BOTTOM_MARGIN - len(context)
+        output[context_start:context_start + len(context)] = context
+    if error:
+        blank = next(
+            (index for index in range(height - 1, -1, -1) if not output[index]),
+            None,
+        )
+        if blank is not None:
+            output[blank] = f" error: {error}"[:width]
+    return "\n".join(output)
 
 
 def content_height(height: int) -> int:
-    return max(0, height - len(CONTROL_LINES))
+    # Help and repository context live in the free space around the vertically
+    # centered cards. They never reserve rows or shift the tab stack.
+    return max(0, height)
 
 
 def visible_start(
@@ -486,6 +489,8 @@ def vertical_padding(
     card_height: int | None = None,
 ) -> int:
     available = content_height(height)
+    if row_count == 0:
+        return available
     card_height = card_height or adaptive_card_height(row_count, height)
     used = cards_height(row_count, card_height)
     if used >= available:
@@ -499,6 +504,8 @@ def vertical_bottom_padding(
     card_height: int | None = None,
 ) -> int:
     available = content_height(height)
+    if row_count == 0:
+        return 0
     card_height = card_height or adaptive_card_height(row_count, height)
     used = cards_height(row_count, card_height)
     return max(0, available - used - vertical_padding(

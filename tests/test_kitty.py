@@ -63,7 +63,6 @@ class RemoteControlTests(unittest.TestCase):
             )),
             "toggle-tabs",
         ))
-
     def test_sidebar_launch_passes_configured_edge_style(self) -> None:
         remote = RecordingRemote()
         remote.launch_sidebar(3, "rounded", "graphite")

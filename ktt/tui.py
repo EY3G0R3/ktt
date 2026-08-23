@@ -23,10 +23,11 @@ from .model import (
     tree_rows,
     with_active_tab,
 )
+from .order import VisibleOrderPublisher
 from .render import (
     DEFAULT_EDGE_STYLE,
     REPOSITORY_BOTTOM_MARGIN,
-    REPOSITORY_HELP_GAP,
+    REPOSITORY_TOP_GAP,
     TREE_INDENT_WIDTH,
     adaptive_card_height,
     card_gap,
@@ -42,6 +43,7 @@ from .render import (
 from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
     FancylogMonitor,
+    MAX_REPOSITORY_LINES,
     active_window_cwd,
 )
 
@@ -95,7 +97,8 @@ def row_index_at_mouse(
     card_height: int = 1,
 ) -> int | None:
     first_row = 1 + top_padding
-    if mouse_row < first_row or mouse_row > content_height(height):
+    last_content_row = content_height(height)
+    if mouse_row < first_row or mouse_row > last_content_row:
         return None
     offset = mouse_row - first_row
     stride = card_height + card_gap(card_height)
@@ -245,7 +248,11 @@ def run_tui(
         except KittyError as caught:
             error = str(caught)
 
-    with TerminalMode() as terminal, TabEventListener() as tab_events:
+    with (
+        TerminalMode() as terminal,
+        TabEventListener() as tab_events,
+        VisibleOrderPublisher() as order_publisher,
+    ):
         while True:
             now = time.monotonic()
             if auto_reload and now >= next_source_check:
@@ -290,14 +297,15 @@ def run_tui(
                     error = str(caught)
                 next_poll = now + poll_interval
 
+            order_publisher.publish(os_window_id, rows)
             width, height = shutil.get_terminal_size((40, 24))
             card_height = adaptive_card_height(len(rows), height)
             repository_lines = repository_monitor.update(
                 repository_path,
                 width,
-                min(3, vertical_bottom_padding(
+                min(MAX_REPOSITORY_LINES, vertical_bottom_padding(
                     len(rows), height, card_height
-                ) - REPOSITORY_HELP_GAP - REPOSITORY_BOTTOM_MARGIN),
+                ) - REPOSITORY_TOP_GAP - REPOSITORY_BOTTOM_MARGIN),
                 now,
             )
             screen = render_screen(

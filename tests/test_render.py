@@ -48,7 +48,7 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(lines[-3:-1], ["fancylog status", " main"])
         self.assertEqual(lines[-4], "")
         self.assertEqual(lines[-1], "")
-        self.assertIn("one", lines[4])
+        self.assertIn("one", lines[8])
 
     def test_repository_status_is_clipped_to_available_padding(self) -> None:
         rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
@@ -57,7 +57,7 @@ class RenderTests(unittest.TestCase):
             0,
             1,
             40,
-            16,
+            8,
             ansi=False,
             repository_lines=["fancylog status", " main"],
         )
@@ -123,19 +123,20 @@ class RenderTests(unittest.TestCase):
         ))
         self.assertEqual((inactive, active), WAITING_BACKGROUNDS)
 
-    def test_short_tab_list_is_centered_above_multiline_controls(self) -> None:
+    def test_help_is_centered_in_the_free_space_above_tabs(self) -> None:
         rows = [
             TreeRow(TabRecord(1, 1, "one", (10,)), 0, None),
             TreeRow(TabRecord(2, 1, "two", (20,)), 0, None),
         ]
-        screen = render_screen(rows, 0, 1, 80, 16, ansi=False)
+        screen = render_screen(rows, 0, 1, 80, 32, ansi=False)
         lines = screen.splitlines()
-        self.assertEqual(adaptive_card_height(2, 16), 3)
-        self.assertEqual(vertical_padding(2, 16), 0)
-        self.assertIn("one", lines[1])
-        self.assertEqual(lines[3], "")
-        self.assertIn("two", lines[5])
-        controls = lines[-len(CONTROL_LINES):]
+        top_padding = vertical_padding(2, 32)
+        control_start = (top_padding - len(CONTROL_LINES)) // 2
+        self.assertEqual(adaptive_card_height(2, 32), 3)
+        self.assertIn("one", lines[top_padding + 1])
+        self.assertEqual(lines[top_padding + 3], "")
+        self.assertIn("two", lines[top_padding + 5])
+        controls = lines[control_start:control_start + len(CONTROL_LINES)]
         self.assertEqual(
             [line.strip() for line in controls],
             [line.strip() for line in CONTROL_LINES],
@@ -147,8 +148,8 @@ class RenderTests(unittest.TestCase):
 
     def test_cards_squeeze_from_three_lines_to_two_then_one(self) -> None:
         self.assertEqual(adaptive_card_height(4, 23), 3)
-        self.assertEqual(adaptive_card_height(4, 19), 2)
-        self.assertEqual(adaptive_card_height(4, 18), 1)
+        self.assertEqual(adaptive_card_height(4, 14), 2)
+        self.assertEqual(adaptive_card_height(4, 10), 1)
 
     def test_edge_style_cycle_wraps_in_display_order(self) -> None:
         observed = []
@@ -173,7 +174,6 @@ class RenderTests(unittest.TestCase):
             for style in EDGE_STYLES
         }
         self.assertTrue(cards["tapered"][0].startswith(" "))
-        self.assertTrue(all(LEFT_CAP in line for line in cards["stacked"]))
         self.assertFalse(any(LEFT_CAP in line for line in cards["straight"]))
         self.assertIn("╭", cards["rounded"][0])
         self.assertIn("│", cards["rounded"][1])
@@ -254,9 +254,9 @@ class RenderTests(unittest.TestCase):
         screen = render_screen([], 0, 1, width, 8, ansi=False)
         lines = screen.splitlines()
         self.assertTrue(all(display_width(line) <= width for line in lines))
-        self.assertEqual(len(lines[-len(CONTROL_LINES):]), len(CONTROL_LINES))
-        self.assertIn("↑/↓", lines[-len(CONTROL_LINES)])
-        self.assertIn("q", lines[-1])
+        self.assertEqual(len(lines), 8)
+        self.assertIn("↑/↓", lines[0])
+        self.assertIn("q", lines[len(CONTROL_LINES) - 1])
 
     def test_controls_can_hide_without_changing_screen_geometry(self) -> None:
         visible = render_screen([], 0, 1, 40, 10, ansi=False)
@@ -302,8 +302,8 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(vertical_padding(20, 10), 0)
 
     def test_bottom_padding_receives_the_odd_centering_row(self) -> None:
-        self.assertEqual(vertical_padding(1, 12, 3), 0)
-        self.assertEqual(vertical_bottom_padding(1, 12, 3), 1)
+        self.assertEqual(vertical_padding(1, 12, 3), 4)
+        self.assertEqual(vertical_bottom_padding(1, 12, 3), 5)
 
     def test_active_tab_has_persistent_background(self) -> None:
         active = TabRecord(1, 1, "active", (10,), is_active=True)

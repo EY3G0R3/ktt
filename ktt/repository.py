@@ -10,6 +10,7 @@ REPOSITORY_PALETTES = (
     "surf", "amber", "vivid", "quiet", "graphite", "terminal", "dracula",
 )
 DEFAULT_REPOSITORY_PALETTE = "terminal"
+MAX_REPOSITORY_LINES = 8
 
 
 def active_window_cwd(os_window: dict[str, Any]) -> str | None:

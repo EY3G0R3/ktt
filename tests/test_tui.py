@@ -60,7 +60,7 @@ class MouseTests(unittest.TestCase):
             row_index_at_mouse(4, start=5, row_count=20, height=12), 8
         )
         self.assertIsNone(
-            row_index_at_mouse(5, start=5, row_count=20, height=12)
+            row_index_at_mouse(13, start=5, row_count=20, height=12)
         )
 
     def test_maps_centered_screen_row(self) -> None:
@@ -90,7 +90,7 @@ class MouseTests(unittest.TestCase):
         self.assertEqual(row_index_at_mouse(6, **arguments), 1)
         self.assertEqual(row_index_at_mouse(10, **arguments), 2)
         self.assertEqual(row_index_at_mouse(12, **arguments), 2)
-        self.assertIsNone(row_index_at_mouse(13, **arguments))
+        self.assertIsNone(row_index_at_mouse(21, **arguments))
 
     def test_disclosure_column_tracks_depth(self) -> None:
         tab = TabRecord(1, 1, "parent", (10,))
