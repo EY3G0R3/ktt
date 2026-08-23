@@ -80,7 +80,10 @@ class RemoteControl:
         )
 
     def _sidebar_process(
-        self, target_os_window_id: int, edge_style: str | None = None
+        self,
+        target_os_window_id: int,
+        edge_style: str | None = None,
+        repository_palette: str | None = None,
     ) -> tuple[str, list[str]]:
         package_root = str(Path(__file__).resolve().parent.parent)
         process = [
@@ -93,13 +96,18 @@ class RemoteControl:
         process.extend(("--target-os-window", str(target_os_window_id)))
         if edge_style:
             process.extend(("--edge-style", edge_style))
+        if repository_palette:
+            process.extend(("--repository-palette", repository_palette))
         return package_root, process
 
     def launch_sidebar(
-        self, target_os_window_id: int, edge_style: str | None = None
+        self,
+        target_os_window_id: int,
+        edge_style: str | None = None,
+        repository_palette: str | None = None,
     ) -> int:
         package_root, process = self._sidebar_process(
-            target_os_window_id, edge_style
+            target_os_window_id, edge_style, repository_palette
         )
         output = self.run(
             "launch",
@@ -127,9 +135,10 @@ class RemoteControl:
         sidebar_window_id: int,
         target_os_window_id: int,
         edge_style: str | None = None,
+        repository_palette: str | None = None,
     ) -> int:
         package_root, process = self._sidebar_process(
-            target_os_window_id, edge_style
+            target_os_window_id, edge_style, repository_palette
         )
         output = self.run(
             "launch",

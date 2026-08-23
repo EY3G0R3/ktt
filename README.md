@@ -104,6 +104,15 @@ worktree-status, palette, and truncation policy. ktt neither parses its output
 nor carries a second Git/yadm implementation; it only places the returned ANSI
 rows into spare padding.
 
+ktt defaults that embedded panel to fancylog's neutral `graphite` palette so
+it recedes behind the tab cards. Choose another palette without changing
+standalone fancylog configuration:
+
+```bash
+ktt --repository-palette quiet launch
+KTT_REPOSITORY_PALETTE=amber ktt refresh
+```
+
 During development, changes to `ktt/*.py` restart the TUI automatically after
 restoring terminal input mode. To replace a sidebar started by an older version
 without replacing its top-level Kitty window, run:

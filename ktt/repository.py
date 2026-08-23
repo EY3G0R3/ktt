@@ -6,6 +6,10 @@ import time
 from typing import Any
 
 
+REPOSITORY_PALETTES = ("surf", "amber", "vivid", "quiet", "graphite")
+DEFAULT_REPOSITORY_PALETTE = "graphite"
+
+
 def active_window_cwd(os_window: dict[str, Any]) -> str | None:
     tabs = os_window.get("tabs") or []
     tab = next((item for item in tabs if item.get("is_active")), None)
@@ -45,10 +49,12 @@ class FancylogMonitor:
         interval: float = 3.0,
         timeout: float = 0.75,
         executable: str = "fancylog",
+        palette: str = DEFAULT_REPOSITORY_PALETTE,
     ) -> None:
         self.interval = interval
         self.timeout = timeout
         self.executable = executable
+        self.palette = palette
         self.key: tuple[str, int, int] | None = None
         self.lines: list[str] = []
         self.next_refresh = 0.0
@@ -84,6 +90,8 @@ class FancylogMonitor:
                     str(max_lines),
                     "--color",
                     "always",
+                    "--header-palette",
+                    self.palette,
                     path,
                 ],
                 check=False,

@@ -51,11 +51,14 @@ class RemoteControlTests(unittest.TestCase):
 
     def test_sidebar_launch_passes_configured_edge_style(self) -> None:
         remote = RecordingRemote()
-        remote.launch_sidebar(3, "rounded")
+        remote.launch_sidebar(3, "rounded", "graphite")
         subcommand, arguments = remote.calls[0]
         self.assertEqual(subcommand, "launch")
         self.assertIn("--edge-style", arguments)
         self.assertEqual(arguments[arguments.index("--edge-style") + 1], "rounded")
+        self.assertEqual(
+            arguments[arguments.index("--repository-palette") + 1], "graphite"
+        )
         self.assertIn("--color", arguments)
         self.assertEqual(arguments[arguments.index("--color") + 1], "background=#000000")
 

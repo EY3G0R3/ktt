@@ -33,7 +33,11 @@ from .render import (
     vertical_padding,
     visible_start,
 )
-from .repository import FancylogMonitor, active_window_cwd
+from .repository import (
+    DEFAULT_REPOSITORY_PALETTE,
+    FancylogMonitor,
+    active_window_cwd,
+)
 
 
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
@@ -129,12 +133,27 @@ def restart_arguments(arguments: list[str], edge_style: str) -> list[str]:
     return [*result, "--edge-style", edge_style]
 
 
-def source_stamp() -> tuple[tuple[str, int, int], ...]:
+SourceStamp = tuple[tuple[str, int, int], ...]
+
+
+def source_stamp() -> SourceStamp:
     package = Path(__file__).resolve().parent
     return tuple(
         (path.name, path.stat().st_mtime_ns, path.stat().st_size)
         for path in sorted(package.glob("*.py"))
     )
+
+
+def reload_candidate(
+    initial: SourceStamp,
+    candidate: SourceStamp | None,
+    current: SourceStamp,
+) -> tuple[SourceStamp | None, bool]:
+    if current == initial:
+        return None, False
+    if current != candidate:
+        return current, False
+    return candidate, True
 
 
 class TerminalMode:
@@ -166,6 +185,7 @@ def run_tui(
     poll_interval: float,
     auto_reload: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
 ) -> int:
     selected_index = 0
     records: list[TabRecord] = []
@@ -174,10 +194,11 @@ def run_tui(
     os_window_id = target_os_window_id or 0
     error: str | None = None
     repository_path: str | None = None
-    repository_monitor = FancylogMonitor()
+    repository_monitor = FancylogMonitor(palette=repository_palette)
     next_poll = 0.0
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
+    pending_source_stamp: SourceStamp | None = None
     restart = False
     self_window_id = int(os.environ["KITTY_WINDOW_ID"]) if os.environ.get("KITTY_WINDOW_ID", "").isdigit() else None
 
@@ -200,7 +221,12 @@ def run_tui(
         while True:
             now = time.monotonic()
             if auto_reload and now >= next_source_check:
-                if source_stamp() != initial_source_stamp:
+                pending_source_stamp, stable = reload_candidate(
+                    initial_source_stamp,
+                    pending_source_stamp,
+                    source_stamp(),
+                )
+                if stable:
                     restart = True
                     break
                 next_source_check = now + 0.5

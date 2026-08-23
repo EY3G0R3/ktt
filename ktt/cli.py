@@ -13,6 +13,7 @@ from .kitty import (
 )
 from .model import choose_os_window, records_for_os_window, tree_rows
 from .render import DEFAULT_EDGE_STYLE, EDGE_STYLES, render_screen
+from .repository import DEFAULT_REPOSITORY_PALETTE, REPOSITORY_PALETTES
 from .tui import run_tui
 
 
@@ -37,6 +38,14 @@ def _parser() -> argparse.ArgumentParser:
         choices=EDGE_STYLES,
         default=os.environ.get("KTT_EDGE_STYLE", DEFAULT_EDGE_STYLE),
         help="tab-card edge treatment (default: tapered)",
+    )
+    parser.add_argument(
+        "--repository-palette",
+        choices=REPOSITORY_PALETTES,
+        default=os.environ.get(
+            "KTT_REPOSITORY_PALETTE", DEFAULT_REPOSITORY_PALETTE
+        ),
+        help="fancylog status-bar palette (default: graphite)",
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="print the current tree once")
@@ -137,7 +146,9 @@ def main(argv: list[str] | None = None) -> int:
                 if location is None:
                     raise ValueError("the current Kitty window was not found")
                 target = location[0]
-            new_window_id = remote.launch_sidebar(target, args.edge_style)
+            new_window_id = remote.launch_sidebar(
+                target, args.edge_style, args.repository_palette
+            )
             print(f"opened ktt in Kitty window {new_window_id}, targeting OS window {target}")
             return 0
         if args.command == "refresh":
@@ -154,7 +165,8 @@ def main(argv: list[str] | None = None) -> int:
                 ]
                 target = int(choose_os_window(candidates)["id"])
             new_window_id = remote.replace_sidebar(
-                sidebar_window_id, target, args.edge_style
+                sidebar_window_id, target, args.edge_style,
+                args.repository_palette,
             )
             print(
                 f"refreshed ktt as Kitty window {new_window_id}, "
@@ -197,6 +209,7 @@ def main(argv: list[str] | None = None) -> int:
             args.poll_interval,
             args.auto_reload,
             args.edge_style,
+            args.repository_palette,
         )
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)

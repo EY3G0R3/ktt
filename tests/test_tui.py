@@ -5,6 +5,7 @@ from ktt.tui import (
     active_row_index,
     disclosure_column,
     parse_mouse_event,
+    reload_candidate,
     restart_arguments,
     row_index_at_mouse,
 )
@@ -123,6 +124,18 @@ class MouseTests(unittest.TestCase):
             restart_arguments(["--edge-style=wedge"], "straight"),
             ["--edge-style", "straight"],
         )
+
+    def test_auto_reload_waits_for_a_stable_source_snapshot(self) -> None:
+        initial = (("tui.py", 1, 100),)
+        first_edit = (("tui.py", 2, 101),)
+        complete_edit = (("tui.py", 3, 102),)
+
+        candidate, ready = reload_candidate(initial, None, first_edit)
+        self.assertFalse(ready)
+        candidate, ready = reload_candidate(initial, candidate, complete_edit)
+        self.assertFalse(ready)
+        candidate, ready = reload_candidate(initial, candidate, complete_edit)
+        self.assertTrue(ready)
 
 
 if __name__ == "__main__":
