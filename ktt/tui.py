@@ -44,6 +44,7 @@ from .views import view_for
 
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 SOURCE_CHECK_INTERVAL = 1.0
+NAVIGATION_STEP_INTERVAL = 0.05
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,32 @@ def parse_mouse_event(value: str) -> MouseEvent | None:
 
 
 active_row_index = active_tree_row_index
+
+
+def take_navigation_step(pending: list[int]) -> int | None:
+    """Consume at most one keypress so every tab transition can repaint."""
+    return pending.pop(0) if pending else None
+
+
+def navigation_poll_deadline(
+    now: float,
+    poll_interval: float,
+    pending: list[int],
+) -> float:
+    return now + (
+        NAVIGATION_STEP_INTERVAL if pending else poll_interval
+    )
+
+
+def enqueue_tab_events(pending: list[int], messages: tuple[bytes, ...]) -> bool:
+    """Queue navigation and report whether an idle loop should wake now."""
+    was_idle = not pending
+    pending.extend(
+        direction
+        for message in messages
+        if (direction := navigation_direction(message)) is not None
+    )
+    return was_idle
 
 
 def animation_frame(rows: list[TreeRow], now: float) -> int | None:
@@ -288,19 +315,19 @@ def run_tui(
                     repository_path = active_window_cwd(os_window)
                     error = None
 
-                    navigation = pending_navigation[:]
-                    pending_navigation.clear()
-                    for direction in navigation:
+                    direction = take_navigation_step(pending_navigation)
+                    if direction is not None:
                         target_tab_id = adjacent_tree_tab_id(rows, direction)
-                        if target_tab_id is None:
-                            continue
-                        remote.focus_tab(target_tab_id)
-                        records = with_active_tab(records, target_tab_id)
-                        rows = tree_rows(records, collapsed_tab_ids)
-                        selected_index = active_row_index(rows)
+                        if target_tab_id is not None:
+                            remote.focus_tab(target_tab_id)
+                            records = with_active_tab(records, target_tab_id)
+                            rows = tree_rows(records, collapsed_tab_ids)
+                            selected_index = active_row_index(rows)
                 except (KittyError, ValueError) as caught:
                     error = str(caught)
-                next_poll = now + poll_interval
+                next_poll = navigation_poll_deadline(
+                    now, poll_interval, pending_navigation
+                )
 
             order_publisher.publish(os_window_id, rows)
             width, height = shutil.get_terminal_size((40, 24))
@@ -359,12 +386,10 @@ def run_tui(
                 tab_events,
             )
             if tab_event_messages:
-                pending_navigation.extend(
-                    direction
-                    for message in tab_event_messages
-                    if (direction := navigation_direction(message)) is not None
-                )
-                next_poll = 0.0
+                if enqueue_tab_events(
+                    pending_navigation, tab_event_messages
+                ):
+                    next_poll = 0.0
             if key is None:
                 continue
             mouse = parse_mouse_event(key)

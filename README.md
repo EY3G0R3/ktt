@@ -81,6 +81,10 @@ sidebar itself is focused, the kitten reads that snapshot and changes the main
 tab directly inside Kitty without moving OS-window focus. If the sidebar is
 absent, it falls back to the complete tree order inside Kitty. Navigation stays
 bounded at the first and last visible rows, and no path rewrites native tabs.
+Rapid key repeats are drained one transition per repaint at 50 ms intervals, so
+every adjacent row remains visible instead of several queued switches appearing
+as one jump. This cadence exists only while navigation is queued and does not
+change idle polling.
 
 Inside the tree:
 

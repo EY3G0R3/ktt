@@ -1,13 +1,18 @@
 import unittest
 
+from ktt.events import navigation_event
 from ktt.model import TabRecord, TreeRow
 from ktt.tui import (
+    NAVIGATION_STEP_INTERVAL,
     active_row_index,
     animation_frame,
+    enqueue_tab_events,
+    navigation_poll_deadline,
     next_wake_timeout,
     parse_mouse_event,
     reload_candidate,
     restart_arguments,
+    take_navigation_step,
     window_is_focused,
 )
 from ktt.repository import active_window_cwd
@@ -15,6 +20,27 @@ from ktt.views import disclosure_column, row_index_at_mouse, view_for
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_navigation_burst_consumes_one_step_per_repaint(self) -> None:
+        pending = [1, 1, -1]
+        self.assertEqual(take_navigation_step(pending), 1)
+        self.assertEqual(pending, [1, -1])
+        self.assertEqual(
+            navigation_poll_deadline(10.0, 1.0, pending),
+            10.0 + NAVIGATION_STEP_INTERVAL,
+        )
+        pending.clear()
+        self.assertEqual(navigation_poll_deadline(10.0, 1.0, pending), 11.0)
+
+    def test_tab_change_does_not_collapse_navigation_spacing(self) -> None:
+        pending = [1]
+        self.assertFalse(enqueue_tab_events(pending, (b"tabs",)))
+        self.assertEqual(pending, [1])
+
+    def test_first_navigation_event_wakes_an_idle_loop(self) -> None:
+        pending: list[int] = []
+        self.assertTrue(enqueue_tab_events(pending, (navigation_event(-1),)))
+        self.assertEqual(pending, [-1])
+
     def test_animation_frame_exists_only_for_working_rows(self) -> None:
         idle = [TreeRow(TabRecord(1, 1, "idle", (10,)), 0, None)]
         working = [TreeRow(
