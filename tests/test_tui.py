@@ -80,6 +80,22 @@ class MouseTests(unittest.TestCase):
         )
         self.assertEqual(active_row_index([inactive, folded]), 1)
 
+    def test_active_row_prefers_visible_child_over_its_ancestor(self) -> None:
+        parent = TreeRow(
+            TabRecord(1, 1, "parent", (10,)),
+            0,
+            None,
+            has_children=True,
+            has_active_descendant=True,
+        )
+        child = TreeRow(
+            TabRecord(2, 1, "child", (20,), is_active=True),
+            1,
+            1,
+        )
+        next_root = TreeRow(TabRecord(3, 1, "next", (30,)), 0, None)
+        self.assertEqual(active_row_index([parent, child, next_root]), 1)
+
     def test_auto_reload_preserves_the_live_edge_style(self) -> None:
         self.assertEqual(
             restart_arguments(

@@ -100,12 +100,14 @@ def disclosure_column(row: TreeRow) -> int:
 
 
 def active_row_index(rows: list[TreeRow]) -> int:
+    active = next(
+        (index for index, row in enumerate(rows) if row.tab.is_active),
+        None,
+    )
+    if active is not None:
+        return active
     return next(
-        (
-            index
-            for index, row in enumerate(rows)
-            if row.tab.is_active or row.has_active_descendant
-        ),
+        (index for index, row in enumerate(rows) if row.has_active_descendant),
         0,
     )
 
