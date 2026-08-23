@@ -88,6 +88,30 @@ class RemoteControlTests(unittest.TestCase):
         }]
         self.assertEqual(find_sidebar_window(snapshot), (9, 91, 3))
 
+    def test_finds_sidebar_by_orientation(self) -> None:
+        snapshot = [{
+            "id": 9,
+            "tabs": [{"windows": [
+                {
+                    "id": 91,
+                    "user_vars": {
+                        "ktt_sidebar": "1",
+                        "ktt_target_os_window_id": "3",
+                    },
+                },
+                {
+                    "id": 92,
+                    "user_vars": {
+                        "ktt_sidebar": "1",
+                        "ktt_target_os_window_id": "3",
+                        "ktt_orientation": "horizontal",
+                    },
+                },
+            ]}],
+        }]
+        self.assertEqual(find_sidebar_window(snapshot, "vertical"), (9, 91, 3))
+        self.assertEqual(find_sidebar_window(snapshot, "horizontal"), (9, 92, 3))
+
     def test_preview_switches_tab_then_restores_sidebar_focus(self) -> None:
         remote = RecordingRemote()
         remote.preview_tab(12, 91)
@@ -120,6 +144,18 @@ class RemoteControlTests(unittest.TestCase):
         )
         self.assertIn("--color", arguments)
         self.assertEqual(arguments[arguments.index("--color") + 1], "background=#000000")
+
+    def test_horizontal_launch_uses_distinct_window_identity(self) -> None:
+        remote = RecordingRemote()
+        remote.launch_sidebar(3, "tapered", "terminal", "horizontal")
+        subcommand, arguments = remote.calls[0]
+        self.assertEqual(subcommand, "launch")
+        self.assertIn("--os-window-class=ktt-horizontal", arguments)
+        self.assertIn("ktt_orientation=horizontal", arguments)
+        self.assertIn("--orientation", arguments)
+        self.assertEqual(
+            arguments[arguments.index("--orientation") + 1], "horizontal"
+        )
 
     def test_sidebar_refresh_launches_with_background_before_close(self) -> None:
         remote = RecordingRemote()

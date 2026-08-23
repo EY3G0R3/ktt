@@ -35,11 +35,17 @@ class TabEventListener:
         if self.os_window_id == os_window_id and self.socket is not None:
             return
         self.close()
-        path = event_socket_path(os_window_id)
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        base_path = event_socket_path(os_window_id)
+        base_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path = (
+            base_path.with_name(f"{base_path.name}.{os.getpid()}")
+            if base_path.exists()
+            else base_path
+        )
         listener: socket.socket | None = None
         try:
-            path.unlink(missing_ok=True)
+            if path != base_path:
+                path.unlink(missing_ok=True)
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             listener.setblocking(False)
             listener.bind(str(path))
@@ -106,13 +112,18 @@ def send_navigation(
 ) -> bool:
     sender = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     sender.setblocking(False)
+    base_path = event_socket_path(os_window_id, kitty_pid=kitty_pid)
+    candidates = [
+        base_path,
+        *sorted(base_path.parent.glob(f"{base_path.name}.*")),
+    ]
     try:
-        sender.sendto(
-            navigation_event(direction),
-            str(event_socket_path(os_window_id, kitty_pid=kitty_pid)),
-        )
-    except OSError:
+        for path in candidates:
+            try:
+                sender.sendto(navigation_event(direction), str(path))
+            except OSError:
+                continue
+            return True
         return False
     finally:
         sender.close()
-    return True

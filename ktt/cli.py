@@ -13,16 +13,29 @@ from .kitty import (
     find_tab_for_window,
 )
 from .model import choose_os_window, records_for_os_window, tree_rows
-from .render import DEFAULT_EDGE_STYLE, EDGE_STYLES, render_screen
+from .render import (
+    DEFAULT_EDGE_STYLE,
+    DEFAULT_ORIENTATION,
+    EDGE_STYLES,
+    ORIENTATIONS,
+    render_horizontal_screen,
+    render_screen,
+)
 from .repository import DEFAULT_REPOSITORY_PALETTE, REPOSITORY_PALETTES
 from .tui import run_tui
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="ktt", description="A vertical tree-shaped tab bar for Kitty"
+        prog="ktt", description="A tree-shaped tab bar for Kitty"
     )
     parser.add_argument("--to", help="Kitty remote-control socket address")
+    parser.add_argument(
+        "--orientation",
+        choices=ORIENTATIONS,
+        default=os.environ.get("KTT_ORIENTATION", DEFAULT_ORIENTATION),
+        help="tree direction (default: vertical)",
+    )
     parser.add_argument(
         "--target-os-window", type=int, help="Kitty OS window ID to display"
     )
@@ -79,13 +92,14 @@ def _self_window_id() -> int | None:
     return int(value) if value.isdigit() else None
 
 
-def _list(remote: RemoteControl, target: int | None) -> int:
+def _list(remote: RemoteControl, target: int | None, orientation: str) -> int:
     snapshot = remote.snapshot()
     os_window = choose_os_window(snapshot, target, _self_window_id())
     rows = tree_rows(records_for_os_window(os_window))
     width = shutil.get_terminal_size((80, 24)).columns
+    renderer = render_screen if orientation == "vertical" else render_horizontal_screen
     print(
-        render_screen(
+        renderer(
             rows, -1, int(os_window["id"]), width, len(rows) + 2, ansi=False
         )
     )
@@ -145,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             print(Path(__file__).with_name("tree_navigation_kitten.py"))
             return 0
         if args.command == "list":
-            return _list(remote, args.target_os_window)
+            return _list(remote, args.target_os_window, args.orientation)
         if args.command == "launch":
             snapshot = remote.snapshot()
             self_id = _self_window_id()
@@ -160,13 +174,14 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError("the current Kitty window was not found")
                 target = location[0]
             new_window_id = remote.launch_sidebar(
-                target, args.edge_style, args.repository_palette
+                target, args.edge_style, args.repository_palette,
+                args.orientation,
             )
             print(f"opened ktt in Kitty window {new_window_id}, targeting OS window {target}")
             return 0
         if args.command == "refresh":
             snapshot = remote.snapshot()
-            sidebar = find_sidebar_window(snapshot)
+            sidebar = find_sidebar_window(snapshot, args.orientation)
             if sidebar is None:
                 raise ValueError("no running ktt sidebar window was found")
             sidebar_os_window_id, sidebar_window_id, recorded_target = sidebar
@@ -180,6 +195,7 @@ def main(argv: list[str] | None = None) -> int:
             new_window_id = remote.replace_sidebar(
                 sidebar_window_id, target, args.edge_style,
                 args.repository_palette,
+                args.orientation,
             )
             print(
                 f"refreshed ktt as Kitty window {new_window_id}, "
@@ -223,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
             args.auto_reload,
             args.edge_style,
             args.repository_palette,
+            args.orientation,
         )
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)

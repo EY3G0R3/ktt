@@ -1,14 +1,15 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from ktt.events import (
     TabEventListener,
     event_socket_path,
     navigation_direction,
     navigation_event,
+    send_navigation,
 )
-from ktt.kitty_watcher import on_tab_bar_dirty
+from ktt.kitty_watcher import _notify, on_tab_bar_dirty
 
 
 class FakeTab:
@@ -53,6 +54,44 @@ class EventTests(unittest.TestCase):
         listener.socket = FakeSocket()
         self.assertEqual(listener.drain(), (b"tabs",))
         self.assertEqual(listener.drain(), ())
+
+    def test_second_listener_uses_a_process_specific_socket(self) -> None:
+        listener_socket = MagicMock()
+        fake_stat = MagicMock(st_ino=7)
+        with (
+            patch("ktt.events.Path.exists", return_value=True),
+            patch("ktt.events.Path.mkdir"),
+            patch("ktt.events.Path.unlink"),
+            patch("ktt.events.Path.chmod"),
+            patch("ktt.events.Path.stat", return_value=fake_stat),
+            patch("ktt.events.socket.socket", return_value=listener_socket),
+            patch("ktt.events.os.getpid", return_value=456),
+        ):
+            listener = TabEventListener()
+            listener.bind(3)
+        self.assertTrue(str(listener.path).endswith(".456"))
+        listener_socket.bind.assert_called_once_with(str(listener.path))
+
+    def test_watcher_broadcasts_tab_events_to_every_listener(self) -> None:
+        base = event_socket_path(3)
+        sibling = base.with_name(f"{base.name}.456")
+        sender = MagicMock()
+        with (
+            patch("ktt.kitty_watcher.event_socket_path", return_value=base),
+            patch("ktt.kitty_watcher.Path.glob", return_value=[sibling]),
+            patch("ktt.kitty_watcher.socket.socket", return_value=sender),
+        ):
+            _notify(3)
+        self.assertEqual(
+            [call.args for call in sender.sendto.call_args_list],
+            [(b"tabs", str(base)), (b"tabs", str(sibling))],
+        )
+
+    def test_navigation_stops_after_the_primary_listener(self) -> None:
+        sender = MagicMock()
+        with patch("ktt.events.socket.socket", return_value=sender):
+            self.assertTrue(send_navigation(3, 1))
+        sender.sendto.assert_called_once()
 
     def test_navigation_event_round_trips_direction(self) -> None:
         self.assertEqual(navigation_direction(navigation_event(1)), 1)

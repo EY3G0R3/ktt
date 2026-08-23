@@ -13,6 +13,7 @@ from .model import PARENT_VAR
 
 SIDEBAR_VAR = "ktt_sidebar"
 TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
+ORIENTATION_VAR = "ktt_orientation"
 SIDEBAR_BACKGROUND = "#000000"
 KITTY_COMMAND_PREFIX = b"\x1bP@kitty-cmd"
 KITTY_COMMAND_SUFFIX = b"\x1b\\"
@@ -174,6 +175,7 @@ class RemoteControl:
         target_os_window_id: int,
         edge_style: str | None = None,
         repository_palette: str | None = None,
+        orientation: str = "vertical",
     ) -> tuple[str, list[str]]:
         package_root = str(Path(__file__).resolve().parent.parent)
         process = [
@@ -184,6 +186,7 @@ class RemoteControl:
         if self.to:
             process.extend(("--to", self.to))
         process.extend(("--target-os-window", str(target_os_window_id)))
+        process.extend(("--orientation", orientation))
         if edge_style:
             process.extend(("--edge-style", edge_style))
         if repository_palette:
@@ -195,16 +198,23 @@ class RemoteControl:
         target_os_window_id: int,
         edge_style: str | None = None,
         repository_palette: str | None = None,
+        orientation: str = "vertical",
     ) -> int:
         package_root, process = self._sidebar_process(
-            target_os_window_id, edge_style, repository_palette
+            target_os_window_id, edge_style, repository_palette, orientation
+        )
+        window_class = "ktt" if orientation == "vertical" else "ktt-horizontal"
+        window_title = (
+            "Kitty Tab Tree"
+            if orientation == "vertical"
+            else "Kitty Tab Tree — horizontal"
         )
         output = self.run(
             "launch",
             "--type=os-window",
-            "--os-window-class=ktt",
-            "--os-window-name=ktt",
-            "--os-window-title=Kitty Tab Tree",
+            f"--os-window-class={window_class}",
+            f"--os-window-name={window_class}",
+            f"--os-window-title={window_title}",
             "--title=ktt",
             "--color",
             f"background={SIDEBAR_BACKGROUND}",
@@ -213,6 +223,8 @@ class RemoteControl:
             f"{SIDEBAR_VAR}=1",
             "--var",
             f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
+            "--var",
+            f"{ORIENTATION_VAR}={orientation}",
             *process,
         )
         try:
@@ -226,9 +238,10 @@ class RemoteControl:
         target_os_window_id: int,
         edge_style: str | None = None,
         repository_palette: str | None = None,
+        orientation: str = "vertical",
     ) -> int:
         package_root, process = self._sidebar_process(
-            target_os_window_id, edge_style, repository_palette
+            target_os_window_id, edge_style, repository_palette, orientation
         )
         output = self.run(
             "launch",
@@ -246,6 +259,8 @@ class RemoteControl:
             f"{SIDEBAR_VAR}=1",
             "--var",
             f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
+            "--var",
+            f"{ORIENTATION_VAR}={orientation}",
             *process,
         )
         try:
@@ -295,6 +310,7 @@ def find_tab_for_window(
 
 def find_sidebar_window(
     snapshot: Sequence[dict[str, Any]],
+    orientation: str | None = None,
 ) -> tuple[int, int, int | None] | None:
     fallback = None
     for os_window in snapshot:
@@ -305,6 +321,11 @@ def find_sidebar_window(
         for tab in os_window.get("tabs") or []:
             for window in tab.get("windows") or []:
                 variables = window.get("user_vars") or {}
+                recorded_orientation = str(
+                    variables.get(ORIENTATION_VAR) or "vertical"
+                )
+                if orientation is not None and recorded_orientation != orientation:
+                    continue
                 target_value = str(variables.get(TARGET_OS_WINDOW_VAR) or "")
                 target = int(target_value) if target_value.isdigit() else None
                 result = (int(os_window["id"]), int(window["id"]), target)

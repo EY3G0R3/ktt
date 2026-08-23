@@ -14,6 +14,15 @@ class LinkValidationTests(unittest.TestCase):
     def test_default_recovery_poll_is_one_second(self) -> None:
         self.assertEqual(_parser().parse_args([]).poll_interval, 1.0)
 
+    def test_default_orientation_remains_vertical(self) -> None:
+        self.assertEqual(_parser().parse_args([]).orientation, "vertical")
+
+    def test_horizontal_orientation_is_opt_in(self) -> None:
+        self.assertEqual(
+            _parser().parse_args(["--orientation", "horizontal"]).orientation,
+            "horizontal",
+        )
+
     def test_rejects_a_new_cycle(self) -> None:
         snapshot = [{
             "id": 1,

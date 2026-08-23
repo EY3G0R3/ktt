@@ -20,10 +20,16 @@ from ktt.render import (
     card_background,
     card_content_line,
     display_width,
+    horizontal_index_at_mouse,
+    horizontal_layout,
+    horizontal_disclosure_column,
+    horizontal_repository_capacity,
     panel_style,
     next_edge_style,
     render_control_line,
     render_card,
+    render_horizontal_card,
+    render_horizontal_screen,
     render_row,
     render_screen,
     status_icon,
@@ -33,6 +39,103 @@ from ktt.render import (
 
 
 class RenderTests(unittest.TestCase):
+    def test_horizontal_tree_grows_down_and_subdivides_parent_span(self) -> None:
+        rows = [
+            TreeRow(
+                TabRecord(1, 1, "root", (10,)), 0, None,
+                has_children=True,
+            ),
+            TreeRow(TabRecord(2, 1, "left", (20,)), 1, 1),
+            TreeRow(TabRecord(3, 1, "right", (30,)), 1, 1),
+            TreeRow(TabRecord(4, 1, "other", (40,)), 0, None),
+        ]
+        placements = horizontal_layout(rows, 91, 8, 0)
+        by_index = {placement.index: placement for placement in placements}
+        self.assertEqual(by_index[0].screen_row, 0)
+        self.assertEqual(by_index[1].screen_row, 2)
+        self.assertEqual(by_index[2].screen_row, 2)
+        self.assertEqual(by_index[3].screen_row, 0)
+        self.assertGreater(by_index[0].width, by_index[1].width)
+        self.assertLess(by_index[1].left, by_index[2].left)
+        self.assertLess(by_index[0].left, by_index[3].left)
+
+    def test_horizontal_tree_draws_connectors_between_generations(self) -> None:
+        rows = [
+            TreeRow(
+                TabRecord(1, 1, "root", (10,)), 0, None,
+                has_children=True,
+            ),
+            TreeRow(TabRecord(2, 1, "left", (20,)), 1, 1),
+            TreeRow(TabRecord(3, 1, "right", (30,)), 1, 1),
+        ]
+        screen = render_horizontal_screen(
+            rows, 0, 1, 80, 5, ansi=False, show_controls=False
+        )
+        lines = screen.split("\n")
+        self.assertIn("root", lines[0])
+        self.assertTrue(any(character in lines[1] for character in "┬┴┼"))
+        self.assertIn("left", lines[2])
+        self.assertIn("right", lines[2])
+
+    def test_horizontal_layout_compacts_to_active_centered_strip(self) -> None:
+        rows = [
+            TreeRow(TabRecord(index, 1, f"tab-{index}", (index,)), 0, None)
+            for index in range(1, 9)
+        ]
+        placements = horizontal_layout(rows, 60, 4, 5)
+        self.assertTrue(all(item.screen_row == 0 for item in placements))
+        self.assertIn(5, [item.index for item in placements])
+        self.assertLess(len(placements), len(rows))
+
+    def test_horizontal_mouse_hit_testing_uses_card_rectangles(self) -> None:
+        rows = [
+            TreeRow(TabRecord(1, 1, "one", (10,)), 0, None),
+            TreeRow(TabRecord(2, 1, "two", (20,)), 0, None),
+        ]
+        placements = horizontal_layout(rows, 80, 4, 0)
+        second = next(item for item in placements if item.index == 1)
+        self.assertEqual(
+            horizontal_index_at_mouse(second.left + 1, 1, placements), 1
+        )
+        self.assertIsNone(
+            horizontal_index_at_mouse(second.left, 2, placements)
+        )
+
+    def test_horizontal_disclosure_column_tracks_centered_content(self) -> None:
+        row = TreeRow(
+            TabRecord(1, 1, "parent", (10,)), 0, None, has_children=True
+        )
+        placement = horizontal_layout([row], 40, 3, 0)[0]
+        column = horizontal_disclosure_column(row, placement)
+        rendered = render_horizontal_card(row, width=placement.width, ansi=False)
+        self.assertEqual(rendered[column - placement.left - 1], "▾")
+
+    def test_horizontal_card_centers_title_and_keeps_fixed_status_space(self) -> None:
+        plain = render_horizontal_card(
+            TreeRow(TabRecord(1, 1, "centered", (10,)), 0, None),
+            width=30,
+            ansi=False,
+        )
+        working = render_horizontal_card(
+            TreeRow(TabRecord(1, 1, "centered", (10,), status="🤖"), 0, None),
+            width=30,
+            ansi=False,
+            now=0.0,
+        )
+        self.assertEqual(display_width(plain), 30)
+        self.assertEqual(plain.index("centered"), working.index("centered"))
+        self.assertGreater(plain.index("centered"), 5)
+
+    def test_horizontal_repository_uses_only_space_below_tree(self) -> None:
+        rows = [
+            TreeRow(
+                TabRecord(1, 1, "root", (10,)), 0, None,
+                has_children=True,
+            ),
+            TreeRow(TabRecord(2, 1, "child", (20,)), 1, 1),
+        ]
+        self.assertEqual(horizontal_repository_capacity(rows, 80, 8, 0), 3)
+
     def test_repository_status_uses_bottom_padding_without_moving_cards(self) -> None:
         rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
         screen = render_screen(

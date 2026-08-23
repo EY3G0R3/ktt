@@ -21,12 +21,19 @@ def event_socket_path(os_window_id: int) -> Path:
 
 
 def _notify(os_window_id: int) -> None:
+    base_path = event_socket_path(os_window_id)
+    paths = [
+        base_path,
+        *sorted(base_path.parent.glob(f"{base_path.name}.*")),
+    ]
     sender = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     sender.setblocking(False)
     try:
-        sender.sendto(b"tabs", str(event_socket_path(os_window_id)))
-    except OSError:
-        pass
+        for path in paths:
+            try:
+                sender.sendto(b"tabs", str(path))
+            except OSError:
+                continue
     finally:
         sender.close()
 
