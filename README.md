@@ -1,8 +1,9 @@
 # ktt
 
-`ktt` is an early vertical, tree-shaped tab bar for Kitty. It runs in a
-separate Kitty OS window, watches the tabs in a main Kitty OS window, and uses
-Kitty remote control to focus the active tab. Cards use three terminal rows
+`ktt` is a tree-shaped tab bar for Kitty with vertical and experimental
+horizontal views. It runs in a separate Kitty OS window, watches the tabs in a
+main Kitty OS window, and uses Kitty remote control to focus the active tab.
+Vertical cards use three terminal rows
 when the whole tree fits, squeeze to two rows when necessary, and fall back to
 one row under pressure. The normal TUI has no diagnostic
 header; target-window details remain available through commands and errors
@@ -12,6 +13,11 @@ legend appears while the ktt OS window has focus; `?` pins or unpins it for
 reference while working in the main window. It is vertically centered inside
 otherwise-unused space above the centered tab stack, so showing or hiding it
 does not move cards or mouse targets.
+
+Horizontal mode allocates each root a left-to-right span and grows descendants
+downward through proportional child spans. It uses a compact one-line help
+legend and falls back to an active-centered one-row tab strip when the window
+is too narrow to show useful tree lanes.
 
 See [VISION.md](VISION.md) for the original product vision and architecture.
 The resolved product choices are in [DECISIONS.md](DECISIONS.md).
@@ -39,7 +45,9 @@ The watcher sends a nonblocking local Unix-datagram wake-up only when the
 active tab or ordered tab membership changes. ktt then takes one immediate
 Kitty snapshot; its one-second polling interval remains the recovery fallback.
 Title, spinner, and status-only tab-bar redraws are filtered inside Kitty and
-do not wake ktt.
+do not wake ktt. When both orientations watch the same Kitty OS window, passive
+tab-change wake-ups are broadcast to both views while one listener remains the
+owner of external tree-navigation commands.
 
 Snapshot reads use Kitty's documented framed-JSON
 [remote-control protocol](https://sw.kovidgoyal.net/kitty/rc_protocol/)
@@ -189,6 +197,22 @@ Launch it in a separate Kitty OS window:
 
 ```bash
 python3 -m ktt launch
+```
+
+Launch the experimental bottom-bar view without replacing the vertical view:
+
+```bash
+python3 -m ktt --orientation horizontal launch
+```
+
+The horizontal window uses the distinct `ktt-horizontal` window class so dwm
+or another window manager can assign it a shallow bottom region independently
+of the vertical `ktt` sidebar. Both views share folds, active-tab state,
+statuses, repository context, mouse switching, and visible tree order. Refresh
+only the horizontal instance with:
+
+```bash
+python3 -m ktt --orientation horizontal refresh
 ```
 
 Install an editable `ktt` command:

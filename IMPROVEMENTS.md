@@ -265,17 +265,30 @@ repository or global preference.
 
 ## 6. Prototype a horizontal tree-bar view
 
-Add a renderer that places root tabs left to right and grows descendants
-downward. Reuse the same Kitty snapshot, `ktt_parent_window_id` graph, statuses,
-fold state, and focus operations as the vertical sidebar. Start with a shallow
-separate ktt OS window managed below the main window rather than
-depending on Kitty's single-row custom tab-bar surface.
+The first live renderer now places roots left to right and grows descendants
+downward. Each root receives a span proportional to its visible leaf count;
+children subdivide that span, and dim connector rows show the generation edge.
+Card contents are centered within their lanes. The renderer reuses the same
+Kitty snapshot, `ktt_parent_window_id` graph, statuses, fold state, repository
+context, visible order, and focus operations as the vertical sidebar.
 
-Optimize first for peripheral awareness near the prompt, not maximum terminal
-area. Set a strict height budget, prefer showing the active path, and collapse
-inactive subtrees before allowing the bottom strip to consume more rows.
+`--orientation horizontal launch` creates a separately tagged
+`ktt-horizontal` OS window for a window manager to place below the main window.
+Vertical and horizontal instances can coexist: the Kitty watcher broadcasts
+passive topology changes to every listener, while external navigation is sent
+to one owner so a single key press cannot advance twice.
 
-Prototype subtree-width allocation, active-path visibility, horizontal
-overflow, mouse hit testing, and a compact one-row fallback. Keep column and
-diagonal-branch treatments switchable until they have been exercised against
-real multi-level tab forests.
+When proportional leaf lanes would become narrower than fourteen cells, the
+view switches to a one-row strip centered around the active tab in visible tree
+order. Mouse hit testing follows the actual horizontal card rectangles, and
+folding continues to use the shared persisted state.
+
+Next live experiments:
+
+1. Add a dwm rule for a shallow bottom placement after choosing a comfortable
+   height from real use.
+2. Prefer the active path when vertical depth exceeds the strict height budget,
+   then collapse inactive subtrees before clipping descendants.
+3. Compare the current orthogonal connector rows with a diagonal-branch theme.
+4. Mark omitted tabs at both edges of compact mode and consider horizontal
+   scrolling before changing the active-centered behavior.

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kitty-tab-tree"
 version = "0.1.0"
-description = "A vertical tree-shaped tab bar for Kitty"
+description = "A tree-shaped tab bar for Kitty"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "ktt contributors"}]
