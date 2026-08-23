@@ -8,7 +8,7 @@ import subprocess
 import sys
 from typing import Any, Sequence
 
-from .model import PARENT_VAR
+from .model import COCKPIT_ROLE_VAR, PARENT_VAR
 
 
 SIDEBAR_VAR = "ktt_sidebar"
@@ -233,6 +233,8 @@ class RemoteControl:
             f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
             "--var",
             f"{ORIENTATION_VAR}=horizontal",
+            "--var",
+            f"{COCKPIT_ROLE_VAR}=ktt",
             *process,
         )
         try:

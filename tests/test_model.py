@@ -40,6 +40,38 @@ class ModelTests(unittest.TestCase):
         self.assertNotIn("family", record.__dict__)
         self.assertEqual(record.status, "ready_to_merge")
 
+    def test_agent_role_owns_metadata_when_companion_is_active(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "agent tab",
+                "is_active": True,
+                "windows": [
+                    {
+                        "id": 101,
+                        "is_active": False,
+                        "user_vars": {
+                            "ktt_cockpit_role": "agent",
+                            "ktt_parent_window_id": "55",
+                            "workmux_status": "blocked",
+                        },
+                    },
+                    {
+                        "id": 102,
+                        "is_active": True,
+                        "user_vars": {"ktt_cockpit_role": "shell"},
+                    },
+                ],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(record.window_ids, (101, 102))
+        self.assertEqual(record.parent_window_id, 55)
+        self.assertEqual(record.status, "blocked")
+
     def test_tree_supports_multiple_levels_and_reorders_children(self) -> None:
         records = [
             TabRecord(3, 1, "grandchild", (30,), parent_window_id=20, source_index=0),

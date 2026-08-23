@@ -169,6 +169,7 @@ class RemoteControlTests(unittest.TestCase):
         self.assertIn("--keep-focus", arguments)
         self.assertIn("--embedded", arguments)
         self.assertIn("ktt_orientation=horizontal", arguments)
+        self.assertIn("ktt_cockpit_role=ktt", arguments)
 
     def test_sidebar_refresh_launches_with_background_before_close(self) -> None:
         remote = RecordingRemote()
