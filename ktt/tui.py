@@ -11,6 +11,7 @@ import termios
 import time
 import tty
 
+from .events import TabEventListener
 from .kitty import KittyError, RemoteControl
 from .model import (
     TabRecord,
@@ -22,6 +23,8 @@ from .model import (
 )
 from .render import (
     DEFAULT_EDGE_STYLE,
+    REPOSITORY_BOTTOM_MARGIN,
+    REPOSITORY_HELP_GAP,
     TREE_INDENT_WIDTH,
     adaptive_card_height,
     card_gap,
@@ -30,6 +33,7 @@ from .render import (
     panel_style,
     next_edge_style,
     render_screen,
+    vertical_bottom_padding,
     vertical_padding,
     visible_start,
 )
@@ -156,6 +160,17 @@ def reload_candidate(
     return candidate, True
 
 
+def window_is_focused(snapshot: list[dict], window_id: int | None) -> bool:
+    if window_id is None:
+        return False
+    return any(
+        int(window.get("id", -1)) == window_id and bool(window.get("is_focused"))
+        for os_window in snapshot
+        for tab in os_window.get("tabs") or []
+        for window in tab.get("windows") or []
+    )
+
+
 class TerminalMode:
     def __enter__(self) -> "TerminalMode":
         if not sys.stdin.isatty() or not sys.stdout.isatty():
@@ -172,11 +187,25 @@ class TerminalMode:
         sys.stdout.write("\x1b[0m\x1b[?1000l\x1b[?1006l\x1b[?25h\x1b[?1049l")
         sys.stdout.flush()
 
-    def read_key(self, timeout: float) -> str | None:
-        readable, _, _ = select.select([self.fd], [], [], timeout)
-        if not readable:
-            return None
-        return os.read(self.fd, 64).decode(errors="ignore")
+    def read_key(
+        self,
+        timeout: float,
+        tab_events: TabEventListener | None = None,
+    ) -> tuple[str | None, bool]:
+        readers: list[object] = [self.fd]
+        event_socket = tab_events.socket if tab_events is not None else None
+        if event_socket is not None:
+            readers.append(event_socket)
+        readable, _, _ = select.select(readers, [], [], timeout)
+        event_ready = event_socket is not None and event_socket in readable
+        if event_ready and tab_events is not None:
+            tab_events.drain()
+        key = (
+            os.read(self.fd, 64).decode(errors="ignore")
+            if self.fd in readable
+            else None
+        )
+        return key, event_ready
 
 
 def run_tui(
@@ -194,6 +223,8 @@ def run_tui(
     os_window_id = target_os_window_id or 0
     error: str | None = None
     repository_path: str | None = None
+    sidebar_focused = False
+    help_pinned = False
     repository_monitor = FancylogMonitor(palette=repository_palette)
     next_poll = 0.0
     next_source_check = 0.0
@@ -217,7 +248,7 @@ def run_tui(
         except KittyError as caught:
             error = str(caught)
 
-    with TerminalMode() as terminal:
+    with TerminalMode() as terminal, TabEventListener() as tab_events:
         while True:
             now = time.monotonic()
             if auto_reload and now >= next_source_check:
@@ -233,10 +264,12 @@ def run_tui(
             if now >= next_poll:
                 try:
                     snapshot = remote.snapshot()
+                    sidebar_focused = window_is_focused(snapshot, self_window_id)
                     os_window = choose_os_window(
                         snapshot, target_os_window_id, self_window_id
                     )
                     os_window_id = int(os_window["id"])
+                    tab_events.bind(os_window_id)
                     records = records_for_os_window(os_window)
                     collapsed_tab_ids.intersection_update(
                         record.id for record in records
@@ -254,7 +287,9 @@ def run_tui(
             repository_lines = repository_monitor.update(
                 repository_path,
                 width,
-                min(3, vertical_padding(len(rows), height, card_height)),
+                min(3, vertical_bottom_padding(
+                    len(rows), height, card_height
+                ) - REPOSITORY_HELP_GAP - REPOSITORY_BOTTOM_MARGIN),
                 now,
             )
             screen = render_screen(
@@ -262,13 +297,20 @@ def run_tui(
                 total_tabs=len(records), error=error, now=now,
                 edge_style=edge_style,
                 repository_lines=repository_lines,
+                show_controls=sidebar_focused or help_pinned,
+                help_pinned=help_pinned,
             )
             # Erase with ktt's own black background. Kitty's configured default
             # can change when the OS window gains focus, which otherwise makes
             # inactive gray cards disappear into the panel.
             sys.stdout.write(panel_style() + "\x1b[H\x1b[2J" + screen)
             sys.stdout.flush()
-            key = terminal.read_key(min(0.05, max(0.0, next_poll - time.monotonic())))
+            key, tabs_changed = terminal.read_key(
+                min(0.05, max(0.0, next_poll - time.monotonic())),
+                tab_events,
+            )
+            if tabs_changed:
+                next_poll = 0.0
             if key is None:
                 continue
             mouse = parse_mouse_event(key)
@@ -368,6 +410,8 @@ def run_tui(
             elif key == "r":
                 repository_monitor.invalidate()
                 next_poll = 0.0
+            elif key == "?":
+                help_pinned = not help_pinned
             elif key == "e":
                 edge_style = next_edge_style(edge_style)
             if preview_after_move and selected_index != previous_index:

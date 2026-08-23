@@ -35,6 +35,7 @@ CONTROL_ROWS = (
     ("Space · right-click", "fold tree"),
     ("e", "edge style"),
     ("r", "refresh"),
+    ("?", "pin help"),
     ("q", "quit"),
 )
 CONTROL_LEFT_WIDTH = max(len(shortcut) for shortcut, _ in CONTROL_ROWS)
@@ -46,6 +47,8 @@ CONTROL_SEPARATOR = " │ "
 CONTROL_SHORTCUT_FOREGROUND = "5f7a82"
 CONTROL_SEPARATOR_FOREGROUND = "3f4552"
 CONTROL_ACTION_FOREGROUND = "777d89"
+REPOSITORY_HELP_GAP = 1
+REPOSITORY_BOTTOM_MARGIN = 1
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
     f"{(f'edge: {DEFAULT_EDGE_STYLE}' if shortcut == 'e' else action):<{CONTROL_RIGHT_WIDTH}}"
@@ -403,6 +406,8 @@ def render_screen(
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
+    show_controls: bool = True,
+    help_pinned: bool = False,
 ) -> str:
     available = content_height(height)
     card_height = adaptive_card_height(len(rows), height)
@@ -410,9 +415,11 @@ def render_screen(
     start = visible_start(len(rows), selected_index, height, card_height)
     visible = rows[start:start + capacity]
     top_padding = vertical_padding(len(rows), height, card_height)
-    context = (repository_lines or [])[:top_padding]
-    output = [*context]
-    output.extend("" for _ in range(top_padding - len(context)))
+    bottom_padding = vertical_bottom_padding(len(rows), height, card_height)
+    context_spacing = REPOSITORY_HELP_GAP + REPOSITORY_BOTTOM_MARGIN
+    context = (repository_lines or [])[:max(0, bottom_padding - context_spacing)]
+    context_rows = len(context) + context_spacing if context else 0
+    output = ["" for _ in range(top_padding)]
     for offset, row in enumerate(visible):
         if offset:
             output.extend("" for _ in range(card_gap(card_height)))
@@ -427,19 +434,30 @@ def render_screen(
                 edge_style=edge_style,
             )
         )
-    while len(output) < available:
+    while len(output) < available - context_rows:
         output.append("")
     if error and output:
         output[-1] = f" error: {error}"[:width]
-    output.extend(
-        render_control_line(
-            shortcut,
-            f"edge: {edge_style}" if shortcut == "e" else action,
-            width,
-            ansi=ansi,
+    if show_controls:
+        output.extend(
+            render_control_line(
+                shortcut,
+                f"edge: {edge_style}"
+                if shortcut == "e"
+                else "unpin help"
+                if shortcut == "?" and help_pinned
+                else action,
+                width,
+                ansi=ansi,
+            )
+            for shortcut, action in CONTROL_ROWS
         )
-        for shortcut, action in CONTROL_ROWS
-    )
+    else:
+        output.extend("" for _ in CONTROL_ROWS)
+    if context:
+        output.extend("" for _ in range(REPOSITORY_HELP_GAP))
+        output.extend(context)
+        output.extend("" for _ in range(REPOSITORY_BOTTOM_MARGIN))
     return "\n".join(output[:height])
 
 
@@ -472,3 +490,16 @@ def vertical_padding(
     if used >= available:
         return 0
     return (available - used) // 2
+
+
+def vertical_bottom_padding(
+    row_count: int,
+    height: int,
+    card_height: int | None = None,
+) -> int:
+    available = content_height(height)
+    card_height = card_height or adaptive_card_height(row_count, height)
+    used = cards_height(row_count, card_height)
+    return max(0, available - used - vertical_padding(
+        row_count, height, card_height
+    ))

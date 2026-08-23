@@ -8,6 +8,7 @@ from ktt.tui import (
     reload_candidate,
     restart_arguments,
     row_index_at_mouse,
+    window_is_focused,
 )
 from ktt.repository import active_window_cwd
 
@@ -26,6 +27,14 @@ class MouseTests(unittest.TestCase):
             },
         ]}
         self.assertEqual(active_window_cwd(os_window), "/active")
+
+    def test_sidebar_focus_comes_from_its_own_kitty_window(self) -> None:
+        snapshot = [{"tabs": [{"windows": [
+            {"id": 10, "is_focused": False},
+            {"id": 20, "is_focused": True},
+        ]}]}]
+        self.assertTrue(window_is_focused(snapshot, 20))
+        self.assertFalse(window_is_focused(snapshot, 10))
 
     def test_parses_left_click_and_wheel(self) -> None:
         click = parse_mouse_event("\x1b[<0;12;4M")
@@ -48,10 +57,10 @@ class MouseTests(unittest.TestCase):
             row_index_at_mouse(1, start=5, row_count=20, height=11), 5
         )
         self.assertEqual(
-            row_index_at_mouse(5, start=5, row_count=20, height=11), 9
+            row_index_at_mouse(4, start=5, row_count=20, height=11), 8
         )
         self.assertIsNone(
-            row_index_at_mouse(6, start=5, row_count=20, height=11)
+            row_index_at_mouse(5, start=5, row_count=20, height=11)
         )
 
     def test_maps_centered_screen_row(self) -> None:
@@ -69,7 +78,7 @@ class MouseTests(unittest.TestCase):
         arguments = {
             "start": 0,
             "row_count": 3,
-            "height": 18,
+            "height": 19,
             "top_padding": 1,
             "card_height": 3,
         }

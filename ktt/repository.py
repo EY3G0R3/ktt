@@ -6,8 +6,10 @@ import time
 from typing import Any
 
 
-REPOSITORY_PALETTES = ("surf", "amber", "vivid", "quiet", "graphite")
-DEFAULT_REPOSITORY_PALETTE = "graphite"
+REPOSITORY_PALETTES = (
+    "surf", "amber", "vivid", "quiet", "graphite", "terminal", "dracula",
+)
+DEFAULT_REPOSITORY_PALETTE = "terminal"
 
 
 def active_window_cwd(os_window: dict[str, Any]) -> str | None:

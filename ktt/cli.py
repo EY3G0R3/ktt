@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 import shutil
 import sys
 
@@ -45,13 +46,16 @@ def _parser() -> argparse.ArgumentParser:
         default=os.environ.get(
             "KTT_REPOSITORY_PALETTE", DEFAULT_REPOSITORY_PALETTE
         ),
-        help="fancylog status-bar palette (default: graphite)",
+        help="fancylog status-bar palette (default: terminal)",
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="print the current tree once")
     subparsers.add_parser("launch", help="open ktt in a separate Kitty OS window")
     subparsers.add_parser(
         "refresh", help="replace the running sidebar inside its current OS window"
+    )
+    subparsers.add_parser(
+        "watcher-path", help="print the global Kitty watcher path"
     )
     launch_child = subparsers.add_parser(
         "launch-child", help="launch a child tab linked to the current Kitty window"
@@ -131,6 +135,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     remote = RemoteControl(args.to)
     try:
+        if args.command == "watcher-path":
+            print(Path(__file__).with_name("kitty_watcher.py"))
+            return 0
         if args.command == "list":
             return _list(remote, args.target_os_window)
         if args.command == "launch":
