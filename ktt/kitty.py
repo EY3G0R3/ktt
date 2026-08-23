@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from typing import Any, Sequence
+
+from .model import PARENT_VAR
+
+
+SIDEBAR_VAR = "ktt_sidebar"
+TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
+
+
+class KittyError(RuntimeError):
+    pass
+
+
+class RemoteControl:
+    def __init__(self, to: str | None = None, timeout: float = 3.0) -> None:
+        self.to = to or os.environ.get("KITTY_LISTEN_ON")
+        self.timeout = timeout
+
+    def _command(self, subcommand: str, *arguments: str) -> list[str]:
+        command = ["kitten", "@"]
+        if self.to:
+            command.extend(("--to", self.to))
+        command.append(subcommand)
+        command.extend(arguments)
+        return command
+
+    def run(self, subcommand: str, *arguments: str) -> str:
+        try:
+            result = subprocess.run(
+                self._command(subcommand, *arguments),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+            )
+        except FileNotFoundError as error:
+            raise KittyError("`kitten` is not installed or is not on PATH") from error
+        except subprocess.TimeoutExpired as error:
+            raise KittyError(f"Kitty remote control timed out after {self.timeout:g}s") from error
+        if result.returncode:
+            detail = (result.stderr or result.stdout).strip().splitlines()
+            message = detail[-1] if detail else f"exit status {result.returncode}"
+            raise KittyError(f"Kitty {subcommand} failed: {message}")
+        return result.stdout.strip()
+
+    def snapshot(self) -> list[dict[str, Any]]:
+        output = self.run("ls")
+        try:
+            value = json.loads(output)
+        except json.JSONDecodeError as error:
+            raise KittyError("Kitty returned invalid JSON from `kitten @ ls`") from error
+        if not isinstance(value, list):
+            raise KittyError("Kitty returned an unexpected value from `kitten @ ls`")
+        return value
+
+    def focus_tab(self, tab_id: int) -> None:
+        self.run("focus-tab", "--match", f"id:{tab_id}")
+
+    def preview_tab(self, tab_id: int, sidebar_window_id: int) -> None:
+        # focus-tab necessarily switches OS focus. Restore it only after Kitty
+        # acknowledges the tab change, allowing repeated navigation in ktt.
+        self.focus_tab(tab_id)
+        self.run("focus-window", "--match", f"id:{sidebar_window_id}")
+
+    def set_parent(self, child_window_id: int, parent_window_id: int | None) -> None:
+        value = "" if parent_window_id is None else str(parent_window_id)
+        self.run(
+            "set-user-vars",
+            "--match",
+            f"id:{child_window_id}",
+            f"{PARENT_VAR}={value}",
+        )
+
+    def _sidebar_process(self, target_os_window_id: int) -> tuple[str, list[str]]:
+        package_root = str(Path(__file__).resolve().parent.parent)
+        process = [
+            sys.executable,
+            "-m",
+            "ktt",
+        ]
+        if self.to:
+            process.extend(("--to", self.to))
+        process.extend(("--target-os-window", str(target_os_window_id)))
+        return package_root, process
+
+    def launch_sidebar(self, target_os_window_id: int) -> int:
+        package_root, process = self._sidebar_process(target_os_window_id)
+        output = self.run(
+            "launch",
+            "--type=os-window",
+            "--os-window-class=ktt",
+            "--os-window-name=ktt",
+            "--os-window-title=Kitty Tab Tree",
+            "--title=ktt",
+            f"--cwd={package_root}",
+            "--var",
+            f"{SIDEBAR_VAR}=1",
+            "--var",
+            f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
+            *process,
+        )
+        try:
+            return int(output)
+        except ValueError as error:
+            raise KittyError(f"Kitty returned an invalid new window ID: {output!r}") from error
+
+    def replace_sidebar(
+        self, sidebar_window_id: int, target_os_window_id: int
+    ) -> int:
+        package_root, process = self._sidebar_process(target_os_window_id)
+        output = self.run(
+            "launch",
+            "--match",
+            f"window_id:{sidebar_window_id}",
+            "--source-window",
+            f"id:{sidebar_window_id}",
+            "--type=window",
+            "--location=after",
+            "--title=ktt",
+            f"--cwd={package_root}",
+            "--var",
+            f"{SIDEBAR_VAR}=1",
+            "--var",
+            f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
+            *process,
+        )
+        try:
+            new_window_id = int(output)
+        except ValueError as error:
+            raise KittyError(f"Kitty returned an invalid replacement window ID: {output!r}") from error
+        self.run("close-window", "--match", f"id:{sidebar_window_id}")
+        return new_window_id
+
+    def launch_child(
+        self,
+        parent_window_id: int,
+        child_command: Sequence[str],
+        title: str | None = None,
+    ) -> int:
+        arguments = [
+            "--type=tab",
+            "--source-window",
+            f"id:{parent_window_id}",
+            "--location=after",
+            "--cwd=current",
+            "--var",
+            f"{PARENT_VAR}={parent_window_id}",
+        ]
+        if title:
+            arguments.extend(("--tab-title", title))
+        arguments.extend(child_command)
+        output = self.run("launch", *arguments)
+        try:
+            return int(output)
+        except ValueError as error:
+            raise KittyError(f"Kitty returned an invalid child window ID: {output!r}") from error
+
+
+def find_tab_for_window(
+    snapshot: Sequence[dict[str, Any]], window_id: int
+) -> tuple[int, int] | None:
+    for os_window in snapshot:
+        for tab in os_window.get("tabs") or []:
+            if any(
+                int(window["id"]) == window_id
+                for window in tab.get("windows") or []
+            ):
+                return int(os_window["id"]), int(tab["id"])
+    return None
+
+
+def find_sidebar_window(
+    snapshot: Sequence[dict[str, Any]],
+) -> tuple[int, int, int | None] | None:
+    fallback = None
+    for os_window in snapshot:
+        class_match = (
+            str(os_window.get("wm_class") or "").lower() == "ktt"
+            or str(os_window.get("wm_name") or "").lower() == "ktt"
+        )
+        for tab in os_window.get("tabs") or []:
+            for window in tab.get("windows") or []:
+                variables = window.get("user_vars") or {}
+                target_value = str(variables.get(TARGET_OS_WINDOW_VAR) or "")
+                target = int(target_value) if target_value.isdigit() else None
+                result = (int(os_window["id"]), int(window["id"]), target)
+                if str(variables.get(SIDEBAR_VAR) or "") == "1":
+                    return result
+                command = [str(part) for part in window.get("cmdline") or []]
+                looks_like_ktt = "-m" in command and "ktt" in command
+                if fallback is None and (class_match or looks_like_ktt):
+                    fallback = result
+    return fallback

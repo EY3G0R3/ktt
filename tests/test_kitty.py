@@ -1,0 +1,54 @@
+import unittest
+
+from ktt.kitty import RemoteControl, find_sidebar_window
+
+
+class RecordingRemote(RemoteControl):
+    def __init__(self):
+        super().__init__("unix:/tmp/example")
+        self.call = None
+        self.calls = []
+
+    def run(self, subcommand, *arguments):
+        self.call = (subcommand, arguments)
+        self.calls.append(self.call)
+        return "456"
+
+
+class RemoteControlTests(unittest.TestCase):
+    def test_launch_child_sets_parent_during_tab_creation(self) -> None:
+        remote = RecordingRemote()
+        child = remote.launch_child(123, ["codex", "--", "prompt"], "agent")
+        self.assertEqual(child, 456)
+        subcommand, arguments = remote.call
+        self.assertEqual(subcommand, "launch")
+        self.assertIn("--type=tab", arguments)
+        self.assertIn("ktt_parent_window_id=123", arguments)
+        self.assertEqual(arguments[-3:], ("codex", "--", "prompt"))
+
+    def test_finds_tagged_sidebar_and_recorded_target(self) -> None:
+        snapshot = [{
+            "id": 9,
+            "wm_class": "ktt",
+            "tabs": [{"windows": [{
+                "id": 91,
+                "cmdline": ["python3", "-m", "ktt"],
+                "user_vars": {
+                    "ktt_sidebar": "1",
+                    "ktt_target_os_window_id": "3",
+                },
+            }]}],
+        }]
+        self.assertEqual(find_sidebar_window(snapshot), (9, 91, 3))
+
+    def test_preview_switches_tab_then_restores_sidebar_focus(self) -> None:
+        remote = RecordingRemote()
+        remote.preview_tab(12, 91)
+        self.assertEqual(remote.calls, [
+            ("focus-tab", ("--match", "id:12")),
+            ("focus-window", ("--match", "id:91")),
+        ])
+
+
+if __name__ == "__main__":
+    unittest.main()
