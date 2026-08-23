@@ -272,11 +272,17 @@ Card contents are centered within their lanes. The renderer reuses the same
 Kitty snapshot, `ktt_parent_window_id` graph, statuses, fold state, repository
 context, visible order, and focus operations as the vertical sidebar.
 
-`--orientation horizontal launch` creates a separately tagged
-`ktt-horizontal` OS window for a window manager to place below the main window.
-Vertical and horizontal instances can coexist: the Kitty watcher broadcasts
-passive topology changes to every listener, while external navigation is sent
-to one owner so a single key press cannot advance twice.
+The separate `ktt-horizontal` OS-window experiment worked visually but made a
+generic dwm layout responsible for application-specific geometry. That dwm
+experiment has been removed. `--orientation horizontal launch-pane` now creates
+a shallow split inside the current Kitty tab; the first live run used seven
+rows across the full 427-column tab.
+
+Vertical and horizontal instances can coexist at the state layer: the Kitty
+watcher broadcasts passive topology changes to every listener, while external
+navigation is sent to one owner so a single key press cannot advance twice.
+Horizontal remains experimental, and vertical ktt must stay immediately
+recoverable rather than becoming a deprecated compatibility path.
 
 When proportional leaf lanes would become narrower than fourteen cells, the
 view switches to a one-row strip centered around the active tab in visible tree
@@ -285,8 +291,9 @@ folding continues to use the shared persisted state.
 
 Next live experiments:
 
-1. Add a dwm rule for a shallow bottom placement after choosing a comfortable
-   height from real use.
+1. Add an idempotent `set-view horizontal|vertical` operation and a single
+   shortcut that toggles the embedded pane and established vertical sidebar
+   without touching companion processes or dwm configuration.
 2. Prefer the active path when vertical depth exceeds the strict height budget,
    then collapse inactive subtrees before clipping descendants.
 3. Compare the current orthogonal connector rows with a diagonal-branch theme.

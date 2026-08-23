@@ -97,6 +97,30 @@ The first prototype runs horizontal ktt as an ordinary Kitty window in the
 bottom split of the current tab. This solves sizing inside Kitty and avoids a
 second top-level OS window.
 
+### Reversibility is a product requirement
+
+The horizontal cockpit is an experiment, not a migration away from vertical
+ktt. Both orientations remain first-class views over the same tree, status,
+fold, and navigation state. Neither renderer may become the other's source of
+truth, and horizontal-only metadata must not enter the tab hierarchy contract.
+
+Returning to the vertical sidebar must be a single command or keyboard action.
+The switch should remove or hide only ktt's current presentation surface,
+restore the alternate surface, preserve folds and active-tab identity, and
+leave the agent, fancylog, and scratch-shell processes untouched. It must not
+require manually rebuilding Kitty splits or changing dwm source/configuration.
+
+The intended interaction is an orientation toggle with two named profiles:
+
+- `horizontal cockpit`: a shallow embedded pane with the native tab bar hidden;
+- `vertical sidebar`: the established separate sidebar with the embedded pane
+  absent and the main cockpit using the recovered vertical space.
+
+Exact command and key names remain an implementation decision. Prefer one
+idempotent `set-view horizontal|vertical` operation plus a shortcut that toggles
+between them; this is easier to automate and recover than a sequence of window
+creation and closing commands.
+
 The mature version should query Kitty once per OS window. A shared ktt state
 service consumes watcher events and recovery polling, while small render
 clients in cockpit tabs display the latest frame. Hidden clients remain
@@ -121,4 +145,5 @@ the agent's status or change the cockpit identity.
    and hooks.
 4. Measure background cost with several cockpits before introducing the shared
    ktt state service.
-
+5. Add and live-test the idempotent horizontal/vertical view switch before
+   treating either layout as a default.
