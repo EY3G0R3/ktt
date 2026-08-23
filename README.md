@@ -3,7 +3,7 @@
 `ktt` is an early vertical, tree-shaped tab bar for Kitty. It runs in a
 separate Kitty OS window, watches the tabs in a main Kitty OS window, and uses
 Kitty remote control to focus the active tab. Short tab lists are centered
-vertically above a seven-line controls footer. Cards use three terminal rows
+vertically above an eight-line controls footer. Cards use three terminal rows
 when the whole tree fits, squeeze to two rows when necessary, and fall back to
 one row under pressure. The normal TUI has no diagnostic
 header; target-window details remain available through commands and errors
@@ -41,6 +41,19 @@ Kitty snapshot; its normal polling interval remains the recovery fallback.
 Title, spinner, and status-only tab-bar redraws are filtered inside Kitty and
 do not wake ktt.
 
+To make Kitty-wide `Alt-j`/`Alt-k` navigation follow ktt's visible tree order,
+run `ktt navigation-kitten-path`, then map the printed absolute path:
+
+```conf
+map alt+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py next
+map alt+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py previous
+```
+
+When the sidebar is running, the kitten sends navigation to ktt so folded
+subtrees are honored. If the sidebar is absent, it falls back to the complete
+tree order inside Kitty. Navigation remains bounded at the first and last
+visible rows and never rewrites Kitty's native tab order.
+
 Inside the tree:
 
 - left-click any physical row of a card to focus its tab;
@@ -49,6 +62,7 @@ Inside the tree:
   tab while keeping keyboard focus in ktt;
 - Enter transfers keyboard focus into that already-active tab;
 - `e` cycles the live card-edge style;
+- `t` toggles Kitty's native tab bar for the running Kitty instance;
 - `r` refreshes immediately; `q` exits.
 
 The current main-window tab is the single highlighted/selected state and uses

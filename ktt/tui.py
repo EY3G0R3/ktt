@@ -11,11 +11,13 @@ import termios
 import time
 import tty
 
-from .events import TabEventListener
+from .events import TabEventListener, navigation_direction
 from .kitty import KittyError, RemoteControl
 from .model import (
     TabRecord,
     TreeRow,
+    active_tree_row_index,
+    adjacent_tree_tab_id,
     choose_os_window,
     records_for_os_window,
     tree_rows,
@@ -108,17 +110,7 @@ def disclosure_column(row: TreeRow) -> int:
     return 2 + TREE_INDENT_WIDTH * row.depth
 
 
-def active_row_index(rows: list[TreeRow]) -> int:
-    active = next(
-        (index for index, row in enumerate(rows) if row.tab.is_active),
-        None,
-    )
-    if active is not None:
-        return active
-    return next(
-        (index for index, row in enumerate(rows) if row.has_active_descendant),
-        0,
-    )
+active_row_index = active_tree_row_index
 
 
 def restart_arguments(arguments: list[str], edge_style: str) -> list[str]:
@@ -191,21 +183,25 @@ class TerminalMode:
         self,
         timeout: float,
         tab_events: TabEventListener | None = None,
-    ) -> tuple[str | None, bool]:
+    ) -> tuple[str | None, tuple[bytes, ...]]:
         readers: list[object] = [self.fd]
         event_socket = tab_events.socket if tab_events is not None else None
         if event_socket is not None:
             readers.append(event_socket)
         readable, _, _ = select.select(readers, [], [], timeout)
-        event_ready = event_socket is not None and event_socket in readable
-        if event_ready and tab_events is not None:
+        events = (
             tab_events.drain()
+            if event_socket is not None
+            and event_socket in readable
+            and tab_events is not None
+            else ()
+        )
         key = (
             os.read(self.fd, 64).decode(errors="ignore")
             if self.fd in readable
             else None
         )
-        return key, event_ready
+        return key, events
 
 
 def run_tui(
@@ -225,6 +221,7 @@ def run_tui(
     repository_path: str | None = None
     sidebar_focused = False
     help_pinned = False
+    pending_navigation: list[int] = []
     repository_monitor = FancylogMonitor(palette=repository_palette)
     next_poll = 0.0
     next_source_check = 0.0
@@ -278,6 +275,17 @@ def run_tui(
                     selected_index = active_row_index(rows)
                     repository_path = active_window_cwd(os_window)
                     error = None
+
+                    navigation = pending_navigation[:]
+                    pending_navigation.clear()
+                    for direction in navigation:
+                        target_tab_id = adjacent_tree_tab_id(rows, direction)
+                        if target_tab_id is None:
+                            continue
+                        remote.focus_tab(target_tab_id)
+                        records = with_active_tab(records, target_tab_id)
+                        rows = tree_rows(records, collapsed_tab_ids)
+                        selected_index = active_row_index(rows)
                 except (KittyError, ValueError) as caught:
                     error = str(caught)
                 next_poll = now + poll_interval
@@ -305,11 +313,16 @@ def run_tui(
             # inactive gray cards disappear into the panel.
             sys.stdout.write(panel_style() + "\x1b[H\x1b[2J" + screen)
             sys.stdout.flush()
-            key, tabs_changed = terminal.read_key(
+            key, tab_event_messages = terminal.read_key(
                 min(0.05, max(0.0, next_poll - time.monotonic())),
                 tab_events,
             )
-            if tabs_changed:
+            if tab_event_messages:
+                pending_navigation.extend(
+                    direction
+                    for message in tab_event_messages
+                    if (direction := navigation_direction(message)) is not None
+                )
                 next_poll = 0.0
             if key is None:
                 continue
@@ -410,6 +423,16 @@ def run_tui(
             elif key == "r":
                 repository_monitor.invalidate()
                 next_poll = 0.0
+            elif key == "t":
+                active = next(
+                    (record for record in records if record.is_active), None
+                )
+                if active is not None and active.window_ids:
+                    try:
+                        remote.toggle_native_tabs(active.window_ids[0])
+                        error = None
+                    except KittyError as caught:
+                        error = str(caught)
             elif key == "?":
                 help_pinned = not help_pinned
             elif key == "e":

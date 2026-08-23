@@ -70,6 +70,17 @@ class RemoteControl:
         self.focus_tab(tab_id)
         self.run("focus-window", "--match", f"id:{sidebar_window_id}")
 
+    def toggle_native_tabs(self, source_window_id: int) -> None:
+        kitten = Path(__file__).with_name("tree_navigation_kitten.py")
+        self.run(
+            "action",
+            "--match",
+            f"id:{source_window_id}",
+            "kitten",
+            str(kitten),
+            "toggle-tabs",
+        )
+
     def set_parent(self, child_window_id: int, parent_window_id: int | None) -> None:
         value = "" if parent_window_id is None else str(parent_window_id)
         self.run(

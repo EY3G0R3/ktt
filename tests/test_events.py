@@ -2,7 +2,12 @@ import os
 import unittest
 from unittest.mock import patch
 
-from ktt.events import TabEventListener, event_socket_path
+from ktt.events import (
+    TabEventListener,
+    event_socket_path,
+    navigation_direction,
+    navigation_event,
+)
 from ktt.kitty_watcher import on_tab_bar_dirty
 
 
@@ -46,8 +51,13 @@ class EventTests(unittest.TestCase):
     def test_listener_drains_all_queued_wakeups(self) -> None:
         listener = TabEventListener()
         listener.socket = FakeSocket()
-        self.assertTrue(listener.drain())
-        self.assertFalse(listener.drain())
+        self.assertEqual(listener.drain(), (b"tabs",))
+        self.assertEqual(listener.drain(), ())
+
+    def test_navigation_event_round_trips_direction(self) -> None:
+        self.assertEqual(navigation_direction(navigation_event(1)), 1)
+        self.assertEqual(navigation_direction(navigation_event(-1)), -1)
+        self.assertIsNone(navigation_direction(b"tabs"))
 
     def test_watcher_ignores_title_only_tab_bar_churn(self) -> None:
         boss = FakeBoss()

@@ -54,31 +54,31 @@ class MouseTests(unittest.TestCase):
 
     def test_maps_screen_row_after_scroll(self) -> None:
         self.assertEqual(
-            row_index_at_mouse(1, start=5, row_count=20, height=11), 5
+            row_index_at_mouse(1, start=5, row_count=20, height=12), 5
         )
         self.assertEqual(
-            row_index_at_mouse(4, start=5, row_count=20, height=11), 8
+            row_index_at_mouse(4, start=5, row_count=20, height=12), 8
         )
         self.assertIsNone(
-            row_index_at_mouse(5, start=5, row_count=20, height=11)
+            row_index_at_mouse(5, start=5, row_count=20, height=12)
         )
 
     def test_maps_centered_screen_row(self) -> None:
         self.assertIsNone(row_index_at_mouse(
-            1, start=0, row_count=2, height=10, top_padding=1
+            1, start=0, row_count=2, height=11, top_padding=1
         ))
         self.assertEqual(row_index_at_mouse(
-            2, start=0, row_count=2, height=10, top_padding=1
+            2, start=0, row_count=2, height=11, top_padding=1
         ), 0)
         self.assertEqual(row_index_at_mouse(
-            3, start=0, row_count=2, height=10, top_padding=1
+            3, start=0, row_count=2, height=11, top_padding=1
         ), 1)
 
     def test_every_physical_line_of_tall_card_maps_to_same_tab(self) -> None:
         arguments = {
             "start": 0,
             "row_count": 3,
-            "height": 19,
+            "height": 20,
             "top_padding": 1,
             "card_height": 3,
         }

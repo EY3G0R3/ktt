@@ -1,5 +1,7 @@
+from pathlib import Path
 import unittest
 
+import ktt.kitty as kitty_module
 from ktt.kitty import RemoteControl, find_sidebar_window
 
 
@@ -48,6 +50,19 @@ class RemoteControlTests(unittest.TestCase):
             ("focus-tab", ("--match", "id:12")),
             ("focus-window", ("--match", "id:91")),
         ])
+
+    def test_native_tab_toggle_targets_the_main_window(self) -> None:
+        remote = RecordingRemote()
+        remote.toggle_native_tabs(12)
+        subcommand, arguments = remote.call
+        self.assertEqual(subcommand, "action")
+        self.assertEqual(arguments[:2], ("--match", "id:12"))
+        self.assertEqual(arguments[-2:], (
+            str(Path(kitty_module.__file__).with_name(
+                "tree_navigation_kitten.py"
+            )),
+            "toggle-tabs",
+        ))
 
     def test_sidebar_launch_passes_configured_edge_style(self) -> None:
         remote = RecordingRemote()

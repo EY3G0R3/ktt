@@ -6,6 +6,8 @@ import socket
 
 
 EVENT_DIRECTORY = "ktt"
+TAB_CHANGE_EVENT = b"tabs"
+NAVIGATION_EVENT_PREFIX = b"navigate:"
 
 
 def event_socket_path(
@@ -35,6 +37,7 @@ class TabEventListener:
         self.close()
         path = event_socket_path(os_window_id)
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        listener: socket.socket | None = None
         try:
             path.unlink(missing_ok=True)
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -42,28 +45,25 @@ class TabEventListener:
             listener.bind(str(path))
             path.chmod(0o600)
         except OSError:
-            try:
+            if listener is not None:
                 listener.close()
-            except UnboundLocalError:
-                pass
             return
         self.socket = listener
         self.path = path
         self.inode = path.stat().st_ino
         self.os_window_id = os_window_id
 
-    def drain(self) -> bool:
+    def drain(self) -> tuple[bytes, ...]:
         if self.socket is None:
-            return False
-        received = False
+            return ()
+        received: list[bytes] = []
         while True:
             try:
-                self.socket.recv(256)
-                received = True
+                received.append(self.socket.recv(256))
             except BlockingIOError:
-                return received
+                return tuple(received)
             except OSError:
-                return received
+                return tuple(received)
 
     def close(self) -> None:
         if self.socket is not None:
@@ -84,3 +84,35 @@ class TabEventListener:
 
     def __exit__(self, *_error: object) -> None:
         self.close()
+
+
+def navigation_event(direction: int) -> bytes:
+    return NAVIGATION_EVENT_PREFIX + (b"1" if direction > 0 else b"-1")
+
+
+def navigation_direction(event: bytes) -> int | None:
+    if event == NAVIGATION_EVENT_PREFIX + b"1":
+        return 1
+    if event == NAVIGATION_EVENT_PREFIX + b"-1":
+        return -1
+    return None
+
+
+def send_navigation(
+    os_window_id: int,
+    direction: int,
+    *,
+    kitty_pid: int | None = None,
+) -> bool:
+    sender = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sender.setblocking(False)
+    try:
+        sender.sendto(
+            navigation_event(direction),
+            str(event_socket_path(os_window_id, kitty_pid=kitty_pid)),
+        )
+    except OSError:
+        return False
+    finally:
+        sender.close()
+    return True

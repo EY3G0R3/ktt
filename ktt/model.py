@@ -200,6 +200,29 @@ def tree_rows(
     return rows
 
 
+def active_tree_row_index(rows: list[TreeRow]) -> int:
+    active = next(
+        (index for index, row in enumerate(rows) if row.tab.is_active),
+        None,
+    )
+    if active is not None:
+        return active
+    return next(
+        (index for index, row in enumerate(rows) if row.has_active_descendant),
+        0,
+    )
+
+
+def adjacent_tree_tab_id(rows: list[TreeRow], direction: int) -> int | None:
+    """Return the adjacent visible tab without wrapping at either boundary."""
+    if not rows or direction == 0:
+        return None
+    target_index = active_tree_row_index(rows) + (1 if direction > 0 else -1)
+    if not 0 <= target_index < len(rows):
+        return None
+    return rows[target_index].tab.id
+
+
 def with_active_tab(records: Iterable[TabRecord], tab_id: int) -> list[TabRecord]:
     return [
         replace(record, is_active=record.id == tab_id)

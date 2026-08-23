@@ -58,6 +58,11 @@ latest blocker or readiness reason.
   must be explicit and confirm tabs containing running processes.
 
 This favors fast switching without making a small pointer error destructive.
+Kitty-wide `Alt-j` and `Alt-k` are delegated to ktt over the event socket, so
+they traverse the visible tree rather than Kitty's flat tab order. Folded
+subtrees are skipped as rendered. The Kitty-side kitten computes the complete
+tree itself as a fallback when no ktt listener is available; neither path
+reorders native tabs.
 
 ## 5. Events drive tab selection; polling is recovery
 

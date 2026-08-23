@@ -2,6 +2,7 @@ import unittest
 
 from ktt.model import (
     TabRecord,
+    adjacent_tree_tab_id,
     choose_os_window,
     clean_title,
     records_for_os_window,
@@ -93,6 +94,30 @@ class ModelTests(unittest.TestCase):
         row = tree_rows(records, {1})[0]
         self.assertTrue(row.has_active_descendant)
         self.assertFalse(row.tab.is_active)
+
+    def test_adjacent_navigation_uses_visible_tree_order(self) -> None:
+        records = [
+            TabRecord(3, 1, "child", (30,), is_active=True,
+                      parent_window_id=10, source_index=0),
+            TabRecord(1, 1, "parent", (10,), source_index=1),
+            TabRecord(2, 1, "next root", (20,), source_index=2),
+        ]
+        rows = tree_rows(records)
+        self.assertEqual([row.tab.id for row in rows], [1, 3, 2])
+        self.assertEqual(adjacent_tree_tab_id(rows, 1), 2)
+        self.assertEqual(adjacent_tree_tab_id(rows, -1), 1)
+
+    def test_adjacent_navigation_respects_folded_tree_and_boundaries(self) -> None:
+        records = [
+            TabRecord(1, 1, "parent", (10,)),
+            TabRecord(2, 1, "child", (20,), is_active=True,
+                      parent_window_id=10),
+            TabRecord(3, 1, "next root", (30,)),
+        ]
+        rows = tree_rows(records, {1})
+        self.assertEqual([row.tab.id for row in rows], [1, 3])
+        self.assertEqual(adjacent_tree_tab_id(rows, 1), 3)
+        self.assertIsNone(adjacent_tree_tab_id(rows, -1))
 
     def test_with_active_tab_moves_active_state(self) -> None:
         records = [

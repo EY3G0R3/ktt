@@ -35,6 +35,7 @@ CONTROL_ROWS = (
     ("Space · right-click", "fold tree"),
     ("e", "edge style"),
     ("r", "refresh"),
+    ("t", "native tab bar"),
     ("?", "pin help"),
     ("q", "quit"),
 )
