@@ -23,7 +23,6 @@ from ktt.render import (
     horizontal_index_at_mouse,
     horizontal_layout,
     horizontal_disclosure_column,
-    horizontal_repository_capacity,
     panel_style,
     next_edge_style,
     render_control_line,
@@ -52,14 +51,15 @@ class RenderTests(unittest.TestCase):
         placements = horizontal_layout(rows, 91, 8, 0)
         by_index = {placement.index: placement for placement in placements}
         self.assertEqual(by_index[0].screen_row, 0)
-        self.assertEqual(by_index[1].screen_row, 2)
-        self.assertEqual(by_index[2].screen_row, 2)
+        self.assertEqual(by_index[1].screen_row, 1)
+        self.assertEqual(by_index[2].screen_row, 1)
         self.assertEqual(by_index[3].screen_row, 0)
         self.assertGreater(by_index[0].width, by_index[1].width)
+        self.assertGreaterEqual(by_index[1].left - by_index[0].left, 4)
         self.assertLess(by_index[1].left, by_index[2].left)
         self.assertLess(by_index[0].left, by_index[3].left)
 
-    def test_horizontal_tree_draws_connectors_between_generations(self) -> None:
+    def test_horizontal_tree_places_indented_children_on_the_next_row(self) -> None:
         rows = [
             TreeRow(
                 TabRecord(1, 1, "root", (10,)), 0, None,
@@ -73,9 +73,10 @@ class RenderTests(unittest.TestCase):
         )
         lines = screen.split("\n")
         self.assertIn("root", lines[0])
-        self.assertTrue(any(character in lines[1] for character in "┬┴┼"))
-        self.assertIn("left", lines[2])
-        self.assertIn("right", lines[2])
+        self.assertIn("left", lines[1])
+        self.assertIn("right", lines[1])
+        self.assertTrue(lines[1].startswith(" " * 4))
+        self.assertFalse(any(character in lines[1] for character in "┬┴┼"))
 
     def test_horizontal_layout_compacts_to_active_centered_strip(self) -> None:
         rows = [
@@ -126,15 +127,14 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(plain.index("centered"), working.index("centered"))
         self.assertGreater(plain.index("centered"), 5)
 
-    def test_horizontal_repository_uses_only_space_below_tree(self) -> None:
-        rows = [
-            TreeRow(
-                TabRecord(1, 1, "root", (10,)), 0, None,
-                has_children=True,
-            ),
-            TreeRow(TabRecord(2, 1, "child", (20,)), 1, 1),
-        ]
-        self.assertEqual(horizontal_repository_capacity(rows, 80, 8, 0), 3)
+    def test_horizontal_screen_does_not_render_repository_status(self) -> None:
+        rows = [TreeRow(TabRecord(1, 1, "root", (10,)), 0, None)]
+        screen = render_horizontal_screen(
+            rows, 0, 1, 80, 5, ansi=False, show_controls=False,
+            repository_lines=["fancylog status", " main"],
+        )
+        self.assertNotIn("fancylog status", screen)
+        self.assertNotIn(" main", screen)
 
     def test_repository_status_uses_bottom_padding_without_moving_cards(self) -> None:
         rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]

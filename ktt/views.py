@@ -16,7 +16,6 @@ from .render import (
     horizontal_disclosure_column,
     horizontal_index_at_mouse,
     horizontal_layout,
-    horizontal_repository_capacity,
     render_horizontal_screen,
     render_screen,
     vertical_bottom_padding,
@@ -161,10 +160,8 @@ class HorizontalView:
         selected_index: int,
         card_height: int,
     ) -> int:
-        del card_height
-        return horizontal_repository_capacity(
-            rows, width, height, selected_index
-        )
+        del rows, width, height, selected_index, card_height
+        return 0
 
     def hit_target(
         self,
@@ -203,4 +200,3 @@ def view_for(orientation: str = DEFAULT_ORIENTATION) -> View:
         return VIEWS[orientation]
     except KeyError as error:
         raise ValueError(f"unknown orientation: {orientation}") from error
-

@@ -33,6 +33,7 @@ DEFAULT_ORIENTATION = ORIENTATIONS[0]
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
 HORIZONTAL_MIN_CARD_WIDTH = 14
+HORIZONTAL_TREE_INDENT = 4
 HORIZONTAL_CONTROL_TEXT = (
     "j/k switch · Enter/click enter · Space fold · e edges · t tabs · ? help · q quit"
 )
@@ -242,15 +243,22 @@ def horizontal_layout(
         return leaves[index]
 
     total_leaves = sum(leaf_count(root) for root in roots)
-    if total_leaves <= 0 or usable // total_leaves < HORIZONTAL_MIN_CARD_WIDTH:
+    deepest_indent = max((row.depth for row in rows), default=0) * HORIZONTAL_TREE_INDENT
+    if (
+        total_leaves <= 0
+        or usable // total_leaves - deepest_indent < HORIZONTAL_MIN_CARD_WIDTH
+    ):
         return _compact_horizontal_layout(rows, width, selected_index)
 
     placements: list[HorizontalPlacement] = []
 
     def place(index: int, unit_start: int, unit_end: int) -> None:
         row = rows[index]
-        screen_row = row.depth * 2
-        left = unit_start * usable // total_leaves
+        screen_row = row.depth
+        left = (
+            unit_start * usable // total_leaves
+            + row.depth * HORIZONTAL_TREE_INDENT
+        )
         right = unit_end * usable // total_leaves
         card_width = max(1, right - left - 1)
         if screen_row < height:
@@ -595,74 +603,6 @@ def horizontal_disclosure_column(
     return placement.left + cap_width + left_padding + 1
 
 
-def _connector_lines(
-    rows: list[TreeRow],
-    placements: list[HorizontalPlacement],
-    width: int,
-) -> dict[int, str]:
-    if not placements or len({item.screen_row for item in placements}) == 1:
-        return {}
-    placement_for_index = {item.index: item for item in placements}
-    index_for_tab = {row.tab.id: index for index, row in enumerate(rows)}
-    masks: dict[int, list[int]] = {}
-    left_bit, right_bit, up_bit, down_bit = 1, 2, 4, 8
-    for child_index, child in placement_for_index.items():
-        parent_index = index_for_tab.get(rows[child_index].parent_tab_id)
-        parent = placement_for_index.get(parent_index) if parent_index is not None else None
-        if parent is None or child.screen_row != parent.screen_row + 2:
-            continue
-        connector_row = parent.screen_row + 1
-        cells = masks.setdefault(connector_row, [0] * max(0, width - 1))
-        parent_center = parent.left + max(0, parent.width - 1) // 2
-        child_center = child.left + max(0, child.width - 1) // 2
-        low, high = sorted((parent_center, child_center))
-        for column in range(low, min(high + 1, len(cells))):
-            if column > low:
-                cells[column] |= left_bit
-            if column < high:
-                cells[column] |= right_bit
-        if parent_center < len(cells):
-            cells[parent_center] |= up_bit
-        if child_center < len(cells):
-            cells[child_center] |= down_bit
-
-    glyph = {
-        0: " ",
-        left_bit: "─",
-        right_bit: "─",
-        left_bit | right_bit: "─",
-        up_bit: "│",
-        down_bit: "│",
-        up_bit | down_bit: "│",
-        right_bit | up_bit: "└",
-        left_bit | up_bit: "┘",
-        right_bit | down_bit: "┌",
-        left_bit | down_bit: "┐",
-        left_bit | right_bit | up_bit: "┴",
-        left_bit | right_bit | down_bit: "┬",
-        right_bit | up_bit | down_bit: "├",
-        left_bit | up_bit | down_bit: "┤",
-        left_bit | right_bit | up_bit | down_bit: "┼",
-    }
-    return {
-        screen_row: "".join(glyph.get(mask, "┼") for mask in cells).rstrip()
-        for screen_row, cells in masks.items()
-    }
-
-
-def horizontal_repository_capacity(
-    rows: list[TreeRow],
-    width: int,
-    height: int,
-    selected_index: int,
-) -> int:
-    placements = horizontal_layout(rows, width, height, selected_index)
-    tree_height = max(
-        (placement.screen_row + 1 for placement in placements), default=0
-    )
-    return max(0, height - tree_height - REPOSITORY_TOP_GAP - REPOSITORY_BOTTOM_MARGIN)
-
-
 def render_horizontal_screen(
     rows: list[TreeRow],
     selected_index: int,
@@ -679,7 +619,7 @@ def render_horizontal_screen(
     show_controls: bool = True,
     help_pinned: bool = False,
 ) -> str:
-    del os_window_id, total_tabs, help_pinned
+    del os_window_id, total_tabs, help_pinned, repository_lines
     placements = horizontal_layout(rows, width, height, selected_index)
     output = ["" for _ in range(height)]
     by_screen_row: dict[int, list[HorizontalPlacement]] = {}
@@ -702,26 +642,11 @@ def render_horizontal_screen(
             cursor = placement.left + placement.width
         output[screen_row] = line
 
-    connectors = _connector_lines(rows, placements, width)
-    for screen_row, line in connectors.items():
-        if screen_row < height:
-            output[screen_row] = (
-                f"{panel_style(ansi)}{_fg(CONTROL_SEPARATOR_FOREGROUND, ansi)}{line}"
-            )
-
     tree_height = max(
         (placement.screen_row + 1 for placement in placements), default=0
     )
-    context_capacity = horizontal_repository_capacity(
-        rows, width, height, selected_index
-    )
-    context = (repository_lines or [])[:context_capacity]
-    context_start = height - REPOSITORY_BOTTOM_MARGIN - len(context)
-    if context:
-        output[context_start:context_start + len(context)] = context
-
     free_start = tree_height
-    free_end = context_start if context else height - REPOSITORY_BOTTOM_MARGIN
+    free_end = height
     if show_controls and free_end > free_start:
         text = truncate_cells(HORIZONTAL_CONTROL_TEXT, width)
         padding = " " * max(0, (width - display_width(text)) // 2)

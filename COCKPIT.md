@@ -47,7 +47,7 @@ ktt a shallow full-width pane at the bottom:
 ├────────────────────┴──────────────────────────────┴────────────────────┤
 │ root agent          sibling agent             another agent           │
 │    └ child agent       └ blocked agent           └ ready agent         │
-│ branch · working tree clean                         ktt controls/help  │
+│                                             optional ktt controls/help │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -130,6 +130,11 @@ Fancylog remains the repository authority for Git, linked worktrees, yadm,
 branch, graph, and file status. Ktt owns tab hierarchy, agent attention state,
 folds, and navigation. Repository information shown by ktt should be supplied
 by fancylog rather than independently derived.
+
+The horizontal ktt pane does not repeat Fancylog's repository footer. Its
+limited height belongs to the tab tree; repository state and changed files stay
+in the dedicated Fancylog rail. Vertical ktt may continue using otherwise-empty
+padding for the compact Fancylog status block.
 
 Each Kitty window in a cockpit should eventually have an explicit role such as
 `agent`, `fancylog`, `shell`, or `ktt`. Tab-level status and ancestry are read

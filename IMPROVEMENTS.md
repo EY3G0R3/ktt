@@ -267,10 +267,11 @@ repository or global preference.
 
 The first live renderer now places roots left to right and grows descendants
 downward. Each root receives a span proportional to its visible leaf count;
-children subdivide that span, and dim connector rows show the generation edge.
-Card contents are centered within their lanes. The renderer reuses the same
-Kitty snapshot, `ktt_parent_window_id` graph, statuses, fold state, repository
-context, visible order, and focus operations as the vertical sidebar.
+children subdivide that span and occupy the immediately following row with a
+four-cell indent per generation. Card contents are centered within their
+lanes. The renderer reuses the same
+Kitty snapshot, `ktt_parent_window_id` graph, statuses, fold state, visible
+order, and focus operations as the vertical sidebar.
 
 The separate `ktt-horizontal` OS-window experiment worked visually but made a
 generic dwm layout responsible for application-specific geometry. That dwm
