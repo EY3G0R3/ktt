@@ -120,6 +120,48 @@ def status_icon(status: str | None, now: float | None = None) -> tuple[str, str 
     return (status or " "), None
 
 
+def card_background(row: TreeRow) -> str:
+    tab = row.tab
+    verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
+    if verdict:
+        return verdict[1 if tab.is_active else 0]
+    return (
+        ACTIVE_BACKGROUND
+        if tab.is_active
+        else ACTIVE_DESCENDANT_BACKGROUND
+        if row.has_active_descendant
+        else INACTIVE_BACKGROUND
+    )
+
+
+def adaptive_card_height(row_count: int, height: int) -> int:
+    available = content_height(height)
+    if row_count > 0 and cards_height(row_count, 3) <= available:
+        return 3
+    if row_count > 0 and cards_height(row_count, 2) <= available:
+        return 2
+    return 1
+
+
+def card_content_line(card_height: int) -> int:
+    return max(0, (card_height - 1) // 2)
+
+
+def card_gap(card_height: int) -> int:
+    return 1 if card_height > 1 else 0
+
+
+def cards_height(row_count: int, card_height: int) -> int:
+    if row_count <= 0:
+        return 0
+    return row_count * card_height + (row_count - 1) * card_gap(card_height)
+
+
+def card_capacity(available: int, card_height: int) -> int:
+    gap = card_gap(card_height)
+    return max(0, (available + gap) // (card_height + gap))
+
+
 def render_row(
     row: TreeRow,
     *,
@@ -153,16 +195,7 @@ def render_row(
 
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
-    if verdict:
-        background = verdict[1 if tab.is_active else 0]
-    else:
-        background = (
-            ACTIVE_BACKGROUND
-            if tab.is_active
-            else ACTIVE_DESCENDANT_BACKGROUND
-            if row.has_active_descendant
-            else INACTIVE_BACKGROUND
-        )
+    background = card_background(row)
     if ansi:
         base = _bg(background, True) + _fg(
             "f8f8f2" if verdict or tab.is_active else "d8dee9", True
@@ -193,6 +226,58 @@ def render_row(
     )
 
 
+def render_card_blank(row: TreeRow, *, width: int, ansi: bool = True) -> str:
+    left = "  " * row.depth
+    card_width = max(1, width - len(left) - 1)
+    show_caps = card_width >= 3
+    body_width = card_width - 2 if show_caps else card_width
+    background = card_background(row)
+    base = _bg(background, ansi)
+    reset = "\x1b[0m" if ansi else ""
+    if not show_caps:
+        return f"{panel_style(ansi)}{left}{base}{' ' * body_width}{reset}"
+    verdict_cap = (
+        READY_RIGHT_CAP
+        if row.tab.status == "ready_to_merge"
+        else FLAME_RIGHT_CAP
+        if row.tab.status == "blocked"
+        else None
+    )
+    right_edge = (
+        f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}{verdict_cap}"
+        if verdict_cap
+        else f"{panel_style(ansi)} "
+    )
+    return (
+        f"{panel_style(ansi)}{left} {base}{' ' * body_width}{reset}"
+        f"{right_edge}{reset}"
+    )
+
+
+def render_card(
+    row: TreeRow,
+    *,
+    selected: bool,
+    width: int,
+    card_height: int,
+    now: float | None = None,
+    ansi: bool = True,
+) -> list[str]:
+    content_line = card_content_line(card_height)
+    return [
+        render_row(
+            row,
+            selected=selected,
+            width=width,
+            now=now,
+            ansi=ansi,
+        )
+        if line == content_line
+        else render_card_blank(row, width=width, ansi=ansi)
+        for line in range(card_height)
+    ]
+
+
 def render_screen(
     rows: list[TreeRow],
     selected_index: int,
@@ -206,19 +291,26 @@ def render_screen(
     ansi: bool = True,
 ) -> str:
     available = content_height(height)
-    start = visible_start(len(rows), selected_index, height)
-    visible = rows[start:start + available]
-    output = ["" for _ in range(vertical_padding(len(rows), height))]
-    output.extend(
-        render_row(
-            row,
-            selected=(start + offset == selected_index),
-            width=width,
-            now=now,
-            ansi=ansi,
+    card_height = adaptive_card_height(len(rows), height)
+    capacity = card_capacity(available, card_height)
+    start = visible_start(len(rows), selected_index, height, card_height)
+    visible = rows[start:start + capacity]
+    output = [
+        "" for _ in range(vertical_padding(len(rows), height, card_height))
+    ]
+    for offset, row in enumerate(visible):
+        if offset:
+            output.extend("" for _ in range(card_gap(card_height)))
+        output.extend(
+            render_card(
+                row,
+                selected=(start + offset == selected_index),
+                width=width,
+                card_height=card_height,
+                now=now,
+                ansi=ansi,
+            )
         )
-        for offset, row in enumerate(visible)
-    )
     while len(output) < available:
         output.append("")
     if error and output:
@@ -234,15 +326,28 @@ def content_height(height: int) -> int:
     return max(0, height - len(CONTROL_LINES))
 
 
-def visible_start(row_count: int, selected_index: int, height: int) -> int:
+def visible_start(
+    row_count: int,
+    selected_index: int,
+    height: int,
+    card_height: int | None = None,
+) -> int:
     available = content_height(height)
-    if available and selected_index >= available:
-        return min(selected_index - available + 1, max(0, row_count - available))
+    card_height = card_height or adaptive_card_height(row_count, height)
+    capacity = card_capacity(available, card_height)
+    if capacity and selected_index >= capacity:
+        return min(selected_index - capacity + 1, max(0, row_count - capacity))
     return 0
 
 
-def vertical_padding(row_count: int, height: int) -> int:
+def vertical_padding(
+    row_count: int,
+    height: int,
+    card_height: int | None = None,
+) -> int:
     available = content_height(height)
-    if row_count >= available:
+    card_height = card_height or adaptive_card_height(row_count, height)
+    used = cards_height(row_count, card_height)
+    if used >= available:
         return 0
-    return (available - row_count) // 2
+    return (available - used) // 2

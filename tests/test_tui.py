@@ -48,6 +48,24 @@ class MouseTests(unittest.TestCase):
             3, start=0, row_count=2, height=10, top_padding=1
         ), 1)
 
+    def test_every_physical_line_of_tall_card_maps_to_same_tab(self) -> None:
+        arguments = {
+            "start": 0,
+            "row_count": 3,
+            "height": 18,
+            "top_padding": 1,
+            "card_height": 3,
+        }
+        self.assertIsNone(row_index_at_mouse(1, **arguments))
+        self.assertEqual(row_index_at_mouse(2, **arguments), 0)
+        self.assertEqual(row_index_at_mouse(3, **arguments), 0)
+        self.assertEqual(row_index_at_mouse(4, **arguments), 0)
+        self.assertIsNone(row_index_at_mouse(5, **arguments))
+        self.assertEqual(row_index_at_mouse(6, **arguments), 1)
+        self.assertEqual(row_index_at_mouse(10, **arguments), 2)
+        self.assertEqual(row_index_at_mouse(12, **arguments), 2)
+        self.assertIsNone(row_index_at_mouse(13, **arguments))
+
     def test_disclosure_column_tracks_depth(self) -> None:
         tab = TabRecord(1, 1, "parent", (10,))
         self.assertEqual(disclosure_column(TreeRow(tab, 0, None)), 2)

@@ -186,17 +186,18 @@ per second. A Kitty watcher/event bridge can later make polling a recovery path.
 Target: below 0.3% of one CPU core while idle, measured with short-lived child
 processes included.
 
-## 5. Add adaptive multi-line tab cards
+## 5. Enrich adaptive multi-line tab cards
 
-Experiment with three-line cards when every visible tab fits, two-line cards
-when space is tighter, and the current one-line representation as the compact
-fallback. Larger cards should make mouse selection easier without hiding tabs
-or requiring manual display-mode changes.
+Adaptive density is implemented: three-line cards are used when the whole tree
+fits, two-line cards when space is tighter, and one-line cards as the compact
+fallback. Every colored card row maps to the same mouse target. One black row
+separates tall cards and disappears in compact mode, while verdict glyphs
+repeat vertically to form a continuous flame or exhaust edge.
 
-Hit testing must use each rendered card's row range rather than assuming one
-terminal row per tab. Preserve tree indentation, folding, active highlighting,
-and centered layout at every density. The first extra fields should be
-repository/branch, agent phase, and the latest readiness or blocker reason.
+The first extra fields should be repository/branch, agent phase, and the latest
+readiness or blocker reason. Before adding them, compare the current tapered
+edge with stacked Powerline caps, straight vertical sides, and box-drawing or
+multi-row wedge variants.
 
 Choose density deterministically from terminal height and visible-tab count so
 resizing does not flicker between modes. Consider persistence for fold state

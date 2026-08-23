@@ -8,9 +8,12 @@ from ktt.render import (
     LEFT_CAP,
     READY_RIGHT_CAP,
     RIGHT_CAP,
+    adaptive_card_height,
+    card_content_line,
     display_width,
     panel_style,
     render_control_line,
+    render_card,
     render_row,
     render_screen,
     status_icon,
@@ -55,17 +58,81 @@ class RenderTests(unittest.TestCase):
             TreeRow(TabRecord(1, 1, "one", (10,)), 0, None),
             TreeRow(TabRecord(2, 1, "two", (20,)), 0, None),
         ]
-        screen = render_screen(rows, 0, 1, 80, 10, ansi=False)
+        screen = render_screen(rows, 0, 1, 80, 14, ansi=False)
         lines = screen.splitlines()
-        self.assertEqual(vertical_padding(2, 10), 1)
-        self.assertIn("one", lines[1])
-        self.assertIn("two", lines[2])
+        self.assertEqual(adaptive_card_height(2, 14), 3)
+        self.assertEqual(vertical_padding(2, 14), 1)
+        self.assertIn("one", lines[2])
+        self.assertEqual(lines[4], "")
+        self.assertIn("two", lines[6])
         controls = lines[-len(CONTROL_LINES):]
         self.assertEqual(
             [line.strip() for line in controls],
             [line.strip() for line in CONTROL_LINES],
         )
         self.assertTrue(all(line.startswith(" " * 24) for line in controls))
+
+    def test_cards_squeeze_from_three_lines_to_two_then_one(self) -> None:
+        self.assertEqual(adaptive_card_height(4, 20), 3)
+        self.assertEqual(adaptive_card_height(4, 16), 2)
+        self.assertEqual(adaptive_card_height(4, 15), 1)
+
+    def test_three_line_card_centers_content_inside_background(self) -> None:
+        row = TreeRow(
+            TabRecord(1, 1, "blocked-child", (10,), status="blocked"),
+            1,
+            2,
+        )
+        card = render_card(
+            row,
+            selected=False,
+            width=40,
+            card_height=3,
+            ansi=False,
+        )
+        self.assertEqual(len(card), 3)
+        self.assertEqual(card_content_line(3), 1)
+        self.assertNotIn("blocked-child", card[0])
+        self.assertIn("blocked-child", card[1])
+        self.assertNotIn("blocked-child", card[2])
+        self.assertTrue(card[0].startswith("   "))
+        self.assertTrue(card[1].startswith(f"  {LEFT_CAP}"))
+
+    def test_tall_card_uses_one_background_color(self) -> None:
+        card = render_card(
+            TreeRow(TabRecord(1, 1, "tab", (10,)), 0, None),
+            selected=False,
+            width=40,
+            card_height=3,
+        )
+        self.assertIn("\x1b[48;2;32;35;42m", card[0])
+        self.assertIn("\x1b[48;2;32;35;42m", card[1])
+
+    def test_tall_verdict_card_repeats_status_cap_on_every_line(self) -> None:
+        ready = render_card(
+            TreeRow(
+                TabRecord(1, 1, "ready", (10,), status="ready_to_merge"),
+                0,
+                None,
+            ),
+            selected=False,
+            width=40,
+            card_height=3,
+            ansi=False,
+        )
+        blocked = render_card(
+            TreeRow(
+                TabRecord(2, 1, "blocked", (20,), status="blocked"),
+                0,
+                None,
+            ),
+            selected=False,
+            width=40,
+            card_height=3,
+            ansi=False,
+        )
+        self.assertTrue(all(READY_RIGHT_CAP in line for line in ready))
+        self.assertTrue(all(FLAME_RIGHT_CAP in line for line in blocked))
 
     def test_screen_has_no_normal_header(self) -> None:
         screen = render_screen([], 0, 17, 40, 8, total_tabs=9, ansi=False)

@@ -21,6 +21,9 @@ from .model import (
     with_active_tab,
 )
 from .render import (
+    adaptive_card_height,
+    card_gap,
+    card_content_line,
     content_height,
     panel_style,
     render_screen,
@@ -75,11 +78,17 @@ def row_index_at_mouse(
     row_count: int,
     height: int,
     top_padding: int = 0,
+    card_height: int = 1,
 ) -> int | None:
     first_row = 1 + top_padding
     if mouse_row < first_row or mouse_row > content_height(height):
         return None
-    index = start + mouse_row - first_row
+    offset = mouse_row - first_row
+    stride = card_height + card_gap(card_height)
+    line_in_stride = offset % stride
+    if line_in_stride >= card_height:
+        return None
+    index = start + offset // stride
     return index if index < row_count else None
 
 
@@ -212,19 +221,32 @@ def run_tui(
                     if selected_index != previous_index:
                         preview_selected()
                 else:
-                    start = visible_start(len(rows), selected_index, height)
+                    card_height = adaptive_card_height(len(rows), height)
+                    start = visible_start(
+                        len(rows), selected_index, height, card_height
+                    )
+                    top_padding = vertical_padding(
+                        len(rows), height, card_height
+                    )
                     clicked_index = row_index_at_mouse(
                         mouse.row,
                         start=start,
                         row_count=len(rows),
                         height=height,
-                        top_padding=vertical_padding(len(rows), height),
+                        top_padding=top_padding,
+                        card_height=card_height,
                     )
                     if clicked_index is not None:
                         clicked = rows[clicked_index]
+                        line_in_card = (
+                            mouse.row - 1 - top_padding
+                        ) % (card_height + card_gap(card_height))
                         toggle = clicked.has_children and (
                             mouse.button == "right"
-                            or mouse.column == disclosure_column(clicked)
+                            or (
+                                line_in_card == card_content_line(card_height)
+                                and mouse.column == disclosure_column(clicked)
+                            )
                         )
                         if toggle:
                             if clicked.tab.id in collapsed_tab_ids:
