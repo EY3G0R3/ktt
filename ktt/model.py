@@ -7,6 +7,8 @@ from typing import Any, Iterable
 
 PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
+WAITING_STATUS = "💬"
+WORKING_STATUS = "🤖"
 
 CLAUDE_SPINNER_CHARS = frozenset(
     "✳✻✽✢✶✷◐◓◑◒◴◵◶◷◜◝◞◟"
@@ -69,6 +71,11 @@ def clean_title(title: str) -> str:
     return title or "untitled"
 
 
+def title_is_working(title: str) -> bool:
+    title = title.lstrip()
+    return bool(title) and title[0] in CLAUDE_SPINNER_CHARS
+
+
 def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
     records: list[TabRecord] = []
     os_window_id = int(os_window["id"])
@@ -85,6 +92,9 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 ),
                 title,
             )
+        status = _first_user_var(windows, STATUS_VAR)
+        if status == WAITING_STATUS and title_is_working(title):
+            status = WORKING_STATUS
         records.append(
             TabRecord(
                 id=int(tab["id"]),
@@ -95,7 +105,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 parent_window_id=_positive_int(
                     _first_user_var(windows, PARENT_VAR)
                 ),
-                status=_first_user_var(windows, STATUS_VAR),
+                status=status,
                 source_index=index,
             )
         )

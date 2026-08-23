@@ -115,6 +115,41 @@ class ModelTests(unittest.TestCase):
     def test_clean_title_removes_existing_decorations(self) -> None:
         self.assertEqual(clean_title("⠋  feature-name"), "feature-name")
 
+    def test_working_title_overrides_transient_waiting_user_var(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "⠋ ktt",
+                "windows": [{
+                    "id": 101,
+                    "is_active": True,
+                    "user_vars": {"workmux_status": "💬"},
+                }],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(record.title, "ktt")
+        self.assertEqual(record.status, "🤖")
+
+    def test_waiting_remains_when_title_has_no_working_spinner(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "ktt",
+                "windows": [{
+                    "id": 101,
+                    "is_active": True,
+                    "user_vars": {"workmux_status": "💬"},
+                }],
+            }],
+        }
+
+        self.assertEqual(records_for_os_window(os_window)[0].status, "💬")
+
 
 if __name__ == "__main__":
     unittest.main()
