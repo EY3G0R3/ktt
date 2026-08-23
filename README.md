@@ -43,13 +43,16 @@ Run `ktt watcher-path`, then paste the printed absolute path into `kitty.conf`:
 watcher /absolute/path/printed/by/ktt-watcher-path
 ```
 
-The watcher sends a nonblocking local Unix-datagram wake-up only when the
-active tab or ordered tab membership changes. ktt then takes one immediate
-Kitty snapshot; its one-second polling interval remains the recovery fallback.
-Title, spinner, and status-only tab-bar redraws are filtered inside Kitty and
-do not wake ktt. When both orientations watch the same Kitty OS window, passive
-tab-change wake-ups are broadcast to both views while one listener remains the
-owner of external tree-navigation commands.
+The watcher sends the active tab ID and ordered membership in a nonblocking
+local Unix datagram only when either value changes. When membership still
+matches its cache, ktt repaints the active highlight immediately and performs a
+full reconciliation snapshot 100 ms later for repository and window metadata.
+Membership changes and legacy wakeups request an immediate full snapshot; the
+one-second polling interval remains the recovery fallback. Title, spinner, and
+status-only tab-bar redraws are filtered inside Kitty and do not wake ktt. When
+both orientations watch the same Kitty OS window, passive tab-change wake-ups
+are broadcast to both views while one listener remains the owner of external
+tree-navigation commands.
 
 Snapshot reads use Kitty's documented framed-JSON
 [remote-control protocol](https://sw.kovidgoyal.net/kitty/rc_protocol/)

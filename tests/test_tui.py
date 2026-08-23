@@ -1,6 +1,6 @@
 import unittest
 
-from ktt.events import navigation_event
+from ktt.events import navigation_event, tab_state_event
 from ktt.model import TabRecord, TreeRow
 from ktt.tui import (
     NAVIGATION_STEP_INTERVAL,
@@ -10,6 +10,7 @@ from ktt.tui import (
     navigation_poll_deadline,
     next_wake_timeout,
     parse_mouse_event,
+    optimistic_tab_records,
     reload_candidate,
     restart_arguments,
     take_navigation_step,
@@ -40,6 +41,28 @@ class SchedulerTests(unittest.TestCase):
         pending: list[int] = []
         self.assertTrue(enqueue_tab_events(pending, (navigation_event(-1),)))
         self.assertEqual(pending, [-1])
+
+    def test_tab_state_optimistically_updates_cached_active_record(self) -> None:
+        records = [
+            TabRecord(10, 1, "first", (100,), is_active=True),
+            TabRecord(20, 1, "second", (200,)),
+        ]
+        seen, updated = optimistic_tab_records(
+            records, (tab_state_event(20, (10, 20)),)
+        )
+        self.assertTrue(seen)
+        self.assertIsNotNone(updated)
+        self.assertEqual(
+            [record.id for record in updated if record.is_active], [20]
+        )
+
+    def test_tab_state_requires_snapshot_when_membership_changed(self) -> None:
+        records = [TabRecord(10, 1, "first", (100,), is_active=True)]
+        seen, updated = optimistic_tab_records(
+            records, (tab_state_event(20, (10, 20)),)
+        )
+        self.assertTrue(seen)
+        self.assertIsNone(updated)
 
     def test_animation_frame_exists_only_for_working_rows(self) -> None:
         idle = [TreeRow(TabRecord(1, 1, "idle", (10,)), 0, None)]

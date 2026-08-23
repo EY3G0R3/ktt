@@ -11,7 +11,12 @@ import termios
 import time
 import tty
 
-from .events import TabEventListener, navigation_direction
+from .events import (
+    TAB_CHANGE_EVENT,
+    TabEventListener,
+    navigation_direction,
+    parse_tab_state_event,
+)
 from .folds import read_folded_tab_ids, write_folded_tab_ids
 from .kitty import KittyError, RemoteControl
 from .model import (
@@ -45,6 +50,7 @@ from .views import view_for
 MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 SOURCE_CHECK_INTERVAL = 1.0
 NAVIGATION_STEP_INTERVAL = 0.05
+OPTIMISTIC_RECONCILE_INTERVAL = 0.1
 
 
 @dataclass(frozen=True)
@@ -104,12 +110,32 @@ def navigation_poll_deadline(
 def enqueue_tab_events(pending: list[int], messages: tuple[bytes, ...]) -> bool:
     """Queue navigation and report whether an idle loop should wake now."""
     was_idle = not pending
-    pending.extend(
+    directions = [
         direction
         for message in messages
         if (direction := navigation_direction(message)) is not None
-    )
-    return was_idle
+    ]
+    pending.extend(directions)
+    return was_idle and bool(directions)
+
+
+def optimistic_tab_records(
+    records: list[TabRecord], messages: tuple[bytes, ...]
+) -> tuple[bool, list[TabRecord] | None]:
+    states = [
+        state
+        for message in messages
+        if (state := parse_tab_state_event(message)) is not None
+    ]
+    saw_change = bool(states) or TAB_CHANGE_EVENT in messages
+    if not states:
+        return saw_change, None
+    state = states[-1]
+    if tuple(record.id for record in records) != state.tab_ids:
+        return True, None
+    if state.active_tab_id is None:
+        return True, [] if not records else None
+    return True, with_active_tab(records, state.active_tab_id)
 
 
 def animation_frame(rows: list[TreeRow], now: float) -> int | None:
@@ -386,8 +412,22 @@ def run_tui(
                 tab_events,
             )
             if tab_event_messages:
-                if enqueue_tab_events(
+                navigation_wakeup = enqueue_tab_events(
                     pending_navigation, tab_event_messages
+                )
+                tab_change_seen, optimistic_records = optimistic_tab_records(
+                    records, tab_event_messages
+                )
+                if optimistic_records is not None:
+                    records = optimistic_records
+                    rows = tree_rows(records, collapsed_tab_ids)
+                    selected_index = active_row_index(rows)
+                    next_poll = min(
+                        next_poll,
+                        time.monotonic() + OPTIMISTIC_RECONCILE_INTERVAL,
+                    )
+                if navigation_wakeup or (
+                    tab_change_seen and optimistic_records is None
                 ):
                     next_poll = 0.0
             if key is None:

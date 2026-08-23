@@ -7,7 +7,9 @@ from ktt.events import (
     event_socket_path,
     navigation_direction,
     navigation_event,
+    parse_tab_state_event,
     send_navigation,
+    tab_state_event,
 )
 from ktt.kitty_watcher import _notify, on_tab_bar_dirty
 
@@ -81,11 +83,21 @@ class EventTests(unittest.TestCase):
             patch("ktt.kitty_watcher.Path.glob", return_value=[sibling]),
             patch("ktt.kitty_watcher.socket.socket", return_value=sender),
         ):
-            _notify(3)
+            _notify(3, 20, (10, 20))
+        event = tab_state_event(20, (10, 20))
         self.assertEqual(
             [call.args for call in sender.sendto.call_args_list],
-            [(b"tabs", str(base)), (b"tabs", str(sibling))],
+            [(event, str(base)), (event, str(sibling))],
         )
+
+    def test_tab_state_event_round_trips_active_tab_and_membership(self) -> None:
+        event = tab_state_event(20, (10, 20, 30))
+        state = parse_tab_state_event(event)
+        self.assertIsNotNone(state)
+        self.assertEqual(state.active_tab_id, 20)
+        self.assertEqual(state.tab_ids, (10, 20, 30))
+        self.assertIsNone(parse_tab_state_event(b"tabs"))
+        self.assertIsNone(parse_tab_state_event(b"tabs:99|10,20"))
 
     def test_navigation_stops_after_the_primary_listener(self) -> None:
         sender = MagicMock()
@@ -107,7 +119,10 @@ class EventTests(unittest.TestCase):
             on_tab_bar_dirty(boss, None, data)
             manager.active_tab = manager[1]
             on_tab_bar_dirty(boss, None, data)
-        self.assertEqual([call.args for call in notify.call_args_list], [(3,), (3,)])
+        self.assertEqual(
+            [call.args for call in notify.call_args_list],
+            [(3, 10, (10, 20)), (3, 20, (10, 20))],
+        )
 
 
 if __name__ == "__main__":

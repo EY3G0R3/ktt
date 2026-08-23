@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import socket
@@ -7,7 +8,40 @@ import socket
 
 EVENT_DIRECTORY = "ktt"
 TAB_CHANGE_EVENT = b"tabs"
+TAB_STATE_EVENT_PREFIX = TAB_CHANGE_EVENT + b":"
 NAVIGATION_EVENT_PREFIX = b"navigate:"
+
+
+@dataclass(frozen=True)
+class TabStateEvent:
+    active_tab_id: int | None
+    tab_ids: tuple[int, ...]
+
+
+def tab_state_event(
+    active_tab_id: int | None, tab_ids: tuple[int, ...]
+) -> bytes:
+    active = b"" if active_tab_id is None else str(active_tab_id).encode()
+    members = b",".join(str(tab_id).encode() for tab_id in tab_ids)
+    return TAB_STATE_EVENT_PREFIX + active + b"|" + members
+
+
+def parse_tab_state_event(event: bytes) -> TabStateEvent | None:
+    if not event.startswith(TAB_STATE_EVENT_PREFIX):
+        return None
+    try:
+        active_value, member_values = event[len(TAB_STATE_EVENT_PREFIX):].split(
+            b"|", 1
+        )
+        active_tab_id = int(active_value) if active_value else None
+        tab_ids = tuple(
+            int(value) for value in member_values.split(b",") if value
+        )
+    except ValueError:
+        return None
+    if active_tab_id is not None and active_tab_id not in tab_ids:
+        return None
+    return TabStateEvent(active_tab_id, tab_ids)
 
 
 def event_socket_path(
