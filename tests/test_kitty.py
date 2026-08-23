@@ -1,5 +1,7 @@
 from pathlib import Path
+import json
 import unittest
+from unittest.mock import patch
 
 import ktt.kitty as kitty_module
 from ktt.kitty import RemoteControl, find_sidebar_window
@@ -18,6 +20,49 @@ class RecordingRemote(RemoteControl):
 
 
 class RemoteControlTests(unittest.TestCase):
+    @staticmethod
+    def _socket_reply(data):
+        reply = json.dumps({"ok": True, "data": json.dumps(data)}).encode()
+        return b"\x1bP@kitty-cmd" + reply + b"\x1b\\"
+
+    def test_snapshot_uses_direct_unix_socket(self) -> None:
+        snapshot = [{"id": 3, "tabs": []}]
+        connection = unittest.mock.MagicMock()
+        connection.recv.return_value = self._socket_reply(snapshot)
+        context = unittest.mock.MagicMock()
+        context.__enter__.return_value = connection
+        with patch("ktt.kitty.socket.socket", return_value=context):
+            remote = RemoteControl("unix:/tmp/kitty-test")
+            self.assertEqual(remote.snapshot(), snapshot)
+
+        connection.connect.assert_called_once_with("/tmp/kitty-test")
+        sent = connection.sendall.call_args.args[0]
+        self.assertTrue(sent.startswith(b"\x1bP@kitty-cmd"))
+        self.assertIn(b'"cmd":"ls"', sent)
+
+    def test_snapshot_falls_back_once_after_socket_failure(self) -> None:
+        remote = RemoteControl("unix:/tmp/kitty-test")
+        with (
+            patch("ktt.kitty.socket.socket", side_effect=OSError("unavailable"))
+            as socket_factory,
+            patch.object(remote, "run", return_value='[{"id": 3}]') as run,
+        ):
+            self.assertEqual(remote.snapshot(), [{"id": 3}])
+            self.assertEqual(remote.snapshot(), [{"id": 3}])
+
+        socket_factory.assert_called_once()
+        self.assertEqual(run.call_count, 2)
+
+    def test_snapshot_supports_linux_abstract_socket(self) -> None:
+        connection = unittest.mock.MagicMock()
+        connection.recv.return_value = self._socket_reply([])
+        context = unittest.mock.MagicMock()
+        context.__enter__.return_value = connection
+        with patch("ktt.kitty.socket.socket", return_value=context):
+            RemoteControl("unix:@kitty-test").snapshot()
+
+        connection.connect.assert_called_once_with("\0kitty-test")
+
     def test_launch_child_sets_parent_during_tab_creation(self) -> None:
         remote = RecordingRemote()
         child = remote.launch_child(123, ["codex", "--", "prompt"], "agent")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
 from typing import Any, Sequence
@@ -13,6 +14,10 @@ from .model import PARENT_VAR
 SIDEBAR_VAR = "ktt_sidebar"
 TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
 SIDEBAR_BACKGROUND = "#000000"
+KITTY_COMMAND_PREFIX = b"\x1bP@kitty-cmd"
+KITTY_COMMAND_SUFFIX = b"\x1b\\"
+KITTY_PROTOCOL_VERSION = [0, 14, 2]
+MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
 
 
 class KittyError(RuntimeError):
@@ -23,6 +28,9 @@ class RemoteControl:
     def __init__(self, to: str | None = None, timeout: float = 3.0) -> None:
         self.to = to or os.environ.get("KITTY_LISTEN_ON")
         self.timeout = timeout
+        self._direct_snapshot_enabled = bool(
+            self.to and self.to.startswith("unix:")
+        )
 
     def _command(self, subcommand: str, *arguments: str) -> list[str]:
         command = ["kitten", "@"]
@@ -52,14 +60,85 @@ class RemoteControl:
         return result.stdout.strip()
 
     def snapshot(self) -> list[dict[str, Any]]:
+        if self._direct_snapshot_enabled:
+            try:
+                value = self._direct_snapshot()
+            except (OSError, TimeoutError, KittyError):
+                # Addresses such as inherited socket-pair descriptors and
+                # password-protected listeners need kitten's full client.
+                # Disable the probe after its first failure so recovery polls
+                # do not repeatedly pay for two requests.
+                self._direct_snapshot_enabled = False
+            else:
+                return self._validate_snapshot(value, "Kitty socket")
+
         output = self.run("ls")
         try:
             value = json.loads(output)
         except json.JSONDecodeError as error:
             raise KittyError("Kitty returned invalid JSON from `kitten @ ls`") from error
+        return self._validate_snapshot(value, "`kitten @ ls`")
+
+    def _validate_snapshot(
+        self, value: Any, source: str
+    ) -> list[dict[str, Any]]:
         if not isinstance(value, list):
-            raise KittyError("Kitty returned an unexpected value from `kitten @ ls`")
+            raise KittyError(f"Kitty returned an unexpected value from {source}")
         return value
+
+    def _direct_snapshot(self) -> Any:
+        assert self.to is not None
+        address = self.to.removeprefix("unix:")
+        if not address:
+            raise KittyError("Kitty Unix socket address is empty")
+        if address.startswith("@"):
+            address = "\0" + address[1:]
+
+        request = {
+            "cmd": "ls",
+            # A standalone client must advertise a protocol version no newer
+            # than the Kitty it contacts. This is Kitty's documented baseline
+            # for the stable `ls` request used here.
+            "version": KITTY_PROTOCOL_VERSION,
+        }
+        frame = (
+            KITTY_COMMAND_PREFIX
+            + json.dumps(request, separators=(",", ":")).encode()
+            + KITTY_COMMAND_SUFFIX
+        )
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+            connection.settimeout(self.timeout)
+            connection.connect(address)
+            connection.sendall(frame)
+            response = bytearray()
+            while KITTY_COMMAND_SUFFIX not in response:
+                chunk = connection.recv(65536)
+                if not chunk:
+                    raise KittyError("Kitty closed its socket before replying")
+                response.extend(chunk)
+                if len(response) > MAX_SNAPSHOT_BYTES:
+                    raise KittyError("Kitty snapshot exceeded the safety limit")
+
+        prefix_at = response.find(KITTY_COMMAND_PREFIX)
+        if prefix_at < 0:
+            raise KittyError("Kitty socket reply had no command frame")
+        body_at = prefix_at + len(KITTY_COMMAND_PREFIX)
+        suffix_at = response.find(KITTY_COMMAND_SUFFIX, body_at)
+        try:
+            reply = json.loads(response[body_at:suffix_at])
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise KittyError("Kitty socket returned invalid JSON") from error
+        if not isinstance(reply, dict):
+            raise KittyError("Kitty socket returned an unexpected reply")
+        if not reply.get("ok"):
+            raise KittyError(str(reply.get("error") or "Kitty socket request failed"))
+        data = reply.get("data")
+        if isinstance(data, str):
+            try:
+                return json.loads(data)
+            except json.JSONDecodeError as error:
+                raise KittyError("Kitty socket returned invalid snapshot JSON") from error
+        return data
 
     def focus_tab(self, tab_id: int) -> None:
         self.run("focus-tab", "--match", f"id:{tab_id}")
