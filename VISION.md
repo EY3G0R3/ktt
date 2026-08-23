@@ -104,6 +104,38 @@ These were deferred during the first slice. They were decided on August 22,
    event bridge can reduce latency and idle work later. **Decision:** retain
    500 ms polling until measurements justify an event bridge.
 
+## Future direction: horizontal tree bar
+
+A horizontal ktt mode could act as a visual replacement for Kitty's built-in
+tab bar. Root tabs would run left to right across the top, while each root's
+descendants grow downward beneath it. Siblings would occupy adjacent columns
+or lanes, making launch ancestry visible without a permanently narrow sidebar.
+
+The primary motivation is gaze travel rather than space efficiency. Wide
+displays favor a left sidebar geometrically, but reading it requires turning
+the head away from the prompt. A shallow strip docked at the bottom remains in
+peripheral vision near the place where prompts are typed and responses finish.
+The cost is scarce vertical terminal space, so height must be capped and the
+tree must collapse aggressively under pressure.
+
+The existing Kitty snapshot, parent-edge model, folding state, status policy,
+and focus commands should remain shared. Only layout, hit testing, navigation,
+and density would differ. The first experiment should run in a separate,
+shallow ktt OS window tiled below the main Kitty window; Kitty's single-row
+custom tab renderer is not assumed to provide a multi-row drawing surface.
+
+Questions to resolve in the experiment:
+
+- how subtree width is allocated when titles and child counts differ;
+- whether descendants form columns, compact diagonal branches, or both as
+  switchable themes;
+- how horizontal scrolling preserves the active path and parent context;
+- how folding and mouse targets behave when several trees overlap vertically;
+- when the layout collapses to a one-row conventional tab bar.
+
+The horizontal and vertical modes should be two views over one tree model, not
+separate applications or metadata contracts.
+
 ## Success criteria
 
 The first milestone is successful when a separate `ktt` OS window can stay

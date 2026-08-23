@@ -183,10 +183,10 @@ After measuring that change, consider speaking Kitty's remote-control protocol
 directly over the existing Unix socket instead of spawning `kitten @ ls` twice
 per second. A Kitty watcher/event bridge can later make polling a recovery path.
 
-The active-repository panel adds one bounded Git status subprocess every three
-seconds, only for the active tab. Include it in idle measurements. If it is
-material, refresh from filesystem/Kitty events or share a structured metadata
-provider with fancylog rather than increasing the polling interval blindly.
+The active-repository panel adds one bounded `fancylog --status-only`
+subprocess every three seconds, only for the active tab. Include it in idle
+measurements. If it is material, add a long-lived fancylog protocol or refresh
+from filesystem/Kitty events rather than duplicating its Git logic in ktt.
 
 Target: below 0.3% of one CPU core while idle, measured with short-lived child
 processes included.
@@ -203,9 +203,9 @@ Repository, directory, branch, upstream divergence, and worktree state now use
 otherwise-empty padding above the tree. This gives the active tab ambient
 context without consuming card rows. A later card-specific expansion can still
 show repository/branch for several tabs at once, plus agent phase and the
-latest readiness or blocker reason. Add yadm and unusual bare-repository
-discovery only through a bounded metadata provider; conventional and linked Git
-worktrees are the current supported paths.
+latest readiness or blocker reason. fancylog is the bounded metadata and
+rendering provider; repository-type expansion belongs there rather than in
+ktt.
 
 Edge comparison is now live rather than a static
 mockup: `tapered`, `stacked`, `straight`, `rounded`, and `wedge` are selectable
@@ -217,3 +217,20 @@ Choose density deterministically from terminal height and visible-tab count so
 resizing does not flicker between modes. Consider persistence for fold state
 only after the interaction model is stable; local fold state remains the
 current default.
+
+## 6. Prototype a horizontal tree-bar view
+
+Add a renderer that places root tabs left to right and grows descendants
+downward. Reuse the same Kitty snapshot, `ktt_parent_window_id` graph, statuses,
+fold state, and focus operations as the vertical sidebar. Start with a shallow
+separate ktt OS window managed below the main window rather than
+depending on Kitty's single-row custom tab-bar surface.
+
+Optimize first for peripheral awareness near the prompt, not maximum terminal
+area. Set a strict height budget, prefer showing the active path, and collapse
+inactive subtrees before allowing the bottom strip to consume more rows.
+
+Prototype subtree-width allocation, active-path visibility, horizontal
+overflow, mouse hit testing, and a compact one-row fallback. Keep column and
+diagonal-branch treatments switchable until they have been exercised against
+real multi-level tab forests.
