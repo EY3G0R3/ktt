@@ -2,16 +2,16 @@
 
 `ktt` is an early vertical, tree-shaped tab bar for Kitty. It runs in a
 separate Kitty OS window, watches the tabs in a main Kitty OS window, and uses
-Kitty remote control to focus the active tab. Short tab lists are centered
-vertically above an eight-line controls footer. Cards use three terminal rows
+Kitty remote control to focus the active tab. Cards use three terminal rows
 when the whole tree fits, squeeze to two rows when necessary, and fall back to
 one row under pressure. The normal TUI has no diagnostic
 header; target-window details remain available through commands and errors
-without permanently consuming a row. The footer is a centered two-column
+without permanently consuming a row. The help block is a centered two-column
 legend with a visible separator between shortcuts and their actions. The
 legend appears while the ktt OS window has focus; `?` pins or unpins it for
-reference while working in the main window. Its rows remain reserved while
-hidden, so cards and mouse targets do not jump when focus changes.
+reference while working in the main window. It is vertically centered inside
+otherwise-unused space above the centered tab stack, so showing or hiding it
+does not move cards or mouse targets.
 
 See [VISION.md](VISION.md) for the original product vision and architecture.
 The resolved product choices are in [DECISIONS.md](DECISIONS.md).
@@ -49,10 +49,13 @@ map alt+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py next
 map alt+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py previous
 ```
 
-When the sidebar is running, the kitten sends navigation to ktt so folded
-subtrees are honored. If the sidebar is absent, it falls back to the complete
-tree order inside Kitty. Navigation remains bounded at the first and last
-visible rows and never rewrites Kitty's native tab order.
+When the main window is focused, the kitten sends navigation to ktt so folded
+subtrees are honored. ktt also publishes its visible order and folded active
+anchor to a tiny owner-only runtime file only when that value changes. When the
+sidebar itself is focused, the kitten reads that snapshot and changes the main
+tab directly inside Kitty without moving OS-window focus. If the sidebar is
+absent, it falls back to the complete tree order inside Kitty. Navigation stays
+bounded at the first and last visible rows, and no path rewrites native tabs.
 
 Inside the tree:
 
@@ -62,7 +65,7 @@ Inside the tree:
   tab while keeping keyboard focus in ktt;
 - Enter transfers keyboard focus into that already-active tab;
 - `e` cycles the live card-edge style;
-- `t` toggles Kitty's native tab bar for the running Kitty instance;
+- `t` toggles Kitty's native tab bar while preserving its configured style;
 - `r` refreshes immediately; `q` exits.
 
 The current main-window tab is the single highlighted/selected state and uses
@@ -83,9 +86,9 @@ background to the panel's black. This also colors any fractional-cell filler
 left around Kitty's grid by a tiling window manager, avoiding a thin border
 without changing the main terminal or Kitty's configured colors globally.
 
-Five edge styles render against the real tree rather than a separate preview:
-`tapered` (the default), `stacked`, `straight`, `rounded`, and `wedge`. Press
-`e` to cycle them in that order; the footer names the active style. Select a
+Four edge styles render against the real tree rather than a separate preview:
+`tapered` (the default), `straight`, `rounded`, and `wedge`. Press
+`e` to cycle them in that order; the help block names the active style. Select a
 startup style with:
 
 ```bash
@@ -120,16 +123,20 @@ longer renders family dots, reserves a family-marker column, or parses
 
 ## Active repository context
 
-The otherwise-unused bottom padding shows the active main tab's repository,
-working directory, branch, and clean/dirty summary. It uses two lines when
-available, compacts to one, and disappears when
-the tab tree needs every content row. It is anchored to the final screen rows,
-below the contextual keyboard legend. Card height, capacity, centering, and
-mouse coordinates therefore do not change to make room for the panel.
+The otherwise-unused bottom padding shows the active main tab's changed files,
+repository, working directory, branch, and clean/dirty summary. Changed files
+form one vertical column above the two-line Fancylog block. The colored action
+is right-aligned against the screen center, the path starts immediately to its
+right, and only staged entries add the literal `staged`; unstaged is the
+default. The column uses up to six spare rows and collapses overflow. The
+entire context disappears when the tab tree needs every row. Help similarly
+uses only spare space above the tree, so card height, capacity, centering, and
+mouse coordinates remain stable.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
-asks `fancylog --status-only` to render a width-bounded identity/count row plus
-a branch row. The result is cached for three seconds with a 750 ms subprocess
+asks `fancylog --status-only` to render the file column, a width-bounded
+identity/count row, and a branch row. The result is cached for three seconds
+with a 750 ms subprocess
 timeout. A tab, directory, width, or available-height change refreshes
 immediately. If fancylog is unavailable or the directory has no supported
 repository, the panel stays hidden.

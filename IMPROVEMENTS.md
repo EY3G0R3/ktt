@@ -205,15 +205,24 @@ separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
 Repository, directory, branch, upstream divergence, and worktree state now use
-otherwise-empty padding above the tree. This gives the active tab ambient
+otherwise-empty padding below the tree. This gives the active tab ambient
 context without consuming card rows. A later card-specific expansion can still
 show repository/branch for several tabs at once, plus agent phase and the
 latest readiness or blocker reason. fancylog is the bounded metadata and
 rendering provider; repository-type expansion belongs there rather than in
 ktt.
 
+Codex and Claude also render task-plan progress such as `Tasks: 2/5` inside
+their own TUIs. Do not scrape terminal contents for that value: Kitty's window
+snapshot currently exposes no task-progress field, and per-tab `get-text`
+polling would add subprocess and parsing churn. Prefer an upstream contract
+where agents publish the count in a terminal title or semantic Kitty user
+variable. ktt already consumes titles and user variables, so either signal can
+be rendered on a spare card line without adding another runtime channel. Treat
+Codex and Claude as black boxes until such a public/configurable signal exists.
+
 Edge comparison is now live rather than a static
-mockup: `tapered`, `stacked`, `straight`, `rounded`, and `wedge` are selectable
+mockup: `tapered`, `straight`, `rounded`, and `wedge` are selectable
 at startup and cycle in-place with `e`. Tapered remains the default, while the
 other styles stay available as themes instead of being discarded after the
 visual experiment.

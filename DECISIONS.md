@@ -58,11 +58,13 @@ latest blocker or readiness reason.
   must be explicit and confirm tabs containing running processes.
 
 This favors fast switching without making a small pointer error destructive.
-Kitty-wide `Alt-j` and `Alt-k` are delegated to ktt over the event socket, so
-they traverse the visible tree rather than Kitty's flat tab order. Folded
-subtrees are skipped as rendered. The Kitty-side kitten computes the complete
-tree itself as a fallback when no ktt listener is available; neither path
-reorders native tabs.
+Kitty-wide `Alt-j` and `Alt-k` traverse the visible tree rather than Kitty's
+flat tab order. From the main window, the Kitty-side kitten delegates through
+ktt's event socket. From the focused sidebar, it reads ktt's owner-only visible
+order snapshot and changes the target manager's active tab directly, preserving
+OS-window focus. Folded subtrees are skipped exactly as rendered. The kitten
+computes the complete tree itself when no ktt listener or snapshot is
+available; no path reorders native tabs.
 
 ## 5. Events drive tab selection; polling is recovery
 
@@ -80,9 +82,9 @@ window, so the window manager keeps its tile.
 ## 6. Edge treatments are switchable themes
 
 Keep the explored card shapes as real renderer styles rather than choosing one
-from static mockups. `tapered` remains the initial default; `stacked`,
-`straight`, `rounded`, and `wedge` are equally available through
-`--edge-style`. Pressing `e` cycles them against the live tree and the footer
+from static mockups. `tapered` remains the initial default; `straight`,
+`rounded`, and `wedge` are equally available through
+`--edge-style`. Pressing `e` cycles them against the live tree and the help block
 names the current style.
 
 All styles share the same tree, status, density, scrolling, and mouse-hit
@@ -93,10 +95,11 @@ back to the default Powerline caps.
 
 Added August 23, 2026 (PDT).
 
-Show repository, directory, branch, and worktree state at
-the top of the sidebar for the active main-window tab. The panel may replace up
-to three existing blank padding rows, but must not reduce tab-card height or
-capacity. It compacts before it disappears as the tree grows.
+Show repository, directory, branch, and worktree state at the bottom of the
+sidebar for the active main-window tab. The panel may replace otherwise-empty
+padding below the centered tab stack, but must not reduce tab-card height or
+capacity. It compacts before it disappears as the tree grows. Keyboard help is
+centered separately in the spare space above the tabs.
 
 Kitty's active-window `cwd` is the path authority. ktt passes it, the available
 row count, and the sidebar width to `fancylog --status-only`, then caches the
