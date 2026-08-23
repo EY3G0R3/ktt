@@ -40,7 +40,7 @@ a higher-contrast background without a separate marker gutter. Folding does
 not create another selection. When the active tab is hidden inside a folded
 subtree, the visible ancestor uses a dimmer active background. Every tab has a
 background card; child cards start
-two columns farther right per level against the black panel, so card position
+four columns farther right per level against the black panel, so card position
 alone shows the tree. Leaf rows have no decorative dash. Tall cards center the
 title/status line vertically. Filled themes keep one background color
 throughout, while the rounded theme uses a colored outline around the content

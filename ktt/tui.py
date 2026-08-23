@@ -22,6 +22,7 @@ from .model import (
 )
 from .render import (
     DEFAULT_EDGE_STYLE,
+    TREE_INDENT_WIDTH,
     adaptive_card_height,
     card_gap,
     card_content_line,
@@ -95,7 +96,7 @@ def row_index_at_mouse(
 
 
 def disclosure_column(row: TreeRow) -> int:
-    return 2 + 2 * row.depth
+    return 2 + TREE_INDENT_WIDTH * row.depth
 
 
 def active_row_index(rows: list[TreeRow]) -> int:

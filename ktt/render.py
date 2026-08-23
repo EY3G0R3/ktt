@@ -26,6 +26,7 @@ WEDGE_BOTTOM_LEFT = ""
 WEDGE_BOTTOM_RIGHT = ""
 EDGE_STYLES = ("tapered", "stacked", "straight", "rounded", "wedge")
 DEFAULT_EDGE_STYLE = EDGE_STYLES[0]
+TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
 CONTROL_ROWS = (
     ("↑/↓ · j/k · wheel", "switch tab"),
@@ -194,7 +195,7 @@ def render_row(
 ) -> str:
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
-    indent = "  " * row.depth
+    indent = " " * (TREE_INDENT_WIDTH * row.depth)
     orphan = "?" if row.orphaned else " "
     icon, status_color = status_icon(tab.status, now)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
@@ -286,7 +287,7 @@ def render_card_blank(
     line_index: int = 0,
     card_height: int = 3,
 ) -> str:
-    left = "  " * row.depth
+    left = " " * (TREE_INDENT_WIDTH * row.depth)
     card_width = max(1, width - len(left) - 1)
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width

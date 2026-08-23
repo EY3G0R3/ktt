@@ -70,7 +70,7 @@ class MouseTests(unittest.TestCase):
     def test_disclosure_column_tracks_depth(self) -> None:
         tab = TabRecord(1, 1, "parent", (10,))
         self.assertEqual(disclosure_column(TreeRow(tab, 0, None)), 2)
-        self.assertEqual(disclosure_column(TreeRow(tab, 2, None)), 6)
+        self.assertEqual(disclosure_column(TreeRow(tab, 2, None)), 10)
 
     def test_active_row_uses_visible_folded_ancestor(self) -> None:
         inactive = TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)

@@ -45,7 +45,7 @@ class RenderTests(unittest.TestCase):
             ansi=False,
             now=0.0,
         )
-        self.assertIn(f"    {LEFT_CAP}", rendered)
+        self.assertIn(f"        {LEFT_CAP}", rendered)
         self.assertIn("✗", rendered)
         self.assertIn("child", rendered)
 
@@ -141,8 +141,8 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("blocked-child", card[0])
         self.assertIn("blocked-child", card[1])
         self.assertNotIn("blocked-child", card[2])
-        self.assertTrue(card[0].startswith("   "))
-        self.assertTrue(card[1].startswith(f"  {LEFT_CAP}"))
+        self.assertTrue(card[0].startswith("     "))
+        self.assertTrue(card[1].startswith(f"    {LEFT_CAP}"))
 
     def test_tall_card_uses_one_background_color(self) -> None:
         card = render_card(
@@ -287,7 +287,7 @@ class RenderTests(unittest.TestCase):
         )
         root_column = display_width(root.split("fixed-title", 1)[0])
         child_column = display_width(child.split("fixed-title", 1)[0])
-        self.assertEqual(child_column - root_column, 4)
+        self.assertEqual(child_column - root_column, 8)
 
     def test_leaf_row_has_no_tree_dash(self) -> None:
         leaf = render_row(
