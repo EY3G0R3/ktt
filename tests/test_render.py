@@ -38,7 +38,7 @@ from ktt.render import (
 
 
 class RenderTests(unittest.TestCase):
-    def test_horizontal_tree_grows_down_and_subdivides_parent_span(self) -> None:
+    def test_horizontal_tree_grows_down_in_fixed_width_root_columns(self) -> None:
         rows = [
             TreeRow(
                 TabRecord(1, 1, "root", (10,)), 0, None,
@@ -52,11 +52,12 @@ class RenderTests(unittest.TestCase):
         by_index = {placement.index: placement for placement in placements}
         self.assertEqual(by_index[0].screen_row, 0)
         self.assertEqual(by_index[1].screen_row, 1)
-        self.assertEqual(by_index[2].screen_row, 1)
+        self.assertEqual(by_index[2].screen_row, 2)
         self.assertEqual(by_index[3].screen_row, 0)
-        self.assertGreater(by_index[0].width, by_index[1].width)
-        self.assertGreaterEqual(by_index[1].left - by_index[0].left, 4)
-        self.assertLess(by_index[1].left, by_index[2].left)
+        self.assertEqual(by_index[0].width, by_index[1].width)
+        self.assertEqual(by_index[1].width, by_index[2].width)
+        self.assertEqual(by_index[1].left - by_index[0].left, 4)
+        self.assertEqual(by_index[1].left, by_index[2].left)
         self.assertLess(by_index[0].left, by_index[3].left)
 
     def test_horizontal_tree_places_indented_children_on_the_next_row(self) -> None:
@@ -74,9 +75,23 @@ class RenderTests(unittest.TestCase):
         lines = screen.split("\n")
         self.assertIn("root", lines[0])
         self.assertIn("left", lines[1])
-        self.assertIn("right", lines[1])
+        self.assertIn("right", lines[2])
         self.assertTrue(lines[1].startswith(" " * 4))
-        self.assertFalse(any(character in lines[1] for character in "┬┴┼"))
+        self.assertTrue(lines[2].startswith(" " * 4))
+        self.assertFalse(
+            any(character in lines[1] + lines[2] for character in "┬┴┼")
+        )
+
+    def test_horizontal_nested_descendants_keep_width_and_add_indent(self) -> None:
+        rows = [
+            TreeRow(TabRecord(1, 1, "root", (10,)), 0, None, has_children=True),
+            TreeRow(TabRecord(2, 1, "child", (20,)), 1, 1, has_children=True),
+            TreeRow(TabRecord(3, 1, "grandchild", (30,)), 2, 2),
+        ]
+        placements = horizontal_layout(rows, 80, 5, 0)
+        self.assertEqual([item.screen_row for item in placements], [0, 1, 2])
+        self.assertEqual(len({item.width for item in placements}), 1)
+        self.assertEqual([item.left for item in placements], [0, 4, 8])
 
     def test_horizontal_layout_compacts_to_active_centered_strip(self) -> None:
         rows = [

@@ -228,54 +228,57 @@ def horizontal_layout(
     height: int,
     selected_index: int,
 ) -> list[HorizontalPlacement]:
-    """Lay out visible subtrees as proportional spans growing downward."""
+    """Lay out each visible subtree in a fixed-width column growing downward."""
     usable = max(0, width - 1)
     if not rows or usable < 3 or height <= 0:
         return []
     roots, children = _horizontal_children(rows)
-    leaves: dict[int, int] = {}
 
-    def leaf_count(index: int) -> int:
-        if index not in leaves:
-            leaves[index] = max(
-                1, sum(leaf_count(child) for child in children[index])
-            )
-        return leaves[index]
+    def subtree(index: int) -> list[int]:
+        descendants = [
+            descendant
+            for child in children[index]
+            for descendant in subtree(child)
+        ]
+        return [index, *descendants]
 
-    total_leaves = sum(leaf_count(root) for root in roots)
-    deepest_indent = max((row.depth for row in rows), default=0) * HORIZONTAL_TREE_INDENT
+    subtrees = [subtree(root) for root in roots]
+    lane_width = usable // max(1, len(roots))
+    deepest_indent = max(
+        (
+            max(rows[index].depth - rows[root].depth for index in indexes)
+            * HORIZONTAL_TREE_INDENT
+            for root, indexes in zip(roots, subtrees)
+        ),
+        default=0,
+    )
     if (
-        total_leaves <= 0
-        or usable // total_leaves - deepest_indent < HORIZONTAL_MIN_CARD_WIDTH
+        not roots
+        or lane_width - deepest_indent - 1 < HORIZONTAL_MIN_CARD_WIDTH
+        or max((len(indexes) for indexes in subtrees), default=0) > height
     ):
         return _compact_horizontal_layout(rows, width, selected_index)
 
     placements: list[HorizontalPlacement] = []
-
-    def place(index: int, unit_start: int, unit_end: int) -> None:
-        row = rows[index]
-        screen_row = row.depth
-        left = (
-            unit_start * usable // total_leaves
-            + row.depth * HORIZONTAL_TREE_INDENT
+    for lane, (root, indexes) in enumerate(zip(roots, subtrees)):
+        lane_left = lane * usable // len(roots)
+        lane_right = (lane + 1) * usable // len(roots)
+        tree_depth = max(
+            rows[index].depth - rows[root].depth for index in indexes
         )
-        right = unit_end * usable // total_leaves
-        card_width = max(1, right - left - 1)
-        if screen_row < height:
+        card_width = max(
+            1, lane_right - lane_left - tree_depth * HORIZONTAL_TREE_INDENT - 1
+        )
+        for screen_row, index in enumerate(indexes):
+            relative_depth = rows[index].depth - rows[root].depth
             placements.append(
-                HorizontalPlacement(index, left, card_width, screen_row)
+                HorizontalPlacement(
+                    index,
+                    lane_left + relative_depth * HORIZONTAL_TREE_INDENT,
+                    card_width,
+                    screen_row,
+                )
             )
-        child_start = unit_start
-        for child in children[index]:
-            child_end = child_start + leaf_count(child)
-            place(child, child_start, child_end)
-            child_start = child_end
-
-    unit_start = 0
-    for root in roots:
-        unit_end = unit_start + leaf_count(root)
-        place(root, unit_start, unit_end)
-        unit_start = unit_end
     return placements
 
 

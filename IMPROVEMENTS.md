@@ -266,10 +266,10 @@ repository or global preference.
 ## 6. Prototype a horizontal tree-bar view
 
 The first live renderer now places roots left to right and grows descendants
-downward. Each root receives a span proportional to its visible leaf count;
-children subdivide that span and occupy the immediately following row with a
-four-cell indent per generation. Card contents are centered within their
-lanes. The renderer reuses the same
+downward. Each root owns a fixed-width column; descendants keep the root card's
+width, stack in preorder on immediately following rows, and shift right by four
+cells per generation. Card contents are centered within their lanes. The
+renderer reuses the same
 Kitty snapshot, `ktt_parent_window_id` graph, statuses, fold state, visible
 order, and focus operations as the vertical sidebar.
 
