@@ -61,9 +61,20 @@ def _parser() -> argparse.ArgumentParser:
         ),
         help="fancylog status-bar palette (default: terminal)",
     )
+    parser.add_argument(
+        "--embedded", action="store_true", help=argparse.SUPPRESS
+    )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="print the current tree once")
     subparsers.add_parser("launch", help="open ktt in a separate Kitty OS window")
+    launch_pane = subparsers.add_parser(
+        "launch-pane", help="open horizontal ktt beneath the current Kitty window"
+    )
+    launch_pane.add_argument("--source-window", type=int)
+    launch_pane.add_argument(
+        "--pane-percent", type=int, default=10,
+        help="initial percentage of the source window given to ktt (default: 10)",
+    )
     subparsers.add_parser(
         "refresh", help="replace the running sidebar inside its current OS window"
     )
@@ -179,6 +190,32 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"opened ktt in Kitty window {new_window_id}, targeting OS window {target}")
             return 0
+        if args.command == "launch-pane":
+            if args.orientation != "horizontal":
+                raise ValueError("launch-pane requires --orientation horizontal")
+            if not 5 <= args.pane_percent <= 30:
+                raise ValueError("--pane-percent must be between 5 and 30")
+            snapshot = remote.snapshot()
+            source = args.source_window or _self_window_id()
+            if source is None:
+                raise ValueError(
+                    "launch-pane must run inside Kitty or receive --source-window"
+                )
+            location = find_tab_for_window(snapshot, source)
+            if location is None:
+                raise ValueError(f"source Kitty window {source} does not exist")
+            target = args.target_os_window or location[0]
+            if target != location[0]:
+                raise ValueError("the target OS window must contain the source window")
+            new_window_id = remote.launch_pane(
+                source, target, args.edge_style, args.repository_palette,
+                args.pane_percent,
+            )
+            print(
+                f"opened embedded ktt in Kitty window {new_window_id}, "
+                f"targeting OS window {target}"
+            )
+            return 0
         if args.command == "refresh":
             snapshot = remote.snapshot()
             sidebar = find_sidebar_window(snapshot, args.orientation)
@@ -240,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
             args.edge_style,
             args.repository_palette,
             args.orientation,
+            args.embedded,
         )
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)

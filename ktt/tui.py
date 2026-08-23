@@ -247,6 +247,7 @@ def run_tui(
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
     orientation: str = DEFAULT_ORIENTATION,
+    embedded: bool = False,
 ) -> int:
     selected_index = 0
     records: list[TabRecord] = []
@@ -274,7 +275,10 @@ def run_tui(
             return
         target_tab_id = rows[selected_index].tab.id
         try:
-            remote.preview_tab(target_tab_id, self_window_id)
+            if embedded:
+                remote.focus_tab(target_tab_id)
+            else:
+                remote.preview_tab(target_tab_id, self_window_id)
             records = with_active_tab(records, target_tab_id)
             rows = tree_rows(records, collapsed_tab_ids)
             selected_index = active_row_index(rows)

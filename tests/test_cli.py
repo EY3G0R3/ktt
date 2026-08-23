@@ -23,6 +23,12 @@ class LinkValidationTests(unittest.TestCase):
             "horizontal",
         )
 
+    def test_embedded_pane_defaults_to_ten_percent(self) -> None:
+        args = _parser().parse_args([
+            "--orientation", "horizontal", "launch-pane",
+        ])
+        self.assertEqual(args.pane_percent, 10)
+
     def test_rejects_a_new_cycle(self) -> None:
         snapshot = [{
             "id": 1,

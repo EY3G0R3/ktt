@@ -157,6 +157,19 @@ class RemoteControlTests(unittest.TestCase):
             arguments[arguments.index("--orientation") + 1], "horizontal"
         )
 
+    def test_embedded_launch_splits_below_source_and_keeps_focus(self) -> None:
+        remote = RecordingRemote()
+        pane = remote.launch_pane(123, 3, "tapered", "terminal", 10)
+        self.assertEqual(pane, 456)
+        subcommand, arguments = remote.calls[0]
+        self.assertEqual(subcommand, "launch")
+        self.assertIn("window_id:123", arguments)
+        self.assertIn("--location=hsplit", arguments)
+        self.assertIn("--bias=10", arguments)
+        self.assertIn("--keep-focus", arguments)
+        self.assertIn("--embedded", arguments)
+        self.assertIn("ktt_orientation=horizontal", arguments)
+
     def test_sidebar_refresh_launches_with_background_before_close(self) -> None:
         remote = RecordingRemote()
         replacement = remote.replace_sidebar(123, 3)

@@ -176,6 +176,7 @@ class RemoteControl:
         edge_style: str | None = None,
         repository_palette: str | None = None,
         orientation: str = "vertical",
+        embedded: bool = False,
     ) -> tuple[str, list[str]]:
         package_root = str(Path(__file__).resolve().parent.parent)
         process = [
@@ -187,11 +188,59 @@ class RemoteControl:
             process.extend(("--to", self.to))
         process.extend(("--target-os-window", str(target_os_window_id)))
         process.extend(("--orientation", orientation))
+        if embedded:
+            process.append("--embedded")
         if edge_style:
             process.extend(("--edge-style", edge_style))
         if repository_palette:
             process.extend(("--repository-palette", repository_palette))
         return package_root, process
+
+    def launch_pane(
+        self,
+        source_window_id: int,
+        target_os_window_id: int,
+        edge_style: str | None = None,
+        repository_palette: str | None = None,
+        pane_percent: int = 10,
+    ) -> int:
+        package_root, process = self._sidebar_process(
+            target_os_window_id,
+            edge_style,
+            repository_palette,
+            "horizontal",
+            embedded=True,
+        )
+        output = self.run(
+            "launch",
+            "--match",
+            f"window_id:{source_window_id}",
+            "--source-window",
+            f"id:{source_window_id}",
+            "--next-to",
+            f"id:{source_window_id}",
+            "--type=window",
+            "--location=hsplit",
+            f"--bias={pane_percent}",
+            "--keep-focus",
+            "--title=ktt",
+            "--color",
+            f"background={SIDEBAR_BACKGROUND}",
+            f"--cwd={package_root}",
+            "--var",
+            f"{SIDEBAR_VAR}=1",
+            "--var",
+            f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
+            "--var",
+            f"{ORIENTATION_VAR}=horizontal",
+            *process,
+        )
+        try:
+            return int(output)
+        except ValueError as error:
+            raise KittyError(
+                f"Kitty returned an invalid embedded window ID: {output!r}"
+            ) from error
 
     def launch_sidebar(
         self,
