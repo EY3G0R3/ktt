@@ -78,7 +78,9 @@ class RemoteControl:
             f"{PARENT_VAR}={value}",
         )
 
-    def _sidebar_process(self, target_os_window_id: int) -> tuple[str, list[str]]:
+    def _sidebar_process(
+        self, target_os_window_id: int, edge_style: str | None = None
+    ) -> tuple[str, list[str]]:
         package_root = str(Path(__file__).resolve().parent.parent)
         process = [
             sys.executable,
@@ -88,10 +90,16 @@ class RemoteControl:
         if self.to:
             process.extend(("--to", self.to))
         process.extend(("--target-os-window", str(target_os_window_id)))
+        if edge_style:
+            process.extend(("--edge-style", edge_style))
         return package_root, process
 
-    def launch_sidebar(self, target_os_window_id: int) -> int:
-        package_root, process = self._sidebar_process(target_os_window_id)
+    def launch_sidebar(
+        self, target_os_window_id: int, edge_style: str | None = None
+    ) -> int:
+        package_root, process = self._sidebar_process(
+            target_os_window_id, edge_style
+        )
         output = self.run(
             "launch",
             "--type=os-window",
@@ -112,9 +120,14 @@ class RemoteControl:
             raise KittyError(f"Kitty returned an invalid new window ID: {output!r}") from error
 
     def replace_sidebar(
-        self, sidebar_window_id: int, target_os_window_id: int
+        self,
+        sidebar_window_id: int,
+        target_os_window_id: int,
+        edge_style: str | None = None,
     ) -> int:
-        package_root, process = self._sidebar_process(target_os_window_id)
+        package_root, process = self._sidebar_process(
+            target_os_window_id, edge_style
+        )
         output = self.run(
             "launch",
             "--match",

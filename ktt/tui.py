@@ -21,11 +21,13 @@ from .model import (
     with_active_tab,
 )
 from .render import (
+    DEFAULT_EDGE_STYLE,
     adaptive_card_height,
     card_gap,
     card_content_line,
     content_height,
     panel_style,
+    next_edge_style,
     render_screen,
     vertical_padding,
     visible_start,
@@ -107,6 +109,22 @@ def active_row_index(rows: list[TreeRow]) -> int:
     )
 
 
+def restart_arguments(arguments: list[str], edge_style: str) -> list[str]:
+    result: list[str] = []
+    skip_value = False
+    for argument in arguments:
+        if skip_value:
+            skip_value = False
+            continue
+        if argument == "--edge-style":
+            skip_value = True
+            continue
+        if argument.startswith("--edge-style="):
+            continue
+        result.append(argument)
+    return [*result, "--edge-style", edge_style]
+
+
 def source_stamp() -> tuple[tuple[str, int, int], ...]:
     package = Path(__file__).resolve().parent
     return tuple(
@@ -143,6 +161,7 @@ def run_tui(
     target_os_window_id: int | None,
     poll_interval: float,
     auto_reload: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
 ) -> int:
     selected_index = 0
     records: list[TabRecord] = []
@@ -201,6 +220,7 @@ def run_tui(
             screen = render_screen(
                 rows, selected_index, os_window_id, width, height,
                 total_tabs=len(records), error=error, now=now,
+                edge_style=edge_style,
             )
             # Erase with ktt's own black background. Kitty's configured default
             # can change when the OS window gains focus, which otherwise makes
@@ -306,9 +326,20 @@ def run_tui(
                     error = str(caught)
             elif key == "r":
                 next_poll = 0.0
+            elif key == "e":
+                edge_style = next_edge_style(edge_style)
             if preview_after_move and selected_index != previous_index:
                 preview_selected()
 
     if restart:
-        os.execv(sys.executable, [sys.executable, "-m", "ktt", *sys.argv[1:]])
+        os.environ["KTT_EDGE_STYLE"] = edge_style
+        os.execv(
+            sys.executable,
+            [
+                sys.executable,
+                "-m",
+                "ktt",
+                *restart_arguments(sys.argv[1:], edge_style),
+            ],
+        )
     return 0

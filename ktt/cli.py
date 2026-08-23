@@ -12,7 +12,7 @@ from .kitty import (
     find_tab_for_window,
 )
 from .model import choose_os_window, records_for_os_window, tree_rows
-from .render import render_screen
+from .render import DEFAULT_EDGE_STYLE, EDGE_STYLES, render_screen
 from .tui import run_tui
 
 
@@ -31,6 +31,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-auto-reload", action="store_false", dest="auto_reload",
         help="do not restart the TUI when its Python sources change",
+    )
+    parser.add_argument(
+        "--edge-style",
+        choices=EDGE_STYLES,
+        default=os.environ.get("KTT_EDGE_STYLE", DEFAULT_EDGE_STYLE),
+        help="tab-card edge treatment (default: tapered)",
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="print the current tree once")
@@ -131,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
                 if location is None:
                     raise ValueError("the current Kitty window was not found")
                 target = location[0]
-            new_window_id = remote.launch_sidebar(target)
+            new_window_id = remote.launch_sidebar(target, args.edge_style)
             print(f"opened ktt in Kitty window {new_window_id}, targeting OS window {target}")
             return 0
         if args.command == "refresh":
@@ -147,7 +153,9 @@ def main(argv: list[str] | None = None) -> int:
                     if int(os_window["id"]) != sidebar_os_window_id
                 ]
                 target = int(choose_os_window(candidates)["id"])
-            new_window_id = remote.replace_sidebar(sidebar_window_id, target)
+            new_window_id = remote.replace_sidebar(
+                sidebar_window_id, target, args.edge_style
+            )
             print(
                 f"refreshed ktt as Kitty window {new_window_id}, "
                 f"still targeting OS window {target}"
@@ -184,7 +192,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"unlinked Kitty window {args.child_window}")
             return 0
         return run_tui(
-            remote, args.target_os_window, args.poll_interval, args.auto_reload
+            remote,
+            args.target_os_window,
+            args.poll_interval,
+            args.auto_reload,
+            args.edge_style,
         )
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)

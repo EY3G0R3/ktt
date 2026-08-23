@@ -49,6 +49,14 @@ class RemoteControlTests(unittest.TestCase):
             ("focus-window", ("--match", "id:91")),
         ])
 
+    def test_sidebar_launch_passes_configured_edge_style(self) -> None:
+        remote = RecordingRemote()
+        remote.launch_sidebar(3, "rounded")
+        subcommand, arguments = remote.call
+        self.assertEqual(subcommand, "launch")
+        self.assertIn("--edge-style", arguments)
+        self.assertEqual(arguments[arguments.index("--edge-style") + 1], "rounded")
+
 
 if __name__ == "__main__":
     unittest.main()

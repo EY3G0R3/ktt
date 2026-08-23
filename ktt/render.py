@@ -20,21 +20,40 @@ LEFT_CAP = ""
 RIGHT_CAP = ""
 FLAME_RIGHT_CAP = ""
 READY_RIGHT_CAP = ""
+WEDGE_TOP_LEFT = ""
+WEDGE_TOP_RIGHT = ""
+WEDGE_BOTTOM_LEFT = ""
+WEDGE_BOTTOM_RIGHT = ""
+EDGE_STYLES = ("tapered", "stacked", "straight", "rounded", "wedge")
+DEFAULT_EDGE_STYLE = EDGE_STYLES[0]
 STATUS_CELL_WIDTH = 2
 CONTROL_ROWS = (
     ("↑/↓ · j/k · wheel", "switch tab"),
     ("Enter · click", "enter tab"),
     ("Space · right-click", "fold tree"),
+    ("e", "edge style"),
     ("r", "refresh"),
     ("q", "quit"),
 )
 CONTROL_LEFT_WIDTH = max(len(shortcut) for shortcut, _ in CONTROL_ROWS)
-CONTROL_RIGHT_WIDTH = max(len(action) for _, action in CONTROL_ROWS)
+CONTROL_RIGHT_WIDTH = max(
+    max(len(action) for _, action in CONTROL_ROWS),
+    max(len(f"edge: {style}") for style in EDGE_STYLES),
+)
 CONTROL_SEPARATOR = " │ "
 CONTROL_LINES = tuple(
-    f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}{action:<{CONTROL_RIGHT_WIDTH}}"
+    f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
+    f"{(f'edge: {DEFAULT_EDGE_STYLE}' if shortcut == 'e' else action):<{CONTROL_RIGHT_WIDTH}}"
     for shortcut, action in CONTROL_ROWS
 )
+
+
+def next_edge_style(edge_style: str) -> str:
+    try:
+        index = EDGE_STYLES.index(edge_style)
+    except ValueError:
+        return DEFAULT_EDGE_STYLE
+    return EDGE_STYLES[(index + 1) % len(EDGE_STYLES)]
 
 
 def _fg(hex_color: str, enabled: bool) -> str:
@@ -169,6 +188,9 @@ def render_row(
     width: int,
     now: float | None = None,
     ansi: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
+    line_index: int = 0,
+    card_height: int = 1,
 ) -> str:
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
@@ -209,15 +231,44 @@ def render_row(
         f"{restore if status_color else ''}"
     )
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"
-    left_cap = f"{cap_style}{LEFT_CAP}{base}" if show_caps else base
-    if show_caps:
-        if tab.status == "ready_to_merge":
-            right_cap = f"{cap_style}{READY_RIGHT_CAP}"
-        elif tab.status == "blocked":
-            right_cap = f"{cap_style}{FLAME_RIGHT_CAP}"
-        else:
-            right_cap = f"{cap_style}{RIGHT_CAP}"
+    verdict_cap = (
+        READY_RIGHT_CAP
+        if tab.status == "ready_to_merge"
+        else FLAME_RIGHT_CAP
+        if tab.status == "blocked"
+        else None
+    )
+    effective_style = (
+        DEFAULT_EDGE_STYLE
+        if card_height == 1 and edge_style in {"rounded", "wedge"}
+        else edge_style
+    )
+    if show_caps and effective_style in {"tapered", "stacked"}:
+        left_cap = f"{cap_style}{LEFT_CAP}{base}"
+        right_cap = f"{cap_style}{verdict_cap or RIGHT_CAP}"
+    elif show_caps and effective_style == "straight":
+        left_cap = f"{base} "
+        right_cap = f"{cap_style}{verdict_cap}" if verdict_cap else f"{base} "
+    elif show_caps and effective_style == "rounded":
+        left_edge = "╭" if card_height == 2 and line_index == 0 else "│"
+        right_edge = "╮" if card_height == 2 and line_index == 0 else "│"
+        left_cap = f"{cap_style}{left_edge}{base}"
+        right_cap = f"{cap_style}{verdict_cap or right_edge}"
+    elif show_caps and effective_style == "wedge":
+        left_edge = WEDGE_TOP_LEFT if line_index == 0 else " "
+        right_edge = WEDGE_TOP_RIGHT if line_index == 0 else " "
+        left_cap = (
+            f"{cap_style}{left_edge}{base}"
+            if line_index == 0
+            else f"{base} "
+        )
+        right_cap = (
+            f"{cap_style}{verdict_cap or right_edge}"
+            if line_index == 0 or verdict_cap
+            else f"{base} "
+        )
     else:
+        left_cap = base
         right_cap = ""
     return (
         f"{panel_style(ansi)}{left}{left_cap}{disclosure}{orphan}{status}"
@@ -226,7 +277,15 @@ def render_row(
     )
 
 
-def render_card_blank(row: TreeRow, *, width: int, ansi: bool = True) -> str:
+def render_card_blank(
+    row: TreeRow,
+    *,
+    width: int,
+    ansi: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
+    line_index: int = 0,
+    card_height: int = 3,
+) -> str:
     left = "  " * row.depth
     card_width = max(1, width - len(left) - 1)
     show_caps = card_width >= 3
@@ -243,15 +302,42 @@ def render_card_blank(row: TreeRow, *, width: int, ansi: bool = True) -> str:
         if row.tab.status == "blocked"
         else None
     )
-    right_edge = (
-        f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}{verdict_cap}"
-        if verdict_cap
-        else f"{panel_style(ansi)} "
-    )
-    return (
-        f"{panel_style(ansi)}{left} {base}{' ' * body_width}{reset}"
-        f"{right_edge}{reset}"
-    )
+    cap_style = f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}"
+    if edge_style == "tapered":
+        right_edge = (
+            f"{cap_style}{verdict_cap}" if verdict_cap else f"{panel_style(ansi)} "
+        )
+        return (
+            f"{panel_style(ansi)}{left} {base}{' ' * body_width}{reset}"
+            f"{right_edge}{reset}"
+        )
+    if edge_style == "stacked":
+        return (
+            f"{panel_style(ansi)}{left}{cap_style}{LEFT_CAP}{base}"
+            f"{' ' * body_width}{cap_style}{verdict_cap or RIGHT_CAP}{reset}"
+        )
+    if edge_style == "straight":
+        right_edge = f"{cap_style}{verdict_cap}" if verdict_cap else f"{base} "
+        return (
+            f"{panel_style(ansi)}{left}{base}{' ' * (body_width + 1)}"
+            f"{right_edge}{reset}"
+        )
+    if edge_style == "rounded":
+        bottom = line_index == card_height - 1
+        left_edge, right_edge = ("╰", "╯") if bottom else ("╭", "╮")
+        return (
+            f"{panel_style(ansi)}{left}{cap_style}{left_edge}"
+            f"{'─' * body_width}{right_edge}{reset}"
+        )
+    if edge_style == "wedge":
+        bottom = line_index == card_height - 1
+        left_edge = WEDGE_BOTTOM_LEFT if bottom else WEDGE_TOP_LEFT
+        right_edge = WEDGE_BOTTOM_RIGHT if bottom else WEDGE_TOP_RIGHT
+        return (
+            f"{panel_style(ansi)}{left}{cap_style}{left_edge}{base}"
+            f"{' ' * body_width}{cap_style}{verdict_cap or right_edge}{reset}"
+        )
+    raise ValueError(f"unknown edge style: {edge_style}")
 
 
 def render_card(
@@ -262,6 +348,7 @@ def render_card(
     card_height: int,
     now: float | None = None,
     ansi: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
 ) -> list[str]:
     content_line = card_content_line(card_height)
     return [
@@ -271,9 +358,19 @@ def render_card(
             width=width,
             now=now,
             ansi=ansi,
+            edge_style=edge_style,
+            line_index=line,
+            card_height=card_height,
         )
         if line == content_line
-        else render_card_blank(row, width=width, ansi=ansi)
+        else render_card_blank(
+            row,
+            width=width,
+            ansi=ansi,
+            edge_style=edge_style,
+            line_index=line,
+            card_height=card_height,
+        )
         for line in range(card_height)
     ]
 
@@ -289,6 +386,7 @@ def render_screen(
     error: str | None = None,
     now: float | None = None,
     ansi: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
 ) -> str:
     available = content_height(height)
     card_height = adaptive_card_height(len(rows), height)
@@ -309,6 +407,7 @@ def render_screen(
                 card_height=card_height,
                 now=now,
                 ansi=ansi,
+                edge_style=edge_style,
             )
         )
     while len(output) < available:
@@ -316,7 +415,12 @@ def render_screen(
     if error and output:
         output[-1] = f" error: {error}"[:width]
     output.extend(
-        render_control_line(shortcut, action, width, ansi=ansi)
+        render_control_line(
+            shortcut,
+            f"edge: {edge_style}" if shortcut == "e" else action,
+            width,
+            ansi=ansi,
+        )
         for shortcut, action in CONTROL_ROWS
     )
     return "\n".join(output[:height])

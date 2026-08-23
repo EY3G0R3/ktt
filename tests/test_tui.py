@@ -5,6 +5,7 @@ from ktt.tui import (
     active_row_index,
     disclosure_column,
     parse_mouse_event,
+    restart_arguments,
     row_index_at_mouse,
 )
 
@@ -28,13 +29,13 @@ class MouseTests(unittest.TestCase):
 
     def test_maps_screen_row_after_scroll(self) -> None:
         self.assertEqual(
-            row_index_at_mouse(1, start=5, row_count=20, height=10), 5
+            row_index_at_mouse(1, start=5, row_count=20, height=11), 5
         )
         self.assertEqual(
-            row_index_at_mouse(5, start=5, row_count=20, height=10), 9
+            row_index_at_mouse(5, start=5, row_count=20, height=11), 9
         )
         self.assertIsNone(
-            row_index_at_mouse(6, start=5, row_count=20, height=10)
+            row_index_at_mouse(6, start=5, row_count=20, height=11)
         )
 
     def test_maps_centered_screen_row(self) -> None:
@@ -78,6 +79,19 @@ class MouseTests(unittest.TestCase):
             has_children=True, is_collapsed=True, has_active_descendant=True,
         )
         self.assertEqual(active_row_index([inactive, folded]), 1)
+
+    def test_auto_reload_preserves_the_live_edge_style(self) -> None:
+        self.assertEqual(
+            restart_arguments(
+                ["--to", "unix:/tmp/kitty", "--edge-style", "tapered"],
+                "rounded",
+            ),
+            ["--to", "unix:/tmp/kitty", "--edge-style", "rounded"],
+        )
+        self.assertEqual(
+            restart_arguments(["--edge-style=wedge"], "straight"),
+            ["--edge-style", "straight"],
+        )
 
 
 if __name__ == "__main__":

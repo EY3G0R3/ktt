@@ -69,3 +69,15 @@ Development reload is separate from Kitty-state delivery: a source change
 automatically restarts the running TUI in place after restoring terminal mode.
 `ktt refresh` replaces an older sidebar process inside the same Kitty OS
 window, so the window manager keeps its tile.
+
+## 6. Edge treatments are switchable themes
+
+Keep the explored card shapes as real renderer styles rather than choosing one
+from static mockups. `tapered` remains the initial default; `stacked`,
+`straight`, `rounded`, and `wedge` are equally available through
+`--edge-style`. Pressing `e` cycles them against the live tree and the footer
+names the current style.
+
+All styles share the same tree, status, density, scrolling, and mouse-hit
+model. In one-line compact mode, shapes that require vertical geometry fall
+back to the default Powerline caps.

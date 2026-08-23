@@ -195,9 +195,11 @@ separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
 The first extra fields should be repository/branch, agent phase, and the latest
-readiness or blocker reason. Before adding them, compare the current tapered
-edge with stacked Powerline caps, straight vertical sides, and box-drawing or
-multi-row wedge variants.
+readiness or blocker reason. Edge comparison is now live rather than a static
+mockup: `tapered`, `stacked`, `straight`, `rounded`, and `wedge` are selectable
+at startup and cycle in-place with `e`. Tapered remains the default, while the
+other styles stay available as themes instead of being discarded after the
+visual experiment.
 
 Choose density deterministically from terminal height and visible-tab count so
 resizing does not flicker between modes. Consider persistence for fold state

@@ -4,14 +4,20 @@ import re
 from ktt.model import TabRecord, TreeRow
 from ktt.render import (
     CONTROL_LINES,
+    EDGE_STYLES,
     FLAME_RIGHT_CAP,
     LEFT_CAP,
     READY_RIGHT_CAP,
     RIGHT_CAP,
+    WEDGE_BOTTOM_LEFT,
+    WEDGE_BOTTOM_RIGHT,
+    WEDGE_TOP_LEFT,
+    WEDGE_TOP_RIGHT,
     adaptive_card_height,
     card_content_line,
     display_width,
     panel_style,
+    next_edge_style,
     render_control_line,
     render_card,
     render_row,
@@ -58,10 +64,10 @@ class RenderTests(unittest.TestCase):
             TreeRow(TabRecord(1, 1, "one", (10,)), 0, None),
             TreeRow(TabRecord(2, 1, "two", (20,)), 0, None),
         ]
-        screen = render_screen(rows, 0, 1, 80, 14, ansi=False)
+        screen = render_screen(rows, 0, 1, 80, 15, ansi=False)
         lines = screen.splitlines()
-        self.assertEqual(adaptive_card_height(2, 14), 3)
-        self.assertEqual(vertical_padding(2, 14), 1)
+        self.assertEqual(adaptive_card_height(2, 15), 3)
+        self.assertEqual(vertical_padding(2, 15), 1)
         self.assertIn("one", lines[2])
         self.assertEqual(lines[4], "")
         self.assertIn("two", lines[6])
@@ -70,12 +76,52 @@ class RenderTests(unittest.TestCase):
             [line.strip() for line in controls],
             [line.strip() for line in CONTROL_LINES],
         )
-        self.assertTrue(all(line.startswith(" " * 24) for line in controls))
+        expected_padding = (80 - display_width(CONTROL_LINES[0])) // 2
+        self.assertTrue(all(
+            line.startswith(" " * expected_padding) for line in controls
+        ))
 
     def test_cards_squeeze_from_three_lines_to_two_then_one(self) -> None:
-        self.assertEqual(adaptive_card_height(4, 20), 3)
-        self.assertEqual(adaptive_card_height(4, 16), 2)
-        self.assertEqual(adaptive_card_height(4, 15), 1)
+        self.assertEqual(adaptive_card_height(4, 21), 3)
+        self.assertEqual(adaptive_card_height(4, 17), 2)
+        self.assertEqual(adaptive_card_height(4, 16), 1)
+
+    def test_edge_style_cycle_wraps_in_display_order(self) -> None:
+        observed = []
+        current = EDGE_STYLES[0]
+        for _ in EDGE_STYLES:
+            observed.append(current)
+            current = next_edge_style(current)
+        self.assertEqual(tuple(observed), EDGE_STYLES)
+        self.assertEqual(current, EDGE_STYLES[0])
+
+    def test_all_edge_styles_render_real_three_line_cards(self) -> None:
+        row = TreeRow(TabRecord(1, 1, "tab", (10,)), 0, None)
+        cards = {
+            style: render_card(
+                row,
+                selected=False,
+                width=30,
+                card_height=3,
+                ansi=False,
+                edge_style=style,
+            )
+            for style in EDGE_STYLES
+        }
+        self.assertTrue(cards["tapered"][0].startswith(" "))
+        self.assertTrue(all(LEFT_CAP in line for line in cards["stacked"]))
+        self.assertFalse(any(LEFT_CAP in line for line in cards["straight"]))
+        self.assertIn("╭", cards["rounded"][0])
+        self.assertIn("│", cards["rounded"][1])
+        self.assertIn("╰", cards["rounded"][2])
+        self.assertIn(WEDGE_TOP_LEFT, cards["wedge"][0])
+        self.assertIn(WEDGE_TOP_RIGHT, cards["wedge"][0])
+        self.assertIn(WEDGE_BOTTOM_LEFT, cards["wedge"][2])
+        self.assertIn(WEDGE_BOTTOM_RIGHT, cards["wedge"][2])
+        self.assertTrue(all(
+            all(display_width(line) == 29 for line in card)
+            for card in cards.values()
+        ))
 
     def test_three_line_card_centers_content_inside_background(self) -> None:
         row = TreeRow(
@@ -142,12 +188,21 @@ class RenderTests(unittest.TestCase):
     def test_control_lines_fit_a_narrow_sidebar(self) -> None:
         width = 32
         screen = render_screen([], 0, 1, width, 8, ansi=False)
-        self.assertTrue(all(len(line) <= width for line in screen.splitlines()))
-        self.assertEqual(screen.splitlines()[-5:], list(CONTROL_LINES))
+        lines = screen.splitlines()
+        self.assertTrue(all(display_width(line) <= width for line in lines))
+        self.assertEqual(len(lines[-len(CONTROL_LINES):]), len(CONTROL_LINES))
+        self.assertIn("↑/↓", lines[-len(CONTROL_LINES)])
+        self.assertIn("q", lines[-1])
 
     def test_control_legend_visually_separates_shortcuts_and_actions(self) -> None:
         line = render_control_line("Enter · click", "enter tab", 40, ansi=False)
         self.assertEqual(line.strip(), "Enter · click │ enter tab")
+
+    def test_control_legend_names_the_current_edge_style(self) -> None:
+        screen = render_screen(
+            [], 0, 1, 48, 8, ansi=False, edge_style="rounded"
+        )
+        self.assertIn("e │ edge: rounded", screen)
 
     def test_long_tab_list_uses_all_available_rows(self) -> None:
         self.assertEqual(vertical_padding(20, 10), 0)
