@@ -357,7 +357,7 @@ def card_background(row: TreeRow) -> str:
         ACTIVE_BACKGROUND
         if tab.is_active
         else ACTIVE_DESCENDANT_BACKGROUND
-        if row.has_active_descendant
+        if row.has_active_descendant and row.is_collapsed
         else INACTIVE_BACKGROUND
     )
 

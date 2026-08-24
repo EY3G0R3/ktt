@@ -528,6 +528,22 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("\x1b[48;2;52;59;73m", rendered)
 
+    def test_expanded_parent_does_not_look_like_the_active_child(self) -> None:
+        parent = TabRecord(1, 1, "parent", (10,))
+        rendered = render_row(
+            TreeRow(
+                parent,
+                0,
+                None,
+                has_children=True,
+                has_active_descendant=True,
+            ),
+            selected=False,
+            width=80,
+        )
+        self.assertIn("\x1b[48;2;32;35;42m", rendered)
+        self.assertNotIn("\x1b[48;2;52;59;73m", rendered)
+
     def test_rows_have_no_active_marker_gutter(self) -> None:
         active = render_row(
             TreeRow(TabRecord(1, 1, "active", (10,), is_active=True), 0, None),
