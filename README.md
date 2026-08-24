@@ -162,37 +162,39 @@ longer renders family dots, reserves a family-marker column, or parses
 
 ## Active repository context
 
-The otherwise-unused bottom padding shows the active main tab's changed files,
-repository, working directory, branch, and clean/dirty summary. Changed files
-form one vertical column above the two-line Fancylog block. The colored action
-is right-aligned against the screen center, the path starts immediately to its
-right, and only staged entries add the literal `staged`; unstaged is the
-default. The column uses up to six spare rows and collapses overflow. The
-entire context disappears when the tab tree needs every row. Help similarly
-uses only spare space above the tree, so card height, capacity, centering, and
-mouse coordinates remain stable.
+The otherwise-unused bottom padding shows the active main tab's changed files
+above one compact repository card. The card groups repository, working
+directory, branch, and clean/dirty state into one centered line using the
+selected edge treatment. Changed-file actions are right-aligned against the
+screen center, their paths start immediately to the right, and only staged
+entries add the literal `staged`; unstaged is the default. Fancylog's ANSI
+colors distinguish modified, untracked, staged, and conflict states. The
+column uses up to six spare rows and collapses overflow. The entire context
+disappears when the tab tree needs every row. Help similarly uses only spare
+space above the tree, so card height, capacity, centering, and mouse
+coordinates remain stable.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
 asks `fancylog --status-only` to render the file column, a width-bounded
-identity/count row, and a branch row. The result is cached for three seconds
-with a 750 ms subprocess
-timeout. A tab, directory, width, or available-height change refreshes
-immediately. If fancylog is unavailable or the directory has no supported
-repository, the panel stays hidden.
+identity/count row, and a branch row. Ktt preserves Fancylog's aligned,
+color-coded file rows and condenses the last two rows into its own repository
+card. The result is cached for three seconds with a 750 ms subprocess timeout.
+A tab, directory, width, or available-height change refreshes immediately. If
+fancylog is unavailable or the directory has no supported repository, the
+panel stays hidden.
 
-fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
-worktree-status, palette, and truncation policy. ktt neither parses its output
-nor carries a second Git/yadm implementation; it only places the returned ANSI
-rows into spare padding.
+Fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
+worktree-status, file-row palette, and truncation policy. Ktt parses only the
+two summary rows for presentation; it carries no second Git/yadm
+implementation.
 
-ktt defaults that embedded panel to fancylog's `terminal` palette, which uses
-the active terminal's ANSI colors and therefore follows Kitty scheme changes
-and inactive-window fading. `dracula` is also available as a fixed truecolor
-reference. Choose another palette without changing standalone fancylog
-configuration:
+ktt defaults changed-file details to Fancylog's warm `amber` palette. The
+`terminal` palette instead follows Kitty scheme changes and inactive-window
+fading, while `dracula` is available as a fixed truecolor reference. Choose
+another palette without changing standalone Fancylog configuration:
 
 ```bash
-ktt --repository-palette dracula launch
+ktt --repository-palette terminal launch
 KTT_REPOSITORY_PALETTE=quiet ktt refresh
 ```
 

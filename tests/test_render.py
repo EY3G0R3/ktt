@@ -33,6 +33,7 @@ from ktt.render import (
     render_row,
     render_screen,
     status_icon,
+    strip_ansi,
     vertical_padding,
     vertical_bottom_padding,
 )
@@ -216,6 +217,60 @@ class RenderTests(unittest.TestCase):
                 )
                 self.assertIn(LEFT_CAP, rendered)
                 self.assertTrue(rendered.endswith(RIGHT_CAP))
+
+    def test_repository_file_block_is_centered_with_aligned_paths_and_colors(self) -> None:
+        modified = (
+            "\x1b[49m                    \x1b[38;5;3mmodified "
+            "\x1b[38;5;8mktt/render.py             \x1b[0m"
+        )
+        untracked = (
+            "\x1b[49m                   \x1b[38;5;6muntracked "
+            "\x1b[38;5;8mnew.py                    \x1b[0m"
+        )
+        screen = render_screen(
+            [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)],
+            0,
+            1,
+            60,
+            20,
+            ansi=True,
+            repository_lines=[
+                modified,
+                untracked,
+                " (ktt) ~/src/ktt  ◈ 2 unstaged ",
+                "  main ",
+            ],
+        )
+        rendered_modified, rendered_untracked = screen.split("\n")[-4:-2]
+        modified_plain = strip_ansi(rendered_modified)
+        untracked_plain = strip_ansi(rendered_untracked)
+        self.assertEqual(
+            modified_plain.index("ktt/render.py"),
+            untracked_plain.index("new.py"),
+        )
+        block_left = min(
+            len(modified_plain) - len(modified_plain.lstrip()),
+            len(untracked_plain) - len(untracked_plain.lstrip()),
+        )
+        block_right = max(len(modified_plain), len(untracked_plain))
+        self.assertLessEqual(abs((block_left + block_right) - 59), 1)
+        self.assertIn("\x1b[38;5;3mmodified", rendered_modified)
+        self.assertIn("\x1b[38;5;6muntracked", rendered_untracked)
+
+    def test_repository_file_rows_keep_alignment_without_ansi(self) -> None:
+        detail = "\x1b[49m                    \x1b[38;5;6muntracked new.py\x1b[0m"
+        screen = render_screen(
+            [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)],
+            0,
+            1,
+            60,
+            20,
+            ansi=False,
+            repository_lines=[detail, " (ktt) ~/src/ktt  ◈ 1 untracked ", "  main "],
+        )
+        self.assertEqual(
+            screen.split("\n")[-3], "                     untracked new.py"
+        )
 
     def test_panel_uses_explicit_black_background(self) -> None:
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")

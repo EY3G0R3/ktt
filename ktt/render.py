@@ -118,8 +118,55 @@ def repository_summary_parts(lines: list[str]) -> tuple[str, str, str]:
     return identity, branch, state
 
 
-def repository_detail_lines(lines: list[str]) -> list[str]:
-    return [strip_ansi(line).strip() for line in lines[:-2] if strip_ansi(line).strip()]
+def _trim_ansi_padding(text: str) -> str:
+    first_visible: int | None = None
+    last_visible: int | None = None
+    cursor = 0
+    escapes = list(ANSI_ESCAPE.finditer(text))
+    for escape in [*escapes, None]:
+        end = escape.start() if escape is not None else len(text)
+        for offset, character in enumerate(text[cursor:end], start=cursor):
+            if not character.isspace():
+                first_visible = offset if first_visible is None else first_visible
+                last_visible = offset
+        cursor = escape.end() if escape is not None else len(text)
+    if first_visible is None or last_visible is None:
+        return ""
+    prefix = "".join(
+        escape.group() for escape in escapes if escape.end() <= first_visible
+    )
+    suffix = "".join(
+        escape.group() for escape in escapes if escape.start() > last_visible
+    )
+    return f"{prefix}{text[first_visible:last_visible + 1]}{suffix}"
+
+
+def render_repository_detail_lines(
+    lines: list[str],
+    width: int,
+    *,
+    ansi: bool = True,
+) -> list[str]:
+    details = [line for line in lines[:-2] if strip_ansi(line).strip()]
+    if not details or width <= 0:
+        return []
+    plain = [strip_ansi(line) for line in details]
+    first_columns = [
+        display_width(line) - display_width(line.lstrip()) for line in plain
+    ]
+    last_columns = [display_width(line.rstrip()) for line in plain]
+    block_left = min(first_columns)
+    block_width = max(last_columns) - block_left
+    available = max(1, width - 1)
+    left_margin = max(0, (available - block_width) // 2)
+    rendered: list[str] = []
+    for line, first_column in zip(details, first_columns):
+        content = _trim_ansi_padding(line if ansi else strip_ansi(line))
+        rendered.append(
+            f"{panel_style(ansi)}"
+            f"{' ' * (left_margin + first_column - block_left)}{content}"
+        )
+    return rendered
 
 
 def _repository_segments(lines: list[str]) -> list[tuple[str, str, bool]]:
@@ -832,14 +879,13 @@ def render_screen(
     context_capacity = max(0, bottom_padding - context_spacing)
     context: list[str] = []
     if repository_lines and context_capacity:
-        details = repository_detail_lines(repository_lines)
-        visible_details = details[:max(0, context_capacity - 1)]
-        context.extend(
-            f"{panel_style(ansi)}{_fg(REPOSITORY_META_FOREGROUND, ansi)}"
-            f"{truncate_cells(detail, width)}"
-            + ("\x1b[0m" if ansi else "")
-            for detail in visible_details
+        details = render_repository_detail_lines(
+            repository_lines,
+            width,
+            ansi=ansi,
         )
+        visible_details = details[:max(0, context_capacity - 1)]
+        context.extend(visible_details)
         context.append(
             render_repository_card(
                 repository_lines,

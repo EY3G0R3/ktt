@@ -22,7 +22,7 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(command[command.index("--width") + 1], "48")
         self.assertEqual(command[command.index("--height") + 1], "2")
         self.assertEqual(
-            command[command.index("--header-palette") + 1], "terminal"
+            command[command.index("--header-palette") + 1], "amber"
         )
         self.assertEqual(command[-1], "/work/project")
         self.assertEqual(run.call_args.kwargs["timeout"], 0.75)

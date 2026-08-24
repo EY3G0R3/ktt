@@ -9,7 +9,7 @@ from typing import Any
 REPOSITORY_PALETTES = (
     "surf", "amber", "vivid", "quiet", "graphite", "terminal", "dracula",
 )
-DEFAULT_REPOSITORY_PALETTE = "terminal"
+DEFAULT_REPOSITORY_PALETTE = "amber"
 MAX_REPOSITORY_LINES = 8
 
 

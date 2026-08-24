@@ -59,7 +59,7 @@ def _parser() -> argparse.ArgumentParser:
         default=os.environ.get(
             "KTT_REPOSITORY_PALETTE", DEFAULT_REPOSITORY_PALETTE
         ),
-        help="fancylog status-bar palette (default: terminal)",
+        help="fancylog changed-file palette (default: amber)",
     )
     parser.add_argument(
         "--embedded", action="store_true", help=argparse.SUPPRESS
