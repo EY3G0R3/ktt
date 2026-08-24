@@ -159,6 +159,14 @@ Powerline/braille glyphs, and an empty status therefore leave every root title
 in the same column; only parent-child depth moves a title to the right. ktt no
 longer renders family dots, reserves a family-marker column, or parses
 `workmux_family`. Hierarchy comes exclusively from `ktt_parent_window_id`.
+Each card places the repository name at its right edge in muted text; compact
+horizontal cards include it as `title · repository`.
+
+Repository names come from Fancylog rather than a second set of Git, linked
+worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
+two-worker background cache once, then reuses that result for the rest of the
+process. Polling and tab switches only read the cache. Entering a new directory
+triggers one new lookup; restarting ktt starts a fresh cache.
 
 ## Active repository context
 
@@ -166,13 +174,13 @@ The otherwise-unused bottom padding shows the active main tab's changed files
 above one compact repository card. The card groups repository, working
 directory, branch, and clean/dirty state into one centered line using the
 selected edge treatment. Changed-file actions are right-aligned against the
-screen center, their paths start immediately to the right, and only staged
-entries add the literal `staged`; unstaged is the default. Fancylog's ANSI
-colors distinguish modified, untracked, staged, and conflict states. The
-column uses up to six spare rows and collapses overflow. The entire context
-disappears when the tab tree needs every row. Help similarly uses only spare
-space above the tree, so card height, capacity, centering, and mouse
-coordinates remain stable.
+shared path column, and the entire visible file block is centered. Paths start
+immediately to the right of the action; only staged entries add the literal
+`staged`, while unstaged is the default. Fancylog's ANSI colors distinguish
+modified, untracked, staged, and conflict states. The column uses up to six
+spare rows and collapses overflow. The entire context disappears when the tab
+tree needs every row. Help similarly uses only spare space above the tree, so
+card height, capacity, centering, and mouse coordinates remain stable.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
 asks `fancylog --status-only` to render the file column, a width-bounded

@@ -8,6 +8,7 @@ from ktt.model import (
     records_for_os_window,
     tree_rows,
     with_active_tab,
+    with_repository_names,
 )
 
 
@@ -24,6 +25,7 @@ class ModelTests(unittest.TestCase):
                     {
                         "id": 102,
                         "is_active": True,
+                        "cwd": "/work/quiver__worktrees/feature",
                         "user_vars": {
                             "ktt_parent_window_id": "55",
                             "workmux_family": "ignored-legacy-value",
@@ -39,6 +41,18 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(record.parent_window_id, 55)
         self.assertNotIn("family", record.__dict__)
         self.assertEqual(record.status, "ready_to_merge")
+        self.assertEqual(record.cwd, "/work/quiver__worktrees/feature")
+
+    def test_repository_names_are_attached_by_cwd(self) -> None:
+        records = [
+            TabRecord(1, 1, "one", (10,), cwd="/work/quiver"),
+            TabRecord(2, 1, "two", (20,), cwd="/home/igor"),
+        ]
+        named = with_repository_names(
+            records,
+            {"/work/quiver": "quiver", "/home/igor": "yadm"},
+        )
+        self.assertEqual([record.repository for record in named], ["quiver", "yadm"])
 
     def test_agent_role_owns_metadata_when_companion_is_active(self) -> None:
         os_window = {

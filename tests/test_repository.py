@@ -2,10 +2,46 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from ktt.repository import FancylogMonitor
+from ktt.repository import (
+    FancylogIdentityCache,
+    FancylogMonitor,
+    repository_name_from_status,
+)
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_repository_name_comes_from_fancylog_identity(self) -> None:
+        self.assertEqual(
+            repository_name_from_status(
+                [" (quiver) ~/work/quiver__worktrees/feature  ◈ 2 unstaged "]
+            ),
+            "quiver",
+        )
+        self.assertEqual(
+            repository_name_from_status([" (yadm) ~  ✓ working tree clean "]),
+            "yadm",
+        )
+
+    def test_identity_cache_resolves_each_directory_only_once(self) -> None:
+        cache = FancylogIdentityCache(workers=2)
+        try:
+            with patch.object(
+                cache,
+                "_resolve",
+                side_effect=lambda path: path.rsplit("/", 1)[-1],
+            ) as resolve:
+                self.assertEqual(cache.update(["/work/quiver", "/home/yadm"]), {})
+                for future in list(cache.pending.values()):
+                    future.result(timeout=1.0)
+                self.assertEqual(
+                    cache.update(["/work/quiver", "/home/yadm"]),
+                    {"/work/quiver": "quiver", "/home/yadm": "yadm"},
+                )
+                cache.update(["/work/quiver", "/home/yadm"])
+                self.assertEqual(resolve.call_count, 2)
+        finally:
+            cache.close()
+
     @patch("ktt.repository.subprocess.run")
     def test_monitor_requests_bounded_status_only_output(self, run) -> None:
         run.return_value = subprocess.CompletedProcess(

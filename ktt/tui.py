@@ -29,6 +29,7 @@ from .model import (
     records_for_os_window,
     tree_rows,
     with_active_tab,
+    with_repository_names,
 )
 from .order import VisibleOrderPublisher
 from .render import (
@@ -40,6 +41,7 @@ from .render import (
 )
 from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
+    FancylogIdentityCache,
     FancylogMonitor,
     MAX_REPOSITORY_LINES,
     active_window_cwd,
@@ -274,6 +276,7 @@ def run_tui(
     help_pinned = False
     pending_navigation: list[int] = []
     repository_monitor = FancylogMonitor(palette=repository_palette)
+    repository_identities = FancylogIdentityCache(palette=repository_palette)
     next_poll = 0.0
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
@@ -304,6 +307,7 @@ def run_tui(
         TerminalMode() as terminal,
         TabEventListener() as tab_events,
         VisibleOrderPublisher() as order_publisher,
+        repository_identities,
     ):
         while True:
             now = time.monotonic()
@@ -330,6 +334,10 @@ def run_tui(
                         fold_state_os_window_id = os_window_id
                     tab_events.bind(os_window_id)
                     records = records_for_os_window(os_window)
+                    repository_names = repository_identities.update(
+                        record.cwd for record in records
+                    )
+                    records = with_repository_names(records, repository_names)
                     previous_collapsed_tab_ids = collapsed_tab_ids.copy()
                     collapsed_tab_ids.intersection_update(
                         record.id for record in records

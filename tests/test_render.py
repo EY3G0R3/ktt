@@ -155,6 +155,18 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(plain.index("centered"), working.index("centered"))
         self.assertGreater(plain.index("centered"), 5)
 
+    def test_horizontal_card_includes_repository_badge(self) -> None:
+        rendered = render_horizontal_card(
+            TreeRow(
+                TabRecord(1, 1, "runner", (10,), repository="quiver"),
+                0,
+                None,
+            ),
+            width=36,
+            ansi=False,
+        )
+        self.assertIn("runner · quiver", rendered)
+
     def test_horizontal_screen_does_not_render_repository_status(self) -> None:
         rows = [TreeRow(TabRecord(1, 1, "root", (10,)), 0, None)]
         screen = render_horizontal_screen(
@@ -292,6 +304,35 @@ class RenderTests(unittest.TestCase):
         self.assertIn(f"        {LEFT_CAP}", rendered)
         self.assertIn("✗", rendered)
         self.assertIn("child", rendered)
+
+    def test_repository_badge_is_muted_and_right_aligned_inside_card(self) -> None:
+        rendered = render_row(
+            TreeRow(
+                TabRecord(1, 1, "cloud runner", (10,), repository="quiver"),
+                0,
+                None,
+            ),
+            selected=False,
+            width=60,
+            ansi=False,
+        )
+        self.assertIn("cloud runner", rendered)
+        self.assertGreater(rendered.index("quiver"), rendered.index("cloud runner"))
+        self.assertTrue(rendered.endswith(f"quiver{RIGHT_CAP}"))
+
+        colored = render_row(
+            TreeRow(
+                TabRecord(1, 1, "cloud runner", (10,), repository="quiver"),
+                0,
+                None,
+            ),
+            selected=False,
+            width=60,
+        )
+        self.assertIn(
+            "\x1b[38;2;119;125;137m\x1b[22mquiver",
+            colored,
+        )
 
     def test_ready_and_blocked_rows_have_verdict_backgrounds(self) -> None:
         ready = TabRecord(2, 1, "ready", (20,), status="ready_to_merge")

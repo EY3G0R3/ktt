@@ -67,6 +67,7 @@ REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
 REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
 REPOSITORY_CONFLICT_FOREGROUND = "ff5555"
+TAB_REPOSITORY_FOREGROUND = "777d89"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
@@ -512,6 +513,18 @@ def card_capacity(available: int, card_height: int) -> int:
     return max(0, (available + gap) // (card_height + gap))
 
 
+def tab_labels(tab: TabRecord, width: int) -> tuple[str, str]:
+    repository = tab.repository or ""
+    if not repository or width < 12:
+        return truncate_cells(tab.title, max(0, width)), ""
+    repository_width = min(18, max(4, width // 3))
+    repository = truncate_cells(repository, repository_width)
+    title_width = width - display_width(repository) - 3
+    if title_width < 5:
+        return truncate_cells(tab.title, max(0, width)), ""
+    return truncate_cells(tab.title, title_width), repository
+
+
 def render_row(
     row: TreeRow,
     *,
@@ -543,8 +556,11 @@ def render_row(
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width
     remaining = max(1, body_width - card_prefix_width)
-    title = truncate_cells(tab.title, remaining)
-    card_content_width = min(body_width, card_prefix_width + display_width(title))
+    title, repository = tab_labels(tab, remaining)
+    label_padding = max(
+        0,
+        remaining - display_width(title) - display_width(repository),
+    )
 
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
@@ -564,9 +580,16 @@ def render_row(
             base += "\x1b[1m"
     reset = "\x1b[0m" if ansi else ""
     restore = reset + base if ansi else ""
+    unbold = "\x1b[22m" if ansi else ""
     status = (
         f"{_fg(status_color, ansi) if status_color else ''}{status_text}"
         f"{restore if status_color else ''}"
+    )
+    repository_label = (
+        f"{_fg(TAB_REPOSITORY_FOREGROUND, ansi)}"
+        f"{unbold}{repository}{restore}"
+        if repository
+        else ""
     )
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"
     verdict_cap = (
@@ -610,7 +633,7 @@ def render_row(
         right_cap = ""
     return (
         f"{panel_style(ansi)}{left}{left_cap}{disclosure}{orphan}{status}"
-        f" {title}{' ' * max(0, body_width - card_content_width)}"
+        f" {title}{' ' * label_padding}{repository_label}"
         f"{right_cap}{reset}"
     )
 
@@ -726,9 +749,11 @@ def render_horizontal_card(
     show_caps = width >= 3
     body_width = width - 2 if show_caps else width
     prefix_width = 2 + STATUS_CELL_WIDTH + 1
-    title = truncate_cells(tab.title, max(0, body_width - prefix_width))
+    title, repository = tab_labels(tab, max(0, body_width - prefix_width))
+    repository_suffix = f" · {repository}" if repository else ""
     content_width = min(
-        body_width, prefix_width + display_width(title)
+        body_width,
+        prefix_width + display_width(title) + display_width(repository_suffix),
     )
     left_padding = max(0, (body_width - content_width) // 2)
     right_padding = max(0, body_width - content_width - left_padding)
@@ -747,12 +772,20 @@ def render_horizontal_card(
         base += "\x1b[1m"
     reset = "\x1b[0m" if ansi else ""
     restore = reset + base if ansi else ""
+    unbold = "\x1b[22m" if ansi else ""
     status = (
         f"{_fg(status_color, ansi) if status_color else ''}{status_text}"
         f"{restore if status_color else ''}"
     )
+    repository_label = (
+        f"{_fg(TAB_REPOSITORY_FOREGROUND, ansi)}"
+        f"{unbold}{repository_suffix}{restore}"
+        if repository_suffix
+        else ""
+    )
     content = (
         f"{' ' * left_padding}{disclosure}{orphan}{status} {title}"
+        f"{repository_label}"
         f"{' ' * right_padding}"
     )
     if not show_caps:
@@ -783,8 +816,15 @@ def horizontal_disclosure_column(
 ) -> int:
     body_width = placement.width - 2 if placement.width >= 3 else placement.width
     prefix_width = 2 + STATUS_CELL_WIDTH + 1
-    title = truncate_cells(row.tab.title, max(0, body_width - prefix_width))
-    content_width = min(body_width, prefix_width + display_width(title))
+    title, repository = tab_labels(
+        row.tab,
+        max(0, body_width - prefix_width),
+    )
+    repository_suffix = f" · {repository}" if repository else ""
+    content_width = min(
+        body_width,
+        prefix_width + display_width(title) + display_width(repository_suffix),
+    )
     left_padding = max(0, (body_width - content_width) // 2)
     cap_width = 1 if placement.width >= 3 else 0
     return placement.left + cap_width + left_padding + 1

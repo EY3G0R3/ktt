@@ -27,6 +27,8 @@ class TabRecord:
     parent_window_id: int | None = None
     status: str | None = None
     source_index: int = 0
+    cwd: str | None = None
+    repository: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,17 @@ def _first_user_var(windows: Iterable[dict[str, Any]], key: str) -> str | None:
         value = str((window.get("user_vars") or {}).get(key) or "")
         if value:
             return value
+    return None
+
+
+def _first_cwd(windows: Iterable[dict[str, Any]]) -> str | None:
+    for window in windows:
+        cwd = window.get("cwd")
+        if cwd:
+            return str(cwd)
+        for process in reversed(window.get("foreground_processes") or []):
+            if process.get("cwd"):
+                return str(process["cwd"])
     return None
 
 
@@ -116,6 +129,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 ),
                 status=status,
                 source_index=index,
+                cwd=_first_cwd(windows),
             )
         )
     return records
@@ -235,6 +249,19 @@ def adjacent_tree_tab_id(rows: list[TreeRow], direction: int) -> int | None:
 def with_active_tab(records: Iterable[TabRecord], tab_id: int) -> list[TabRecord]:
     return [
         replace(record, is_active=record.id == tab_id)
+        for record in records
+    ]
+
+
+def with_repository_names(
+    records: Iterable[TabRecord],
+    names_by_cwd: dict[str, str],
+) -> list[TabRecord]:
+    return [
+        replace(
+            record,
+            repository=names_by_cwd.get(record.cwd or ""),
+        )
         for record in records
     ]
 
