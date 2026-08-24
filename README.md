@@ -247,12 +247,16 @@ only the horizontal instance with:
 python3 -m ktt --orientation horizontal refresh
 ```
 
-Install an editable `ktt` command:
+Install an editable `ktt` command with `uv`:
 
 ```bash
-python3 -m pip install --user -e .
+uv tool install --editable .
 ktt launch
 ```
+
+This creates `~/.local/bin/ktt` through uv's managed tool environment while
+keeping imports pointed at the current checkout, so source changes take effect
+without reinstalling the command.
 
 ## Create a parent-child relationship
 
