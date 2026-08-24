@@ -170,6 +170,37 @@ class RemoteControl:
             f"{PARENT_VAR}={value}",
         )
 
+    def configure_sidebar(
+        self,
+        sidebar_window_id: int,
+        target_os_window_id: int | None,
+        orientation: str,
+        embedded: bool = False,
+    ) -> None:
+        """Reapply the launch-time appearance and identity to a running sidebar."""
+        self.run(
+            "set-colors",
+            "--match",
+            f"id:{sidebar_window_id}",
+            f"background={SIDEBAR_BACKGROUND}",
+        )
+        assignments = [
+            f"{SIDEBAR_VAR}=1",
+            f"{ORIENTATION_VAR}={orientation}",
+        ]
+        if target_os_window_id is not None:
+            assignments.append(
+                f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}"
+            )
+        if embedded:
+            assignments.append(f"{COCKPIT_ROLE_VAR}=ktt")
+        self.run(
+            "set-user-vars",
+            "--match",
+            f"id:{sidebar_window_id}",
+            *assignments,
+        )
+
     def _sidebar_process(
         self,
         target_os_window_id: int,

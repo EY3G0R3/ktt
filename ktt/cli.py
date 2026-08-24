@@ -103,6 +103,22 @@ def _self_window_id() -> int | None:
     return int(value) if value.isdigit() else None
 
 
+def _configure_current_sidebar(
+    remote: RemoteControl,
+    target_os_window_id: int | None,
+    orientation: str,
+    embedded: bool,
+) -> None:
+    window_id = _self_window_id()
+    if window_id is not None:
+        remote.configure_sidebar(
+            window_id,
+            target_os_window_id,
+            orientation,
+            embedded,
+        )
+
+
 def _list(remote: RemoteControl, target: int | None, orientation: str) -> int:
     snapshot = remote.snapshot()
     os_window = choose_os_window(snapshot, target, _self_window_id())
@@ -269,6 +285,12 @@ def main(argv: list[str] | None = None) -> int:
             remote.set_parent(args.child_window, None)
             print(f"unlinked Kitty window {args.child_window}")
             return 0
+        _configure_current_sidebar(
+            remote,
+            args.target_os_window,
+            args.orientation,
+            args.embedded,
+        )
         return run_tui(
             remote,
             args.target_os_window,

@@ -132,6 +132,32 @@ class RemoteControlTests(unittest.TestCase):
             )),
             "toggle-tabs",
         ))
+
+    def test_running_sidebar_reapplies_launch_appearance_and_identity(self) -> None:
+        remote = RecordingRemote()
+        remote.configure_sidebar(91, 3, "vertical")
+        self.assertEqual(remote.calls, [
+            (
+                "set-colors",
+                ("--match", "id:91", "background=#000000"),
+            ),
+            (
+                "set-user-vars",
+                (
+                    "--match",
+                    "id:91",
+                    "ktt_sidebar=1",
+                    "ktt_orientation=vertical",
+                    "ktt_target_os_window_id=3",
+                ),
+            ),
+        ])
+
+    def test_running_embedded_sidebar_restores_cockpit_role(self) -> None:
+        remote = RecordingRemote()
+        remote.configure_sidebar(91, 3, "horizontal", embedded=True)
+        self.assertIn("ktt_cockpit_role=ktt", remote.calls[1][1])
+
     def test_sidebar_launch_passes_configured_edge_style(self) -> None:
         remote = RecordingRemote()
         remote.launch_sidebar(3, "rounded", "graphite")
