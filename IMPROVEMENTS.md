@@ -301,3 +301,31 @@ Next live experiments:
 3. Compare the current orthogonal connector rows with a diagonal-branch theme.
 4. Mark omitted tabs at both edges of compact mode and consider horizontal
    scrolling before changing the active-centered behavior.
+
+## 7. Centralize source-aware Kitty launch placement
+
+A Hirayama attach launched with `kitty @ launch --type=tab` while the KTT OS
+window was active and therefore opened inside the narrow sidebar instead of
+beside the agent that initiated it. The `ktt_parent_window_id` user variable
+correctly described the logical parent, but that metadata affects KTT's tree
+only; it does not choose Kitty's physical destination window.
+
+Do not solve this by independently adding and maintaining `--source-window`
+policy in every application, agent wrapper, and project-specific launcher.
+Look for one reusable source-aware launch boundary—a shared helper, wrapper,
+Kitty integration, or another central mechanism. KTT need not own that
+mechanism; this repository records the issue because a sidebar makes incorrect
+placement unusually disruptive and visible.
+
+The eventual path should:
+
+1. Accept a source Kitty terminal-window ID when the caller has one.
+2. Resolve placement relative to that source even if focus moves before launch.
+3. Prevent ordinary tabs from accidentally landing in a KTT sidebar window.
+4. Keep placement policy out of individual launch scripts wherever practical.
+5. Include an end-to-end check that changes focus between request and launch.
+
+The observed example is the final Kitty launch in
+`scripts/hirayama-launch` from the Squawk repository. KTT's existing structured
+launch operations live in `ktt/kitty.py`; both are useful reference points, but
+neither path predetermines where the shared solution belongs.
