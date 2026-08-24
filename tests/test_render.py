@@ -29,6 +29,7 @@ from ktt.render import (
     render_card,
     render_horizontal_card,
     render_horizontal_screen,
+    render_repository_card,
     render_row,
     render_screen,
     status_icon,
@@ -174,8 +175,9 @@ class RenderTests(unittest.TestCase):
             repository_lines=["fancylog status", " main"],
         )
         lines = screen.split("\n")
-        self.assertEqual(lines[-3:-1], ["fancylog status", " main"])
-        self.assertEqual(lines[-4], "")
+        self.assertIn(" fancylog status  ·   main", lines[-2])
+        self.assertTrue(lines[-2].endswith(""))
+        self.assertEqual(lines[-3], "")
         self.assertEqual(lines[-1], "")
         self.assertIn("one", lines[8])
 
@@ -191,9 +193,29 @@ class RenderTests(unittest.TestCase):
             repository_lines=["fancylog status", " main"],
         )
         lines = screen.split("\n")
-        self.assertEqual(lines[-2], "fancylog status")
+        self.assertIn(" fancylog status  ·   main", lines[-2])
         self.assertEqual(lines[-1], "")
-        self.assertNotIn(" main", screen)
+
+    def test_repository_card_compacts_fancylog_into_one_colored_pill(self) -> None:
+        rendered = render_repository_card(
+            [
+                " (ktt) ~/src/ktt                      ✓ working tree clean ",
+                "                          main                         ",
+            ],
+            68,
+            ansi=False,
+        )
+        self.assertEqual(rendered.strip(), " ktt  ~/src/ktt  ·   main  ·  ✓ clean ")
+
+    def test_repository_card_uses_tapered_caps_for_single_row_edge_styles(self) -> None:
+        source = [" (ktt) ~/src/ktt  ✓ clean ", "  main "]
+        for edge_style in ("tapered", "rounded", "wedge"):
+            with self.subTest(edge_style=edge_style):
+                rendered = render_repository_card(
+                    source, 48, ansi=False, edge_style=edge_style
+                )
+                self.assertIn(LEFT_CAP, rendered)
+                self.assertTrue(rendered.endswith(RIGHT_CAP))
 
     def test_panel_uses_explicit_black_background(self) -> None:
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")

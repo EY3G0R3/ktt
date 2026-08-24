@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 import time
 import unicodedata
 
@@ -59,6 +60,14 @@ CONTROL_SEPARATOR_FOREGROUND = "3f4552"
 CONTROL_ACTION_FOREGROUND = "777d89"
 REPOSITORY_TOP_GAP = 1
 REPOSITORY_BOTTOM_MARGIN = 1
+REPOSITORY_BACKGROUND = "20232a"
+REPOSITORY_NAME_FOREGROUND = "f8f8f2"
+REPOSITORY_META_FOREGROUND = "777d89"
+REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
+REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
+REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
+REPOSITORY_CONFLICT_FOREGROUND = "ff5555"
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
     f"{(f'edge: {DEFAULT_EDGE_STYLE}' if shortcut == 'e' else action):<{CONTROL_RIGHT_WIDTH}}"
@@ -90,6 +99,138 @@ def _bg(hex_color: str, enabled: bool) -> str:
 
 def panel_style(ansi: bool = True) -> str:
     return _bg(PANEL_BACKGROUND, ansi) + _fg("f8f8f2", ansi)
+
+
+def strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE.sub("", text)
+
+
+def repository_summary_parts(lines: list[str]) -> tuple[str, str, str]:
+    if not lines:
+        return "", "", ""
+    header = strip_ansi(lines[-2] if len(lines) > 1 else lines[-1]).strip()
+    branch = strip_ansi(lines[-1]).strip() if len(lines) > 1 else ""
+    header_parts = re.split(r"\s{2,}", header, maxsplit=1)
+    identity = header_parts[0]
+    state = header_parts[1].strip() if len(header_parts) > 1 else ""
+    if state == "✓ working tree clean":
+        state = "✓ clean"
+    return identity, branch, state
+
+
+def repository_detail_lines(lines: list[str]) -> list[str]:
+    return [strip_ansi(line).strip() for line in lines[:-2] if strip_ansi(line).strip()]
+
+
+def _repository_segments(lines: list[str]) -> list[tuple[str, str, bool]]:
+    identity, branch, state = repository_summary_parts(lines)
+    segments: list[tuple[str, str, bool]] = []
+    identity_match = re.match(r"^\(([^)]+)\)\s*(.*)$", identity)
+    if identity_match:
+        segments.append((identity_match.group(1), REPOSITORY_NAME_FOREGROUND, True))
+        if identity_match.group(2):
+            segments.append((f"  {identity_match.group(2)}", REPOSITORY_META_FOREGROUND, False))
+    elif identity:
+        segments.append((identity, REPOSITORY_NAME_FOREGROUND, True))
+    if branch:
+        if segments:
+            segments.append(("  ·  ", REPOSITORY_META_FOREGROUND, False))
+        segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
+    if state:
+        if segments:
+            segments.append(("  ·  ", REPOSITORY_META_FOREGROUND, False))
+        state_color = (
+            REPOSITORY_CONFLICT_FOREGROUND
+            if state.startswith("✗")
+            else REPOSITORY_CLEAN_FOREGROUND
+            if state.startswith("✓")
+            else REPOSITORY_DIRTY_FOREGROUND
+        )
+        segments.append((state, state_color, False))
+    return segments
+
+
+def _render_repository_text(
+    segments: list[tuple[str, str, bool]],
+    width: int,
+    *,
+    ansi: bool,
+) -> str:
+    plain = "".join(text for text, _, _ in segments)
+    truncated = display_width(plain) > width
+    budget = max(0, width - int(truncated))
+    output: list[str] = []
+    used = 0
+    for segment_text, foreground, bold in segments:
+        remaining = max(0, budget - used)
+        fitted_characters: list[str] = []
+        fitted_width = 0
+        for character in segment_text:
+            character_width = display_width(character)
+            if fitted_width + character_width > remaining:
+                break
+            fitted_characters.append(character)
+            fitted_width += character_width
+        fitted = "".join(fitted_characters)
+        if not fitted:
+            continue
+        output.append(_fg(foreground, ansi))
+        if ansi and bold:
+            output.append("\x1b[1m")
+        output.append(fitted)
+        if ansi and bold:
+            output.append("\x1b[22m")
+        used += fitted_width
+        if used >= budget:
+            break
+    if truncated and width > 0:
+        output.extend((_fg(REPOSITORY_META_FOREGROUND, ansi), "…"))
+    return "".join(output)
+
+
+def render_repository_card(
+    lines: list[str],
+    width: int,
+    *,
+    ansi: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
+) -> str:
+    if width <= 0 or not lines:
+        return ""
+    segments = _repository_segments(lines)
+    if not segments:
+        return ""
+    available = max(1, width - 1)
+    content_width = display_width("".join(text for text, _, _ in segments))
+    card_width = min(available, content_width + 4)
+    show_caps = card_width >= 3
+    body_width = card_width - 2 if show_caps else card_width
+    text_width = max(0, body_width - 2)
+    drawn_width = min(content_width, text_width)
+    left_text_padding = max(0, (body_width - drawn_width) // 2)
+    right_text_padding = max(0, body_width - drawn_width - left_text_padding)
+    left_margin = max(0, (available - card_width) // 2)
+    background = _bg(REPOSITORY_BACKGROUND, ansi)
+    cap_style = _bg(PANEL_BACKGROUND, ansi) + _fg(REPOSITORY_BACKGROUND, ansi)
+    reset = "\x1b[0m" if ansi else ""
+    effective_style = (
+        DEFAULT_EDGE_STYLE if edge_style in {"rounded", "wedge"} else edge_style
+    )
+    if show_caps and effective_style == "tapered":
+        left_edge = f"{cap_style}{LEFT_CAP}{background}"
+        right_edge = f"{cap_style}{RIGHT_CAP}"
+    elif show_caps and effective_style == "straight":
+        left_edge = f"{background} "
+        right_edge = f"{background} "
+    else:
+        left_edge = background
+        right_edge = ""
+    rendered_text = _render_repository_text(segments, text_width, ansi=ansi)
+    return (
+        f"{panel_style(ansi)}{' ' * left_margin}{left_edge}"
+        f"{' ' * left_text_padding}{rendered_text}{background}"
+        f"{' ' * right_text_padding}{right_edge}{reset}"
+    )
 
 
 def display_width(text: str) -> int:
@@ -688,7 +829,25 @@ def render_screen(
     top_padding = vertical_padding(len(rows), height, card_height)
     bottom_padding = vertical_bottom_padding(len(rows), height, card_height)
     context_spacing = REPOSITORY_TOP_GAP + REPOSITORY_BOTTOM_MARGIN
-    context = (repository_lines or [])[:max(0, bottom_padding - context_spacing)]
+    context_capacity = max(0, bottom_padding - context_spacing)
+    context: list[str] = []
+    if repository_lines and context_capacity:
+        details = repository_detail_lines(repository_lines)
+        visible_details = details[:max(0, context_capacity - 1)]
+        context.extend(
+            f"{panel_style(ansi)}{_fg(REPOSITORY_META_FOREGROUND, ansi)}"
+            f"{truncate_cells(detail, width)}"
+            + ("\x1b[0m" if ansi else "")
+            for detail in visible_details
+        )
+        context.append(
+            render_repository_card(
+                repository_lines,
+                width,
+                ansi=ansi,
+                edge_style=edge_style,
+            )
+        )
     cards: list[str] = []
     for offset, row in enumerate(visible):
         if offset:
