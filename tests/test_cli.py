@@ -1,7 +1,12 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from ktt.cli import _configure_current_sidebar, _parser, _validate_link
+from ktt.cli import (
+    _configure_current_sidebar,
+    _parser,
+    _validate_link,
+    main,
+)
 
 
 def window(window_id, parent=None):
@@ -43,6 +48,27 @@ class LinkValidationTests(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             _configure_current_sidebar(remote, 3, "vertical", False)
         remote.configure_sidebar.assert_not_called()
+
+    @patch("ktt.cli.run_tui")
+    @patch("ktt.cli.RemoteControl")
+    def test_bare_command_launches_sidebar_for_current_os_window(
+        self, remote_class, run_tui
+    ) -> None:
+        remote = remote_class.return_value
+        remote.snapshot.return_value = [{
+            "id": 7,
+            "tabs": [
+                {"id": 10, "windows": [window(100)]},
+                {"id": 20, "windows": [window(200)]},
+            ],
+        }]
+        remote.launch_sidebar.return_value = 900
+        with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
+            self.assertEqual(main([]), 0)
+        remote.launch_sidebar.assert_called_once_with(
+            7, "tapered", "amber", "vertical"
+        )
+        run_tui.assert_not_called()
 
     def test_rejects_a_new_cycle(self) -> None:
         snapshot = [{

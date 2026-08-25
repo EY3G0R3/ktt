@@ -179,6 +179,32 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     remote = RemoteControl(args.to)
     try:
+        if (
+            args.command is None
+            and args.target_os_window is None
+            and not args.embedded
+        ):
+            snapshot = remote.snapshot()
+            self_id = _self_window_id()
+            if self_id is None:
+                raise ValueError(
+                    "ktt must run inside Kitty or receive --target-os-window"
+                )
+            location = find_tab_for_window(snapshot, self_id)
+            if location is None:
+                raise ValueError("the current Kitty window was not found")
+            target = location[0]
+            new_window_id = remote.launch_sidebar(
+                target,
+                args.edge_style,
+                args.repository_palette,
+                args.orientation,
+            )
+            print(
+                f"opened ktt in Kitty window {new_window_id}, "
+                f"targeting OS window {target}"
+            )
+            return 0
         if args.command == "watcher-path":
             print(Path(__file__).with_name("kitty_watcher.py"))
             return 0

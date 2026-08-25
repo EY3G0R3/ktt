@@ -37,6 +37,10 @@ python3 -m ktt list
 python3 -m ktt
 ```
 
+Bare `ktt` targets the current Kitty OS window and opens the tree in a separate
+sidebar OS window. The launched internal TUI receives that target explicitly,
+so the sidebar never treats its own OS window as the tab source.
+
 For immediate external tab-switch updates, load ktt's global Kitty watcher.
 Run `ktt watcher-path`, then paste the printed absolute path into `kitty.conf`:
 
