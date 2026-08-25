@@ -7,6 +7,8 @@ import subprocess
 import time
 from typing import Any, Iterable
 
+from .model import SIDEBAR_VAR
+
 
 REPOSITORY_PALETTES = (
     "surf", "amber", "vivid", "quiet", "graphite", "terminal", "dracula",
@@ -69,7 +71,11 @@ def active_window_cwd(os_window: dict[str, Any]) -> str | None:
     tab = next((item for item in tabs if item.get("is_active")), None)
     if tab is None:
         return None
-    windows = tab.get("windows") or []
+    windows = [
+        window
+        for window in tab.get("windows") or []
+        if str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") != "1"
+    ]
     history = tab.get("active_window_history") or []
     active_id = int(history[0]) if history else None
     window = next(

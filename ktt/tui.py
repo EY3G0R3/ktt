@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import nullcontext
 import os
 from pathlib import Path
 import re
@@ -12,6 +13,7 @@ import time
 import tty
 
 from .chooser import choose_parent_tab
+from .daemon import SharedSnapshot, SharedSnapshotClient
 from .events import (
     TAB_CHANGE_EVENT,
     TabEventListener,
@@ -263,6 +265,7 @@ def run_tui(
     repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
     orientation: str = DEFAULT_ORIENTATION,
     embedded: bool = False,
+    shared_socket: str | None = None,
 ) -> int:
     view = view_for(orientation)
     selected_index = 0
@@ -273,6 +276,8 @@ def run_tui(
     os_window_id = target_os_window_id or 0
     error: str | None = None
     repository_path: str | None = None
+    shared_snapshot: SharedSnapshot | None = None
+    sidebar_windows: dict[int, int] = {}
     sidebar_focused = False
     help_pinned = False
     pending_navigation: list[int] = []
@@ -293,7 +298,9 @@ def run_tui(
         target_tab_id = rows[selected_index].tab.id
         try:
             if embedded:
-                remote.focus_tab(target_tab_id)
+                remote.preview_embedded_tab(
+                    target_tab_id, sidebar_windows.get(target_tab_id)
+                )
             else:
                 remote.preview_tab(target_tab_id, self_window_id)
             records = with_active_tab(records, target_tab_id)
@@ -304,11 +311,37 @@ def run_tui(
         except KittyError as caught:
             error = str(caught)
 
+    use_shared_snapshots = (
+        embedded
+        and target_os_window_id is not None
+        and shared_socket is not None
+    )
+    shared_context = (
+        SharedSnapshotClient(target_os_window_id, socket_path=shared_socket)
+        if use_shared_snapshots and target_os_window_id is not None
+        else nullcontext(None)
+    )
+    tab_event_context = (
+        nullcontext(None)
+        if use_shared_snapshots
+        else TabEventListener()
+    )
+    order_context = (
+        nullcontext(None)
+        if use_shared_snapshots
+        else VisibleOrderPublisher()
+    )
+    identity_context = (
+        nullcontext(None)
+        if use_shared_snapshots
+        else repository_identities
+    )
     with (
         TerminalMode() as terminal,
-        TabEventListener() as tab_events,
-        VisibleOrderPublisher() as order_publisher,
-        repository_identities,
+        tab_event_context as tab_events,
+        order_context as order_publisher,
+        identity_context as active_repository_identities,
+        shared_context as snapshot_client,
     ):
         while True:
             now = time.monotonic()
@@ -324,21 +357,48 @@ def run_tui(
                 next_source_check = now + SOURCE_CHECK_INTERVAL
             if now >= next_poll:
                 try:
-                    snapshot = remote.snapshot()
-                    sidebar_focused = window_is_focused(snapshot, self_window_id)
-                    os_window = choose_os_window(
-                        snapshot, target_os_window_id, self_window_id
-                    )
-                    os_window_id = int(os_window["id"])
-                    if fold_state_os_window_id != os_window_id:
-                        collapsed_tab_ids = read_folded_tab_ids(os_window_id)
-                        fold_state_os_window_id = os_window_id
-                    tab_events.bind(os_window_id)
-                    records = records_for_os_window(os_window)
-                    repository_names = repository_identities.update(
-                        record.cwd for record in records
-                    )
-                    records = with_repository_names(records, repository_names)
+                    if snapshot_client is not None:
+                        update = snapshot_client.take_latest(now)
+                        if update is not None:
+                            shared_snapshot = update
+                        if shared_snapshot is None:
+                            next_poll = now + min(poll_interval, 0.1)
+                            continue
+                        if update is not None:
+                            os_window_id = update.os_window_id
+                            sidebar_focused = (
+                                self_window_id in update.focused_window_ids
+                            )
+                            collapsed_tab_ids = set(update.folded_tab_ids)
+                            fold_state_os_window_id = os_window_id
+                            records = list(update.records)
+                            repository_path = update.repository_path
+                            sidebar_windows = dict(update.sidebar_windows)
+                            error = update.error
+                    else:
+                        snapshot = remote.snapshot()
+                        sidebar_focused = window_is_focused(
+                            snapshot, self_window_id
+                        )
+                        os_window = choose_os_window(
+                            snapshot, target_os_window_id, self_window_id
+                        )
+                        os_window_id = int(os_window["id"])
+                        if fold_state_os_window_id != os_window_id:
+                            collapsed_tab_ids = read_folded_tab_ids(os_window_id)
+                            fold_state_os_window_id = os_window_id
+                        if tab_events is not None:
+                            tab_events.bind(os_window_id)
+                        records = records_for_os_window(os_window)
+                        assert active_repository_identities is not None
+                        repository_names = active_repository_identities.update(
+                            record.cwd for record in records
+                        )
+                        records = with_repository_names(
+                            records, repository_names
+                        )
+                        repository_path = active_window_cwd(os_window)
+                        error = None
                     previous_collapsed_tab_ids = collapsed_tab_ids.copy()
                     collapsed_tab_ids.intersection_update(
                         record.id for record in records
@@ -347,9 +407,6 @@ def run_tui(
                         write_folded_tab_ids(os_window_id, collapsed_tab_ids)
                     rows = tree_rows(records, collapsed_tab_ids)
                     selected_index = active_row_index(rows)
-                    repository_path = active_window_cwd(os_window)
-                    error = None
-
                     direction = take_navigation_step(pending_navigation)
                     if direction is not None:
                         target_tab_id = adjacent_tree_tab_id(rows, direction)
@@ -360,11 +417,16 @@ def run_tui(
                             selected_index = active_row_index(rows)
                 except (KittyError, ValueError) as caught:
                     error = str(caught)
-                next_poll = navigation_poll_deadline(
-                    now, poll_interval, pending_navigation
+                next_poll = (
+                    now + min(poll_interval, 0.1)
+                    if snapshot_client is not None
+                    else navigation_poll_deadline(
+                        now, poll_interval, pending_navigation
+                    )
                 )
 
-            order_publisher.publish(os_window_id, rows)
+            if order_publisher is not None:
+                order_publisher.publish(os_window_id, rows)
             width, height = shutil.get_terminal_size((40, 24))
             card_height = view.card_height(len(rows), height)
             repository_capacity = min(
@@ -476,6 +538,8 @@ def run_tui(
                         elif mouse.button == "left":
                             try:
                                 remote.focus_tab(clicked.tab.id)
+                                if embedded and clicked.tab.window_ids:
+                                    remote.focus_window(clicked.tab.window_ids[0])
                                 error = None
                                 next_poll = 0.0
                             except KittyError as caught:
@@ -519,6 +583,8 @@ def run_tui(
                         rows[selected_index].tab,
                     )
                     remote.focus_tab(active_tab.id)
+                    if embedded and active_tab.window_ids:
+                        remote.focus_window(active_tab.window_ids[0])
                     error = None
                     next_poll = 0.0
                 except KittyError as caught:

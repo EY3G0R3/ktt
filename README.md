@@ -256,6 +256,31 @@ Set a different initial split percentage when testing density:
 python3 -m ktt --orientation horizontal launch-pane --pane-percent 12
 ```
 
+Prototype a persistent bottom bar in every tab of the current Kitty OS window:
+
+```bash
+python3 -m ktt --orientation horizontal embed --pane-percent 10
+```
+
+`embed` starts one daemon for the target OS window and reconciles one small
+renderer pane into every current and newly created tab. The daemon owns Kitty
+snapshots, tree construction, repository identities, folds, visible-order
+publishing, and watcher navigation. Each pane consumes the shared snapshot and
+only performs geometry-dependent rendering and its local detailed fancylog
+panel. Keyboard navigation follows focus into the renderer in the destination
+tab; Enter or a left click transfers focus back to that tab's content window.
+Embedded renderer windows are excluded from tab identity and repository-context
+selection.
+
+Stop the daemon and close only its horizontal renderer panes with:
+
+```bash
+python3 -m ktt unembed
+```
+
+This is an experimental comparison path. `launch-pane` remains the simpler
+single-tab prototype, and the separate OS-window modes are unchanged.
+
 For a future three-column cockpit, create the bottom pane while the tab still
 has a single top window, then split that top window into the equal-width
 fancylog and scratch-shell rails. This allows ktt's split to span the full tab.

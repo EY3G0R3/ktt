@@ -8,10 +8,9 @@ import subprocess
 import sys
 from typing import Any, Sequence
 
-from .model import COCKPIT_ROLE_VAR, PARENT_VAR
+from .model import COCKPIT_ROLE_VAR, PARENT_VAR, SIDEBAR_VAR
 
 
-SIDEBAR_VAR = "ktt_sidebar"
 TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
 ORIENTATION_VAR = "ktt_orientation"
 SIDEBAR_BACKGROUND = "#000000"
@@ -144,11 +143,21 @@ class RemoteControl:
     def focus_tab(self, tab_id: int) -> None:
         self.run("focus-tab", "--match", f"id:{tab_id}")
 
+    def focus_window(self, window_id: int) -> None:
+        self.run("focus-window", "--match", f"id:{window_id}")
+
     def preview_tab(self, tab_id: int, sidebar_window_id: int) -> None:
         # focus-tab necessarily switches OS focus. Restore it only after Kitty
         # acknowledges the tab change, allowing repeated navigation in ktt.
         self.focus_tab(tab_id)
-        self.run("focus-window", "--match", f"id:{sidebar_window_id}")
+        self.focus_window(sidebar_window_id)
+
+    def preview_embedded_tab(
+        self, tab_id: int, sidebar_window_id: int | None
+    ) -> None:
+        self.focus_tab(tab_id)
+        if sidebar_window_id is not None:
+            self.focus_window(sidebar_window_id)
 
     def toggle_native_tabs(self, source_window_id: int) -> None:
         kitten = Path(__file__).with_name("tree_navigation_kitten.py")
@@ -208,6 +217,7 @@ class RemoteControl:
         repository_palette: str | None = None,
         orientation: str = "vertical",
         embedded: bool = False,
+        shared_socket: str | None = None,
     ) -> tuple[str, list[str]]:
         package_root = str(Path(__file__).resolve().parent.parent)
         process = [
@@ -221,6 +231,8 @@ class RemoteControl:
         process.extend(("--orientation", orientation))
         if embedded:
             process.append("--embedded")
+        if shared_socket:
+            process.extend(("--shared-socket", shared_socket))
         if edge_style:
             process.extend(("--edge-style", edge_style))
         if repository_palette:
@@ -234,6 +246,7 @@ class RemoteControl:
         edge_style: str | None = None,
         repository_palette: str | None = None,
         pane_percent: int = 10,
+        shared_socket: str | None = None,
     ) -> int:
         package_root, process = self._sidebar_process(
             target_os_window_id,
@@ -241,6 +254,7 @@ class RemoteControl:
             repository_palette,
             "horizontal",
             embedded=True,
+            shared_socket=shared_socket,
         )
         output = self.run(
             "launch",
@@ -274,6 +288,48 @@ class RemoteControl:
             raise KittyError(
                 f"Kitty returned an invalid embedded window ID: {output!r}"
             ) from error
+
+    def sync_embedded_panes(
+        self,
+        snapshot: Sequence[dict[str, Any]],
+        target_os_window_id: int,
+        edge_style: str | None = None,
+        repository_palette: str | None = None,
+        pane_percent: int = 10,
+        shared_socket: str | None = None,
+    ) -> list[int]:
+        os_window = os_window_by_id(snapshot, target_os_window_id)
+        existing = embedded_sidebar_windows(os_window)
+        created: list[int] = []
+        for tab in os_window.get("tabs") or []:
+            tab_id = int(tab["id"])
+            if tab_id in existing:
+                continue
+            source = content_window_for_tab(tab)
+            if source is None:
+                continue
+            created.append(
+                self.launch_pane(
+                    source,
+                    target_os_window_id,
+                    edge_style,
+                    repository_palette,
+                    pane_percent,
+                    shared_socket,
+                )
+            )
+        return created
+
+    def close_embedded_panes(
+        self,
+        snapshot: Sequence[dict[str, Any]],
+        target_os_window_id: int,
+    ) -> list[int]:
+        os_window = os_window_by_id(snapshot, target_os_window_id)
+        window_ids = list(embedded_sidebar_windows(os_window).values())
+        for window_id in window_ids:
+            self.run("close-window", "--match", f"id:{window_id}")
+        return window_ids
 
     def launch_sidebar(
         self,
@@ -388,6 +444,50 @@ def find_tab_for_window(
             ):
                 return int(os_window["id"]), int(tab["id"])
     return None
+
+
+def os_window_by_id(
+    snapshot: Sequence[dict[str, Any]], os_window_id: int
+) -> dict[str, Any]:
+    for os_window in snapshot:
+        if int(os_window["id"]) == os_window_id:
+            return os_window
+    raise ValueError(f"Kitty OS window {os_window_id} does not exist")
+
+
+def embedded_sidebar_windows(os_window: dict[str, Any]) -> dict[int, int]:
+    result: dict[int, int] = {}
+    for tab in os_window.get("tabs") or []:
+        for window in tab.get("windows") or []:
+            variables = window.get("user_vars") or {}
+            if (
+                str(variables.get(SIDEBAR_VAR) or "") == "1"
+                and str(variables.get(ORIENTATION_VAR) or "vertical")
+                == "horizontal"
+            ):
+                result[int(tab["id"])] = int(window["id"])
+                break
+    return result
+
+
+def content_window_for_tab(tab: dict[str, Any]) -> int | None:
+    windows = [
+        window
+        for window in tab.get("windows") or []
+        if str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") != "1"
+    ]
+    if not windows:
+        return None
+    windows.sort(
+        key=lambda window: (
+            str(
+                (window.get("user_vars") or {}).get(COCKPIT_ROLE_VAR) or ""
+            )
+            != "agent",
+            not bool(window.get("is_active")),
+        )
+    )
+    return int(windows[0]["id"])
 
 
 def find_sidebar_window(

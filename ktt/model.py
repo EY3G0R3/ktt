@@ -8,6 +8,7 @@ from typing import Any, Iterable
 PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
+SIDEBAR_VAR = "ktt_sidebar"
 AGENT_ROLE = "agent"
 WAITING_STATUS = "💬"
 WORKING_STATUS = "🤖"
@@ -43,7 +44,11 @@ class TreeRow:
 
 
 def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
-    windows = list(tab.get("windows") or [])
+    windows = [
+        window
+        for window in tab.get("windows") or []
+        if str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") != "1"
+    ]
     return sorted(
         windows,
         key=lambda window: (
@@ -103,6 +108,8 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
     os_window_id = int(os_window["id"])
     for index, tab in enumerate(os_window.get("tabs") or []):
         windows = _ordered_windows(tab)
+        if not windows:
+            continue
         window_ids = tuple(int(window["id"]) for window in windows)
         title = str(tab.get("title") or "")
         if title == "surf" or not title:

@@ -12,6 +12,7 @@ from .kitty import (
     find_sidebar_window,
     find_tab_for_window,
 )
+from .daemon import run_daemon, start_daemon, stop_daemon
 from .model import choose_os_window, records_for_os_window, tree_rows
 from .render import (
     DEFAULT_EDGE_STYLE,
@@ -64,6 +65,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--embedded", action="store_true", help=argparse.SUPPRESS
     )
+    parser.add_argument("--shared-socket", help=argparse.SUPPRESS)
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="print the current tree once")
     subparsers.add_parser("launch", help="open ktt in a separate Kitty OS window")
@@ -75,6 +77,20 @@ def _parser() -> argparse.ArgumentParser:
         "--pane-percent", type=int, default=10,
         help="initial percentage of the source window given to ktt (default: 10)",
     )
+    embed = subparsers.add_parser(
+        "embed", help="run shared ktt panes across every tab in this OS window"
+    )
+    embed.add_argument(
+        "--pane-percent", type=int, default=10,
+        help="percentage of each tab given to ktt (default: 10)",
+    )
+    subparsers.add_parser(
+        "unembed", help="stop the shared daemon and close embedded ktt panes"
+    )
+    daemon = subparsers.add_parser(
+        "daemon", help=argparse.SUPPRESS
+    )
+    daemon.add_argument("--pane-percent", type=int, default=10)
     subparsers.add_parser(
         "refresh", help="replace the running sidebar inside its current OS window"
     )
@@ -131,6 +147,24 @@ def _list(remote: RemoteControl, target: int | None, orientation: str) -> int:
         )
     )
     return 0
+
+
+def _target_for_current(
+    remote: RemoteControl,
+    requested_target: int | None,
+) -> tuple[list[dict], int]:
+    snapshot = remote.snapshot()
+    if requested_target is not None:
+        return snapshot, requested_target
+    self_id = _self_window_id()
+    if self_id is None:
+        raise ValueError(
+            "this command must run inside Kitty or receive --target-os-window"
+        )
+    location = find_tab_for_window(snapshot, self_id)
+    if location is None:
+        raise ValueError("the current Kitty window was not found")
+    return snapshot, location[0]
 
 
 def _validate_link(snapshot: list[dict], child: int, parent: int) -> None:
@@ -213,6 +247,17 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "list":
             return _list(remote, args.target_os_window, args.orientation)
+        if args.command == "daemon":
+            if args.target_os_window is None:
+                raise ValueError("daemon requires --target-os-window")
+            return run_daemon(
+                remote,
+                args.target_os_window,
+                poll_interval=args.poll_interval,
+                edge_style=args.edge_style,
+                repository_palette=args.repository_palette,
+                pane_percent=args.pane_percent,
+            )
         if args.command == "launch":
             snapshot = remote.snapshot()
             self_id = _self_window_id()
@@ -256,6 +301,42 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"opened embedded ktt in Kitty window {new_window_id}, "
                 f"targeting OS window {target}"
+            )
+            return 0
+        if args.command == "embed":
+            if args.orientation != "horizontal":
+                raise ValueError("embed requires --orientation horizontal")
+            if not 5 <= args.pane_percent <= 30:
+                raise ValueError("--pane-percent must be between 5 and 30")
+            _, target = _target_for_current(
+                remote, args.target_os_window
+            )
+            stop_daemon(target)
+            snapshot = remote.snapshot()
+            remote.close_embedded_panes(snapshot, target)
+            pid = start_daemon(
+                target,
+                to=remote.to,
+                poll_interval=args.poll_interval,
+                edge_style=args.edge_style,
+                repository_palette=args.repository_palette,
+                pane_percent=args.pane_percent,
+            )
+            print(
+                f"started shared ktt daemon {pid} for OS window {target}; "
+                "embedded panes will follow its tabs"
+            )
+            return 0
+        if args.command == "unembed":
+            _, target = _target_for_current(
+                remote, args.target_os_window
+            )
+            stop_daemon(target)
+            snapshot = remote.snapshot()
+            closed = remote.close_embedded_panes(snapshot, target)
+            print(
+                f"stopped shared ktt for OS window {target}; "
+                f"closed {len(closed)} embedded pane(s)"
             )
             return 0
         if args.command == "refresh":
@@ -326,6 +407,7 @@ def main(argv: list[str] | None = None) -> int:
             args.repository_palette,
             args.orientation,
             args.embedded,
+            args.shared_socket,
         )
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)

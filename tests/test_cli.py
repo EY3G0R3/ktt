@@ -35,6 +35,12 @@ class LinkValidationTests(unittest.TestCase):
         ])
         self.assertEqual(args.pane_percent, 10)
 
+    def test_shared_embed_defaults_to_ten_percent(self) -> None:
+        args = _parser().parse_args([
+            "--orientation", "horizontal", "embed",
+        ])
+        self.assertEqual(args.pane_percent, 10)
+
     def test_tui_start_reapplies_sidebar_configuration(self) -> None:
         remote = MagicMock()
         with patch.dict("os.environ", {"KITTY_WINDOW_ID": "91"}):
@@ -69,6 +75,36 @@ class LinkValidationTests(unittest.TestCase):
             7, "tapered", "amber", "vertical"
         )
         run_tui.assert_not_called()
+
+    @patch("ktt.cli.start_daemon", return_value=456)
+    @patch("ktt.cli.stop_daemon")
+    @patch("ktt.cli.RemoteControl")
+    def test_embed_replaces_existing_panes_and_starts_shared_daemon(
+        self, remote_class, stop_daemon, start_daemon
+    ) -> None:
+        remote = remote_class.return_value
+        snapshot = [{
+            "id": 7,
+            "tabs": [{"id": 10, "windows": [window(100)]}],
+        }]
+        remote.snapshot.return_value = snapshot
+        remote.to = "unix:/tmp/kitty"
+        with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
+            self.assertEqual(main([
+                "--orientation", "horizontal", "embed", "--pane-percent", "12",
+            ]), 0)
+
+        stop_daemon.assert_called_once_with(7)
+        self.assertEqual(remote.snapshot.call_count, 2)
+        remote.close_embedded_panes.assert_called_once_with(snapshot, 7)
+        start_daemon.assert_called_once_with(
+            7,
+            to="unix:/tmp/kitty",
+            poll_interval=1.0,
+            edge_style="tapered",
+            repository_palette="amber",
+            pane_percent=12,
+        )
 
     def test_rejects_a_new_cycle(self) -> None:
         snapshot = [{

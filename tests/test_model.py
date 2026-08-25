@@ -86,6 +86,38 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(record.parent_window_id, 55)
         self.assertEqual(record.status, "blocked")
 
+    def test_embedded_sidebar_is_excluded_from_tab_identity(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [
+                {
+                    "id": 10,
+                    "title": "work",
+                    "windows": [
+                        {"id": 101, "is_active": False, "user_vars": {}},
+                        {
+                            "id": 190,
+                            "is_active": True,
+                            "user_vars": {"ktt_sidebar": "1"},
+                        },
+                    ],
+                },
+                {
+                    "id": 20,
+                    "title": "sidebar only",
+                    "windows": [{
+                        "id": 290,
+                        "user_vars": {"ktt_sidebar": "1"},
+                    }],
+                },
+            ],
+        }
+
+        records = records_for_os_window(os_window)
+
+        self.assertEqual([record.id for record in records], [10])
+        self.assertEqual(records[0].window_ids, (101,))
+
     def test_tree_supports_multiple_levels_and_reorders_children(self) -> None:
         records = [
             TabRecord(3, 1, "grandchild", (30,), parent_window_id=20, source_index=0),

@@ -5,11 +5,31 @@ from unittest.mock import patch
 from ktt.repository import (
     FancylogIdentityCache,
     FancylogMonitor,
+    active_window_cwd,
     repository_name_from_status,
 )
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_active_cwd_ignores_focused_embedded_sidebar(self) -> None:
+        os_window = {
+            "tabs": [{
+                "is_active": True,
+                "active_window_history": [90, 10],
+                "windows": [
+                    {"id": 10, "cwd": "/work/project", "user_vars": {}},
+                    {
+                        "id": 90,
+                        "cwd": "/work/ktt",
+                        "is_focused": True,
+                        "user_vars": {"ktt_sidebar": "1"},
+                    },
+                ],
+            }],
+        }
+
+        self.assertEqual(active_window_cwd(os_window), "/work/project")
+
     def test_repository_name_comes_from_fancylog_identity(self) -> None:
         self.assertEqual(
             repository_name_from_status(
