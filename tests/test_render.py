@@ -557,11 +557,13 @@ class RenderTests(unittest.TestCase):
 
     def test_control_lines_fit_a_narrow_sidebar(self) -> None:
         width = 32
-        screen = render_screen([], 0, 1, width, 8, ansi=False)
+        screen = render_screen([], 0, 1, width, 9, ansi=False)
         lines = screen.splitlines()
         self.assertTrue(all(display_width(line) <= width for line in lines))
-        self.assertEqual(len(lines), 8)
+        self.assertEqual(len(lines), 9)
         self.assertIn("↑/↓", lines[0])
+        self.assertIn("p │ parent", screen)
+        self.assertIn("r │ refresh", screen)
         self.assertIn("q", lines[len(CONTROL_LINES) - 1])
 
     def test_controls_can_hide_without_changing_screen_geometry(self) -> None:
@@ -585,7 +587,7 @@ class RenderTests(unittest.TestCase):
 
     def test_control_legend_names_the_current_edge_style(self) -> None:
         screen = render_screen(
-            [], 0, 1, 48, 8, ansi=False, edge_style="rounded"
+            [], 0, 1, 48, 9, ansi=False, edge_style="rounded"
         )
         self.assertIn("e │ edge: rounded", screen)
 
