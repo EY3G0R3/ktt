@@ -170,6 +170,24 @@ class RemoteControl:
             "toggle-tabs",
         )
 
+    def place_sidebar_left(
+        self,
+        source_window_id: int,
+        sidebar_window_id: int,
+        pane_percent: int,
+    ) -> None:
+        kitten = Path(__file__).with_name("tree_navigation_kitten.py")
+        self.run(
+            "action",
+            "--match",
+            f"id:{source_window_id}",
+            "kitten",
+            str(kitten),
+            "place-sidebar-left",
+            str(sidebar_window_id),
+            str(pane_percent),
+        )
+
     def set_parent(self, child_window_id: int, parent_window_id: int | None) -> None:
         value = "" if parent_window_id is None else str(parent_window_id)
         self.run(
@@ -291,12 +309,8 @@ class RemoteControl:
                 f"Kitty returned an invalid embedded window ID: {output!r}"
             ) from error
         if orientation == "vertical":
-            self.run(
-                "action",
-                "--match",
-                f"id:{source_window_id}",
-                "move_window",
-                "right",
+            self.place_sidebar_left(
+                source_window_id, pane_window_id, pane_percent
             )
         return pane_window_id
 

@@ -55,11 +55,24 @@ def handle_result(
     # result-handler argument is the absolute kitten path from the mapping.
     package_root = Path(args[0]).resolve().parent.parent
     sys.path.insert(0, str(package_root))
+    action = args[1]
+    if action == "place-sidebar-left":
+        if len(args) < 4:
+            return
+        sidebar_id = int(args[2]) if args[2].isdigit() else 0
+        bias = int(args[3]) if args[3].isdigit() else 20
+        sidebar = boss.window_id_map.get(sidebar_id)
+        if sidebar is None or sidebar.tabref() is not tab:
+            return
+        from ktt.kitty_layout import place_window_at_left_edge
+
+        place_window_at_left_edge(tab, sidebar, bias)
+        return
+
     import ktt.events as events
     from ktt.kitty import SIDEBAR_VAR, TARGET_OS_WINDOW_VAR
     from ktt.model import adjacent_tree_tab_id, records_for_os_window, tree_rows
 
-    action = args[1]
     if action == "toggle-tabs":
         _toggle_native_tabs(boss)
         return

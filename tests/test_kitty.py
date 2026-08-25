@@ -223,7 +223,17 @@ class RemoteControlTests(unittest.TestCase):
         )
         self.assertEqual(remote.calls[1], (
             "action",
-            ("--match", "id:123", "move_window", "right"),
+            (
+                "--match",
+                "id:123",
+                "kitten",
+                str(Path(kitty_module.__file__).with_name(
+                    "tree_navigation_kitten.py"
+                )),
+                "place-sidebar-left",
+                "456",
+                "20",
+            ),
         ))
 
     def test_embedded_sync_only_creates_missing_tab_panes(self) -> None:
@@ -314,7 +324,17 @@ class RemoteControlTests(unittest.TestCase):
         self.assertIn("window_id:101", remote.calls[0][1])
         self.assertEqual(remote.calls[1], (
             "action",
-            ("--match", "id:101", "move_window", "right"),
+            (
+                "--match",
+                "id:101",
+                "kitten",
+                str(Path(kitty_module.__file__).with_name(
+                    "tree_navigation_kitten.py"
+                )),
+                "place-sidebar-left",
+                "456",
+                "20",
+            ),
         ))
 
     def test_sync_closes_sidebar_when_it_is_the_tabs_only_survivor(self) -> None:
