@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import colorsys
 from dataclasses import dataclass
+from functools import lru_cache
+import hashlib
 import re
 import time
 import unicodedata
@@ -68,7 +71,6 @@ REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
 REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
 REPOSITORY_CONFLICT_FOREGROUND = "ff5555"
-TAB_REPOSITORY_FOREGROUND = "777d89"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CONTROL_LINES = tuple(
     f"{shortcut:>{CONTROL_LEFT_WIDTH}}{CONTROL_SEPARATOR}"
@@ -101,6 +103,108 @@ def _bg(hex_color: str, enabled: bool) -> str:
 
 def panel_style(ansi: bool = True) -> str:
     return _bg(PANEL_BACKGROUND, ansi) + _fg("f8f8f2", ansi)
+
+
+def _relative_luminance(hex_color: str) -> float:
+    channels = [
+        int(hex_color[offset:offset + 2], 16) / 255
+        for offset in (0, 2, 4)
+    ]
+    linear = [
+        channel / 12.92
+        if channel <= 0.04045
+        else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in channels
+    ]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast_ratio(first: str, second: str) -> float:
+    light, dark = sorted(
+        (_relative_luminance(first), _relative_luminance(second)),
+        reverse=True,
+    )
+    return (light + 0.05) / (dark + 0.05)
+
+
+@lru_cache(maxsize=256)
+def repository_label_foreground(
+    repository: str,
+    background: str,
+    hue: float | None = None,
+) -> str:
+    """Return a stable repository hue adjusted for the card's contrast."""
+    digest = hashlib.blake2s(
+        repository.casefold().encode("utf-8"), digest_size=3
+    ).digest()
+    hue_seed = int.from_bytes(digest[:2], "big")
+    # Permute neighboring hash values around the hue wheel instead of letting
+    # an accidental near-match produce nearly identical repository colors.
+    hue = hue if hue is not None else ((hue_seed * 40503) & 0xffff) / 65536
+    saturation = 0.62 + digest[2] / 255 * 0.18
+    target_lightness = 0.72 if _relative_luminance(background) < 0.4 else 0.3
+    candidates: list[tuple[float, str, float]] = []
+    for step in range(15, 86):
+        lightness = step / 100
+        channels = colorsys.hls_to_rgb(hue, lightness, saturation)
+        foreground = "".join(f"{round(channel * 255):02x}" for channel in channels)
+        candidates.append(
+            (lightness, foreground, _contrast_ratio(foreground, background))
+        )
+    readable = [candidate for candidate in candidates if candidate[2] >= 4.5]
+    if readable:
+        return min(readable, key=lambda candidate: abs(candidate[0] - target_lightness))[1]
+    return max(candidates, key=lambda candidate: candidate[2])[1]
+
+
+def _hue_distance(first: float, second: float) -> float:
+    distance = abs(first - second)
+    return min(distance, 1 - distance)
+
+
+@lru_cache(maxsize=64)
+def repository_hue_assignments(repositories: tuple[str, ...]) -> dict[str, float]:
+    """Keep repositories in one tree perceptually distinct from each other."""
+    names = tuple(sorted(set(repositories)))
+    if not names:
+        return {}
+    minimum_distance = min(45 / 360, (300 / len(names)) / 360)
+    golden_angle = 137.50776405003785 / 360
+    ordered = sorted(
+        names,
+        key=lambda name: hashlib.blake2s(name.casefold().encode("utf-8")).digest(),
+    )
+    assigned: dict[str, float] = {}
+    used: list[float] = []
+    for name in ordered:
+        digest = hashlib.blake2s(
+            name.casefold().encode("utf-8"), digest_size=3
+        ).digest()
+        seed = int.from_bytes(digest[:2], "big")
+        base = ((seed * 40503) & 0xffff) / 65536
+        candidates = tuple((base + index * golden_angle) % 1 for index in range(24))
+        separated = [
+            candidate
+            for candidate in candidates
+            if all(
+                _hue_distance(candidate, existing) >= minimum_distance
+                for existing in used
+            )
+        ]
+        chosen = (
+            separated[0]
+            if separated
+            else max(
+                candidates,
+                key=lambda candidate: min(
+                    (_hue_distance(candidate, existing) for existing in used),
+                    default=1,
+                ),
+            )
+        )
+        assigned[name] = chosen
+        used.append(chosen)
+    return assigned
 
 
 def strip_ansi(text: str) -> str:
@@ -516,11 +620,11 @@ def card_capacity(available: int, card_height: int) -> int:
 
 def tab_labels(tab: TabRecord, width: int) -> tuple[str, str]:
     repository = tab.repository or ""
-    if not repository or width < 12:
+    if not repository or width < 14:
         return truncate_cells(tab.title, max(0, width)), ""
-    repository_width = min(18, max(4, width // 3))
-    repository = truncate_cells(repository, repository_width)
-    title_width = width - display_width(repository) - 3
+    repository_width = min(20, max(6, width // 3))
+    repository = f"/{truncate_cells(repository, repository_width - 2)}/"
+    title_width = width - display_width(repository) - 4
     if title_width < 5:
         return truncate_cells(tab.title, max(0, width)), ""
     return truncate_cells(tab.title, title_width), repository
@@ -536,6 +640,7 @@ def render_row(
     edge_style: str = DEFAULT_EDGE_STYLE,
     line_index: int = 0,
     card_height: int = 1,
+    repository_hue: float | None = None,
 ) -> str:
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
@@ -560,7 +665,10 @@ def render_row(
     title, repository = tab_labels(tab, remaining)
     label_padding = max(
         0,
-        remaining - display_width(title) - display_width(repository),
+        remaining
+        - display_width(title)
+        - display_width(repository)
+        - int(bool(repository)),
     )
 
     base = ""
@@ -587,7 +695,7 @@ def render_row(
         f"{restore if status_color else ''}"
     )
     repository_label = (
-        f"{_fg(TAB_REPOSITORY_FOREGROUND, ansi)}"
+        f"{_fg(repository_label_foreground(tab.repository or '', background, repository_hue), ansi)}"
         f"{unbold}{repository}{restore}"
         if repository
         else ""
@@ -635,6 +743,7 @@ def render_row(
     return (
         f"{panel_style(ansi)}{left}{left_cap}{disclosure}{orphan}{status}"
         f" {title}{' ' * label_padding}{repository_label}"
+        f"{' ' if repository else ''}"
         f"{right_cap}{reset}"
     )
 
@@ -706,6 +815,7 @@ def render_card(
     now: float | None = None,
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_hue: float | None = None,
 ) -> list[str]:
     content_line = card_content_line(card_height)
     return [
@@ -718,6 +828,7 @@ def render_card(
             edge_style=edge_style,
             line_index=line,
             card_height=card_height,
+            repository_hue=repository_hue,
         )
         if line == content_line
         else render_card_blank(
@@ -739,6 +850,7 @@ def render_horizontal_card(
     now: float | None = None,
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_hue: float | None = None,
 ) -> str:
     if width <= 0:
         return ""
@@ -779,7 +891,7 @@ def render_horizontal_card(
         f"{restore if status_color else ''}"
     )
     repository_label = (
-        f"{_fg(TAB_REPOSITORY_FOREGROUND, ansi)}"
+        f"{_fg(repository_label_foreground(tab.repository or '', background, repository_hue), ansi)}"
         f"{unbold}{repository_suffix}{restore}"
         if repository_suffix
         else ""
@@ -848,6 +960,9 @@ def render_horizontal_screen(
     help_pinned: bool = False,
 ) -> str:
     del os_window_id, total_tabs, help_pinned, repository_lines
+    repository_hues = repository_hue_assignments(tuple(
+        row.tab.repository for row in rows if row.tab.repository
+    ))
     placements = horizontal_layout(rows, width, height, selected_index)
     output = ["" for _ in range(height)]
     by_screen_row: dict[int, list[HorizontalPlacement]] = {}
@@ -866,6 +981,9 @@ def render_horizontal_screen(
                 now=now,
                 ansi=ansi,
                 edge_style=edge_style,
+                repository_hue=repository_hues.get(
+                    rows[placement.index].tab.repository or ""
+                ),
             )
             cursor = placement.left + placement.width
         output[screen_row] = line
@@ -909,6 +1027,9 @@ def render_screen(
     show_controls: bool = True,
     help_pinned: bool = False,
 ) -> str:
+    repository_hues = repository_hue_assignments(tuple(
+        row.tab.repository for row in rows if row.tab.repository
+    ))
     available = content_height(height)
     card_height = adaptive_card_height(len(rows), height)
     capacity = card_capacity(available, card_height)
@@ -948,6 +1069,7 @@ def render_screen(
                 now=now,
                 ansi=ansi,
                 edge_style=edge_style,
+                repository_hue=repository_hues.get(row.tab.repository or ""),
             )
         )
     output = ["" for _ in range(height)]

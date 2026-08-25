@@ -32,6 +32,8 @@ from ktt.render import (
     render_repository_card,
     render_row,
     render_screen,
+    repository_hue_assignments,
+    repository_label_foreground,
     status_icon,
     strip_ansi,
     vertical_padding,
@@ -165,7 +167,7 @@ class RenderTests(unittest.TestCase):
             width=36,
             ansi=False,
         )
-        self.assertIn("runner · quiver", rendered)
+        self.assertIn("runner · /quiver/", rendered)
 
     def test_horizontal_screen_does_not_render_repository_status(self) -> None:
         rows = [TreeRow(TabRecord(1, 1, "root", (10,)), 0, None)]
@@ -305,7 +307,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("✗", rendered)
         self.assertIn("child", rendered)
 
-    def test_repository_badge_is_muted_and_right_aligned_inside_card(self) -> None:
+    def test_repository_badge_is_enclosed_and_inset_from_card_edge(self) -> None:
         rendered = render_row(
             TreeRow(
                 TabRecord(1, 1, "cloud runner", (10,), repository="quiver"),
@@ -317,8 +319,8 @@ class RenderTests(unittest.TestCase):
             ansi=False,
         )
         self.assertIn("cloud runner", rendered)
-        self.assertGreater(rendered.index("quiver"), rendered.index("cloud runner"))
-        self.assertTrue(rendered.endswith(f"quiver{RIGHT_CAP}"))
+        self.assertGreater(rendered.index("/quiver/"), rendered.index("cloud runner"))
+        self.assertTrue(rendered.endswith(f"/quiver/ {RIGHT_CAP}"))
 
         colored = render_row(
             TreeRow(
@@ -329,10 +331,67 @@ class RenderTests(unittest.TestCase):
             selected=False,
             width=60,
         )
+        repository_color = repository_label_foreground("quiver", "20232a")
+        repository_rgb = tuple(
+            int(repository_color[offset:offset + 2], 16)
+            for offset in (0, 2, 4)
+        )
         self.assertIn(
-            "\x1b[38;2;119;125;137m\x1b[22mquiver",
+            f"\x1b[38;2;{';'.join(map(str, repository_rgb))}m"
+            "\x1b[22m/quiver/",
             colored,
         )
+
+    def test_repository_colors_are_stable_distinct_and_contrast_aware(self) -> None:
+        quiver = repository_label_foreground("quiver", "20232a")
+        self.assertEqual(quiver, repository_label_foreground("quiver", "20232a"))
+        self.assertNotEqual(quiver, repository_label_foreground("ktt", "20232a"))
+        self.assertNotEqual(
+            repository_label_foreground("quiver", "20232a"),
+            repository_label_foreground("quiver", "f8f8f2"),
+        )
+
+    def test_quiver_and_squawk_repository_colors_are_visibly_separated(self) -> None:
+        colors = [
+            repository_label_foreground(repository, "20232a")
+            for repository in ("quiver", "squawk")
+        ]
+        rgb = [
+            tuple(int(color[offset:offset + 2], 16) for offset in (0, 2, 4))
+            for color in colors
+        ]
+        self.assertGreater(
+            sum(abs(first - second) for first, second in zip(*rgb)),
+            100,
+        )
+
+    def test_visible_repository_colors_resolve_near_collisions(self) -> None:
+        names = ("quiver", "squawk", "tower")
+        hues = repository_hue_assignments(names)
+        self.assertEqual(hues, repository_hue_assignments(tuple(reversed(names))))
+        distances = [
+            min(abs(first - second), 1 - abs(first - second))
+            for index, first in enumerate(hues.values())
+            for second in list(hues.values())[index + 1:]
+        ]
+        self.assertGreaterEqual(min(distances), 45 / 360)
+
+        rows = [
+            TreeRow(TabRecord(index, 1, name, (index,), repository=name), 0, None)
+            for index, name in enumerate(names, start=1)
+        ]
+        rendered = render_screen(
+            rows, 0, 1, 60, 3, ansi=True, show_controls=False
+        )
+        for name in names:
+            color = repository_label_foreground(name, "20232a", hues[name])
+            rgb = tuple(
+                int(color[offset:offset + 2], 16) for offset in (0, 2, 4)
+            )
+            self.assertIn(
+                f"\x1b[38;2;{';'.join(map(str, rgb))}m\x1b[22m/{name}/",
+                rendered,
+            )
 
     def test_ready_and_blocked_rows_have_verdict_backgrounds(self) -> None:
         ready = TabRecord(2, 1, "ready", (20,), status="ready_to_merge")

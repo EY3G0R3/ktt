@@ -161,8 +161,15 @@ Powerline/braille glyphs, and an empty status therefore leave every root title
 in the same column; only parent-child depth moves a title to the right. ktt no
 longer renders family dots, reserves a family-marker column, or parses
 `workmux_family`. Hierarchy comes exclusively from `ktt_parent_window_id`.
-Each card places the repository name at its right edge in muted text; compact
-horizontal cards include it as `title · repository`.
+Each card places the repository name near its right edge as a restrained but
+readable `/repository/` label, inset one cell from the edge. Compact horizontal
+cards include it as `title · /repository/`. A deterministic hash of the full
+repository name assigns its base hue without a finite palette. Before rendering,
+ktt shifts any near-collisions around the color wheel so the repositories in the
+current tree remain visibly distinct. The same repository set keeps the same
+colors across launches; adding or removing a repository can move a colliding
+label. The renderer also adjusts brightness when a card background needs more
+contrast.
 
 Repository names come from Fancylog rather than a second set of Git, linked
 worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
