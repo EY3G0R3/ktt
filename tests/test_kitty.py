@@ -221,6 +221,10 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(
             arguments[arguments.index("--orientation") + 1], "vertical"
         )
+        self.assertEqual(remote.calls[1], (
+            "action",
+            ("--match", "id:123", "move_window", "right"),
+        ))
 
     def test_embedded_sync_only_creates_missing_tab_panes(self) -> None:
         remote = RecordingRemote()
@@ -290,6 +294,51 @@ class RemoteControlTests(unittest.TestCase):
 
         self.assertEqual(created, [])
         self.assertEqual(remote.calls, [])
+
+    def test_vertical_sync_splits_the_active_content_window(self) -> None:
+        remote = RecordingRemote()
+        snapshot = [{
+            "id": 3,
+            "tabs": [{"id": 10, "windows": [
+                {"id": 100, "is_active": False, "user_vars": {
+                    "ktt_cockpit_role": "agent",
+                }},
+                {"id": 101, "is_active": True, "user_vars": {}},
+            ]}],
+        }]
+
+        remote.sync_embedded_panes(
+            snapshot, 3, pane_percent=20, orientation="vertical"
+        )
+
+        self.assertIn("window_id:101", remote.calls[0][1])
+        self.assertEqual(remote.calls[1], (
+            "action",
+            ("--match", "id:101", "move_window", "right"),
+        ))
+
+    def test_sync_closes_sidebar_when_it_is_the_tabs_only_survivor(self) -> None:
+        remote = RecordingRemote()
+        snapshot = [{
+            "id": 3,
+            "tabs": [{"id": 10, "windows": [{
+                "id": 190,
+                "is_active": True,
+                "user_vars": {
+                    "ktt_sidebar": "1",
+                    "ktt_orientation": "vertical",
+                },
+            }]}],
+        }]
+
+        created = remote.sync_embedded_panes(
+            snapshot, 3, pane_percent=20, orientation="vertical"
+        )
+
+        self.assertEqual(created, [])
+        self.assertEqual(remote.calls, [
+            ("close-window", ("--match", "id:190")),
+        ])
 
     def test_sidebar_refresh_launches_with_background_before_close(self) -> None:
         remote = RecordingRemote()

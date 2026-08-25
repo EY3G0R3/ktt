@@ -285,11 +285,20 @@ class RemoteControl:
             *process,
         )
         try:
-            return int(output)
+            pane_window_id = int(output)
         except ValueError as error:
             raise KittyError(
                 f"Kitty returned an invalid embedded window ID: {output!r}"
             ) from error
+        if orientation == "vertical":
+            self.run(
+                "action",
+                "--match",
+                f"id:{source_window_id}",
+                "move_window",
+                "right",
+            )
+        return pane_window_id
 
     def sync_embedded_panes(
         self,
@@ -306,10 +315,20 @@ class RemoteControl:
         created: list[int] = []
         for tab in os_window.get("tabs") or []:
             tab_id = int(tab["id"])
-            if tab_id in existing:
-                continue
-            source = content_window_for_tab(tab)
+            source = content_window_for_tab(
+                tab, prefer_active=orientation == "vertical"
+            )
             if source is None:
+                for window in tab.get("windows") or []:
+                    variables = window.get("user_vars") or {}
+                    if str(variables.get(SIDEBAR_VAR) or "") == "1":
+                        self.run(
+                            "close-window",
+                            "--match",
+                            f"id:{int(window['id'])}",
+                        )
+                continue
+            if tab_id in existing:
                 continue
             created.append(
                 self.launch_pane(
@@ -502,7 +521,9 @@ def embedded_sidebar_window_ids(
     return result
 
 
-def content_window_for_tab(tab: dict[str, Any]) -> int | None:
+def content_window_for_tab(
+    tab: dict[str, Any], *, prefer_active: bool = False
+) -> int | None:
     windows = [
         window
         for window in tab.get("windows") or []
@@ -512,6 +533,7 @@ def content_window_for_tab(tab: dict[str, Any]) -> int | None:
         return None
     windows.sort(
         key=lambda window: (
+            prefer_active and not bool(window.get("is_active")),
             str(
                 (window.get("user_vars") or {}).get(COCKPIT_ROLE_VAR) or ""
             )
