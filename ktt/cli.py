@@ -81,8 +81,8 @@ def _parser() -> argparse.ArgumentParser:
         "embed", help="run shared ktt panes across every tab in this OS window"
     )
     embed.add_argument(
-        "--pane-percent", type=int, default=10,
-        help="percentage of each tab given to ktt (default: 10)",
+        "--pane-percent", type=int,
+        help="percentage of each tab given to ktt (default: 10 horizontal, 20 vertical)",
     )
     subparsers.add_parser(
         "unembed", help="stop the shared daemon and close embedded ktt panes"
@@ -257,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
                 edge_style=args.edge_style,
                 repository_palette=args.repository_palette,
                 pane_percent=args.pane_percent,
+                orientation=args.orientation,
             )
         if args.command == "launch":
             snapshot = remote.snapshot()
@@ -304,9 +305,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "embed":
-            if args.orientation != "horizontal":
-                raise ValueError("embed requires --orientation horizontal")
-            if not 5 <= args.pane_percent <= 30:
+            pane_percent = args.pane_percent
+            if pane_percent is None:
+                pane_percent = 10 if args.orientation == "horizontal" else 20
+            if not 5 <= pane_percent <= 30:
                 raise ValueError("--pane-percent must be between 5 and 30")
             _, target = _target_for_current(
                 remote, args.target_os_window
@@ -320,7 +322,8 @@ def main(argv: list[str] | None = None) -> int:
                 poll_interval=args.poll_interval,
                 edge_style=args.edge_style,
                 repository_palette=args.repository_palette,
-                pane_percent=args.pane_percent,
+                pane_percent=pane_percent,
+                orientation=args.orientation,
             )
             print(
                 f"started shared ktt daemon {pid} for OS window {target}; "

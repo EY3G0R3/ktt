@@ -247,15 +247,17 @@ class RemoteControl:
         repository_palette: str | None = None,
         pane_percent: int = 10,
         shared_socket: str | None = None,
+        orientation: str = "horizontal",
     ) -> int:
         package_root, process = self._sidebar_process(
             target_os_window_id,
             edge_style,
             repository_palette,
-            "horizontal",
+            orientation,
             embedded=True,
             shared_socket=shared_socket,
         )
+        location = "hsplit" if orientation == "horizontal" else "vsplit"
         output = self.run(
             "launch",
             "--match",
@@ -265,7 +267,7 @@ class RemoteControl:
             "--next-to",
             f"id:{source_window_id}",
             "--type=window",
-            "--location=hsplit",
+            f"--location={location}",
             f"--bias={pane_percent}",
             "--keep-focus",
             "--title=ktt",
@@ -277,7 +279,7 @@ class RemoteControl:
             "--var",
             f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
             "--var",
-            f"{ORIENTATION_VAR}=horizontal",
+            f"{ORIENTATION_VAR}={orientation}",
             "--var",
             f"{COCKPIT_ROLE_VAR}=ktt",
             *process,
@@ -297,9 +299,10 @@ class RemoteControl:
         repository_palette: str | None = None,
         pane_percent: int = 10,
         shared_socket: str | None = None,
+        orientation: str = "horizontal",
     ) -> list[int]:
         os_window = os_window_by_id(snapshot, target_os_window_id)
-        existing = embedded_sidebar_windows(os_window)
+        existing = embedded_sidebar_windows(os_window, orientation)
         created: list[int] = []
         for tab in os_window.get("tabs") or []:
             tab_id = int(tab["id"])
@@ -316,6 +319,7 @@ class RemoteControl:
                     repository_palette,
                     pane_percent,
                     shared_socket,
+                    orientation,
                 )
             )
         return created
@@ -326,7 +330,7 @@ class RemoteControl:
         target_os_window_id: int,
     ) -> list[int]:
         os_window = os_window_by_id(snapshot, target_os_window_id)
-        window_ids = list(embedded_sidebar_windows(os_window).values())
+        window_ids = embedded_sidebar_window_ids(os_window)
         for window_id in window_ids:
             self.run("close-window", "--match", f"id:{window_id}")
         return window_ids
@@ -455,18 +459,46 @@ def os_window_by_id(
     raise ValueError(f"Kitty OS window {os_window_id} does not exist")
 
 
-def embedded_sidebar_windows(os_window: dict[str, Any]) -> dict[int, int]:
+def embedded_sidebar_windows(
+    os_window: dict[str, Any], orientation: str | None = None
+) -> dict[int, int]:
     result: dict[int, int] = {}
     for tab in os_window.get("tabs") or []:
         for window in tab.get("windows") or []:
             variables = window.get("user_vars") or {}
+            recorded_orientation = str(
+                variables.get(ORIENTATION_VAR) or "vertical"
+            )
             if (
                 str(variables.get(SIDEBAR_VAR) or "") == "1"
-                and str(variables.get(ORIENTATION_VAR) or "vertical")
-                == "horizontal"
+                and (
+                    orientation is None
+                    or recorded_orientation == orientation
+                )
             ):
                 result[int(tab["id"])] = int(window["id"])
                 break
+    return result
+
+
+def embedded_sidebar_window_ids(
+    os_window: dict[str, Any], orientation: str | None = None
+) -> list[int]:
+    result: list[int] = []
+    for tab in os_window.get("tabs") or []:
+        for window in tab.get("windows") or []:
+            variables = window.get("user_vars") or {}
+            recorded_orientation = str(
+                variables.get(ORIENTATION_VAR) or "vertical"
+            )
+            if (
+                str(variables.get(SIDEBAR_VAR) or "") == "1"
+                and (
+                    orientation is None
+                    or recorded_orientation == orientation
+                )
+            ):
+                result.append(int(window["id"]))
     return result
 
 

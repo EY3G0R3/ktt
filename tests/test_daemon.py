@@ -81,9 +81,14 @@ class SharedSnapshotTests(unittest.TestCase):
             edge_style="rounded",
             repository_palette="quiet",
             pane_percent=12,
+            orientation="vertical",
         )
         daemon_at = arguments.index("daemon")
         self.assertLess(arguments.index("--target-os-window"), daemon_at)
+        self.assertLess(arguments.index("--orientation"), daemon_at)
+        self.assertEqual(
+            arguments[arguments.index("--orientation") + 1], "vertical"
+        )
         self.assertEqual(arguments[-2:], ["--pane-percent", "12"])
 
 

@@ -312,6 +312,7 @@ def daemon_arguments(
     edge_style: str,
     repository_palette: str,
     pane_percent: int,
+    orientation: str,
 ) -> list[str]:
     arguments = [sys.executable, "-m", "ktt"]
     if to:
@@ -325,6 +326,8 @@ def daemon_arguments(
         edge_style,
         "--repository-palette",
         repository_palette,
+        "--orientation",
+        orientation,
         "daemon",
         "--pane-percent",
         str(pane_percent),
@@ -340,6 +343,7 @@ def start_daemon(
     edge_style: str,
     repository_palette: str,
     pane_percent: int,
+    orientation: str,
     timeout: float = 3.0,
 ) -> int:
     path = daemon_socket_path(target_os_window_id)
@@ -352,6 +356,7 @@ def start_daemon(
             edge_style=edge_style,
             repository_palette=repository_palette,
             pane_percent=pane_percent,
+            orientation=orientation,
         ),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
@@ -414,6 +419,7 @@ def run_daemon(
     edge_style: str,
     repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
     pane_percent: int = 10,
+    orientation: str = "horizontal",
 ) -> int:
     socket_path = daemon_socket_path(target_os_window_id)
     state_path = daemon_state_path(target_os_window_id)
@@ -443,6 +449,7 @@ def run_daemon(
                 "pid": os.getpid(),
                 "target_os_window_id": target_os_window_id,
                 "pane_percent": pane_percent,
+                "orientation": orientation,
             }))
             temporary.chmod(0o600)
             state_inode = temporary.stat().st_ino
@@ -491,6 +498,7 @@ def run_daemon(
                         repository_palette,
                         pane_percent,
                         str(socket_path),
+                        orientation,
                     )
                     if created:
                         snapshot = remote.snapshot()

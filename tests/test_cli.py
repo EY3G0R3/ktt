@@ -35,11 +35,11 @@ class LinkValidationTests(unittest.TestCase):
         ])
         self.assertEqual(args.pane_percent, 10)
 
-    def test_shared_embed_defaults_to_ten_percent(self) -> None:
+    def test_shared_embed_defers_default_to_selected_orientation(self) -> None:
         args = _parser().parse_args([
             "--orientation", "horizontal", "embed",
         ])
-        self.assertEqual(args.pane_percent, 10)
+        self.assertIsNone(args.pane_percent)
 
     def test_tui_start_reapplies_sidebar_configuration(self) -> None:
         remote = MagicMock()
@@ -104,7 +104,25 @@ class LinkValidationTests(unittest.TestCase):
             edge_style="tapered",
             repository_palette="amber",
             pane_percent=12,
+            orientation="horizontal",
         )
+
+    @patch("ktt.cli.start_daemon", return_value=456)
+    @patch("ktt.cli.stop_daemon")
+    @patch("ktt.cli.RemoteControl")
+    def test_vertical_embed_defaults_to_twenty_percent(
+        self, remote_class, _stop_daemon, start_daemon
+    ) -> None:
+        remote = remote_class.return_value
+        remote.snapshot.return_value = [{
+            "id": 7,
+            "tabs": [{"id": 10, "windows": [window(100)]}],
+        }]
+        with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
+            self.assertEqual(main(["--orientation", "vertical", "embed"]), 0)
+
+        self.assertEqual(start_daemon.call_args.kwargs["pane_percent"], 20)
+        self.assertEqual(start_daemon.call_args.kwargs["orientation"], "vertical")
 
     def test_rejects_a_new_cycle(self) -> None:
         snapshot = [{

@@ -262,8 +262,16 @@ Prototype a persistent bottom bar in every tab of the current Kitty OS window:
 python3 -m ktt --orientation horizontal embed --pane-percent 10
 ```
 
+Prototype the same shared tree as a side pane in every tab:
+
+```bash
+python3 -m ktt --orientation vertical embed --pane-percent 20
+```
+
 `embed` starts one daemon for the target OS window and reconciles one small
-renderer pane into every current and newly created tab. The daemon owns Kitty
+renderer pane into every current and newly created tab. Horizontal renderers
+use a bottom split and default to ten percent height; vertical renderers use a
+side split and default to twenty percent width. The daemon owns Kitty
 snapshots, tree construction, repository identities, folds, visible-order
 publishing, and watcher navigation. Each pane consumes the shared snapshot and
 only performs geometry-dependent rendering and its local detailed fancylog

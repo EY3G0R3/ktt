@@ -206,6 +206,22 @@ class RemoteControlTests(unittest.TestCase):
         self.assertIn("ktt_cockpit_role=ktt", arguments)
         self.assertNotIn("--shared-socket", arguments)
 
+    def test_vertical_embedded_launch_creates_side_pane(self) -> None:
+        remote = RecordingRemote()
+        pane = remote.launch_pane(
+            123, 3, "tapered", "terminal", 20,
+            "/tmp/ktt-shared.sock", "vertical",
+        )
+
+        self.assertEqual(pane, 456)
+        _, arguments = remote.calls[0]
+        self.assertIn("--location=vsplit", arguments)
+        self.assertIn("--bias=20", arguments)
+        self.assertIn("ktt_orientation=vertical", arguments)
+        self.assertEqual(
+            arguments[arguments.index("--orientation") + 1], "vertical"
+        )
+
     def test_embedded_sync_only_creates_missing_tab_panes(self) -> None:
         remote = RecordingRemote()
         snapshot = [{
@@ -235,7 +251,7 @@ class RemoteControlTests(unittest.TestCase):
         self.assertIn("--shared-socket", launch_calls[0][1])
         self.assertIn("/tmp/ktt-shared.sock", launch_calls[0][1])
 
-    def test_unembed_closes_only_horizontal_sidebar_panes(self) -> None:
+    def test_unembed_closes_embedded_panes_in_both_orientations(self) -> None:
         remote = RecordingRemote()
         snapshot = [{
             "id": 3,
@@ -249,10 +265,31 @@ class RemoteControlTests(unittest.TestCase):
             ]}],
         }]
 
-        self.assertEqual(remote.close_embedded_panes(snapshot, 3), [191])
+        self.assertEqual(remote.close_embedded_panes(snapshot, 3), [190, 191])
         self.assertEqual(remote.calls, [
+            ("close-window", ("--match", "id:190")),
             ("close-window", ("--match", "id:191")),
         ])
+
+    def test_vertical_sync_reuses_existing_vertical_pane(self) -> None:
+        remote = RecordingRemote()
+        snapshot = [{
+            "id": 3,
+            "tabs": [{"id": 10, "windows": [
+                {"id": 100, "user_vars": {}},
+                {"id": 190, "user_vars": {
+                    "ktt_sidebar": "1",
+                    "ktt_orientation": "vertical",
+                }},
+            ]}],
+        }]
+
+        created = remote.sync_embedded_panes(
+            snapshot, 3, pane_percent=20, orientation="vertical"
+        )
+
+        self.assertEqual(created, [])
+        self.assertEqual(remote.calls, [])
 
     def test_sidebar_refresh_launches_with_background_before_close(self) -> None:
         remote = RecordingRemote()
