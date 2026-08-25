@@ -37,14 +37,15 @@ HORIZONTAL_MIN_CARD_WIDTH = 14
 HORIZONTAL_MAX_CARD_WIDTH = 40
 HORIZONTAL_TREE_INDENT = 4
 HORIZONTAL_CONTROL_TEXT = (
-    "j/k switch · Enter/click enter · Space fold · e edges · t tabs · ? help · q quit"
+    "j/k switch · Enter/click enter · Space fold · p parent · e edges · "
+    "t tabs · ? help · q quit"
 )
 CONTROL_ROWS = (
     ("↑/↓ · j/k · wheel", "switch tab"),
     ("Enter · click", "enter tab"),
     ("Space · right-click", "fold tree"),
     ("e", "edge style"),
-    ("r", "refresh"),
+    ("p / r", "parent / refresh"),
     ("t", "native tab bar"),
     ("?", "pin help"),
     ("q", "quit"),

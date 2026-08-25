@@ -11,6 +11,7 @@ import termios
 import time
 import tty
 
+from .chooser import choose_parent_tab
 from .events import (
     TAB_CHANGE_EVENT,
     TabEventListener,
@@ -525,6 +526,19 @@ def run_tui(
             elif key == "r":
                 repository_monitor.invalidate()
                 next_poll = 0.0
+            elif key == "p" and rows:
+                child = rows[selected_index].tab
+                if child.window_ids:
+                    try:
+                        parent = choose_parent_tab(records, child.id)
+                        if parent is not None and parent.window_ids:
+                            remote.set_parent(
+                                child.window_ids[0], parent.window_ids[0]
+                            )
+                            error = None
+                            next_poll = 0.0
+                    except (KittyError, RuntimeError) as caught:
+                        error = str(caught)
             elif key == "t":
                 active = next(
                     (record for record in records if record.is_active), None

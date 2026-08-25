@@ -29,7 +29,8 @@ in [IMPROVEMENTS.md](IMPROVEMENTS.md).
 ## Try it from this checkout
 
 Requirements: Python 3.11+, Kitty with `allow_remote_control yes`, and a
-reachable `KITTY_LISTEN_ON` socket.
+reachable `KITTY_LISTEN_ON` socket. Changing a tab's parent interactively also
+requires `rofi`.
 
 ```bash
 python3 -m ktt list
@@ -98,6 +99,7 @@ Inside the tree:
 - use the mouse wheel, `j`, `k`, or arrow keys to change the active main-window
   tab while keeping keyboard focus in ktt;
 - Enter transfers keyboard focus into that already-active tab;
+- `p` opens a rofi prompt to choose a new parent for the highlighted tab;
 - `e` cycles the live card-edge style;
 - `t` toggles Kitty's native tab bar while preserving its configured style;
 - `r` refreshes immediately; `q` exits.
@@ -281,6 +283,10 @@ ktt unlink --child-window 456
 `link` writes `ktt_parent_window_id=123` to window 456. The renderer then puts
 the child tab below the tab containing window 123. The installed Workmux agent
 wrappers set this automatically for dispatched children.
+
+For an existing tab, highlight it in ktt and press `p`. The rofi prompt lists
+the other tabs in tree order. Descendants are omitted because choosing one
+would create a cycle; cancelling rofi leaves the hierarchy unchanged.
 
 ### Workmux integration contract
 
