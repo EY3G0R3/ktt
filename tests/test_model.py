@@ -44,6 +44,38 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(record.status, "ready_to_merge")
         self.assertEqual(record.cwd, "/work/quiver__worktrees/feature")
 
+    def test_agent_foreground_cwd_overrides_stale_launch_cwd(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "Hirayama git access and admin permissions",
+                "is_active": True,
+                "windows": [{
+                    "id": 101,
+                    "cwd": "/home/igor",
+                    "foreground_processes": [
+                        {
+                            "cmdline": ["claude", "--continue"],
+                            "cwd": "/home/igor/work/squawk__worktrees/push-hirayama",
+                        },
+                        {
+                            "cmdline": ["xclip", "-selection", "primary"],
+                            "cwd": "/",
+                        },
+                    ],
+                    "user_vars": {},
+                }],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(
+            record.cwd,
+            "/home/igor/work/squawk__worktrees/push-hirayama",
+        )
+
     def test_repository_names_are_attached_by_cwd(self) -> None:
         records = [
             TabRecord(1, 1, "one", (10,), cwd="/work/quiver"),

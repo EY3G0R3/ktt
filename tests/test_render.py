@@ -32,6 +32,7 @@ from ktt.render import (
     render_horizontal_card,
     render_horizontal_screen,
     render_repository_card,
+    render_repository_detail_lines,
     repository_dirty_heading,
     render_row,
     render_screen,
@@ -287,7 +288,7 @@ class RenderTests(unittest.TestCase):
 
         self.assertEqual(
             rendered.strip(),
-            " /quiver/   feature  build/  ·   topic/branch  ·  ✓ clean ",
+            " /quiver/  wt:feature  build/  ·   topic/branch  ·  ✓ clean ",
         )
 
     def test_dirty_counts_stay_in_the_bottom_card_when_they_fit(self) -> None:
@@ -366,7 +367,7 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "/convex-backend/   perf-optimize-concurrency",
+            "/convex-backend/  wt:perf-optimize-concurrency",
             rendered,
         )
         self.assertNotIn("", rendered)
@@ -450,6 +451,18 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(
             screen.split("\n")[-3], "                     untracked new.py"
         )
+
+    def test_repository_file_rows_preserve_long_paths_that_fit(self) -> None:
+        path = "application/src/application_function_runner/mod.rs"
+        detail = f"modified {path}"
+
+        rendered = render_repository_detail_lines(
+            [detail, " (repo) /repo  ◈ 1 unstaged ", "  main "],
+            80,
+            ansi=False,
+        )
+
+        self.assertIn(path, rendered[0])
 
     def test_panel_uses_explicit_black_background(self) -> None:
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")

@@ -10,6 +10,7 @@ STATUS_VAR = "workmux_status"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
 SIDEBAR_VAR = "ktt_sidebar"
 AGENT_ROLE = "agent"
+AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
 WAITING_STATUS = "💬"
 WORKING_STATUS = "🤖"
 
@@ -82,14 +83,32 @@ def _first_user_var(windows: Iterable[dict[str, Any]], key: str) -> str | None:
     return None
 
 
+def content_window_cwd(window: dict[str, Any]) -> str | None:
+    processes = window.get("foreground_processes") or []
+    for process in processes:
+        command = process.get("cmdline") or []
+        executable = str(command[0]).rsplit("/", 1)[-1] if command else ""
+        cwd = process.get("cwd")
+        if executable.casefold() in AGENT_COMMANDS and cwd:
+            return str(cwd)
+    for process in processes:
+        cwd = process.get("cwd")
+        if cwd and str(cwd) != "/":
+            return str(cwd)
+    cwd = window.get("cwd")
+    if cwd:
+        return str(cwd)
+    for process in processes:
+        if process.get("cwd"):
+            return str(process["cwd"])
+    return None
+
+
 def _first_cwd(windows: Iterable[dict[str, Any]]) -> str | None:
     for window in windows:
-        cwd = window.get("cwd")
+        cwd = content_window_cwd(window)
         if cwd:
-            return str(cwd)
-        for process in reversed(window.get("foreground_processes") or []):
-            if process.get("cwd"):
-                return str(process["cwd"])
+            return cwd
     return None
 
 

@@ -326,7 +326,7 @@ def _repository_segments(
         if repository_location is not None:
             if repository_location.worktree:
                 segments.append((
-                    f"   {repository_location.worktree}",
+                    f"  wt:{repository_location.worktree}",
                     REPOSITORY_WORKTREE_FOREGROUND,
                     False,
                 ))

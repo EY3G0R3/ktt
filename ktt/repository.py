@@ -9,7 +9,7 @@ import subprocess
 import time
 from typing import Any, Iterable
 
-from .model import SIDEBAR_VAR
+from .model import SIDEBAR_VAR, content_window_cwd
 
 
 REPOSITORY_PALETTES = (
@@ -156,14 +156,7 @@ def active_window_cwd(os_window: dict[str, Any]) -> str | None:
     window = window or (windows[0] if windows else None)
     if window is None:
         return None
-    cwd = window.get("cwd")
-    if cwd:
-        return str(cwd)
-    processes = window.get("foreground_processes") or []
-    for process in reversed(processes):
-        if process.get("cwd"):
-            return str(process["cwd"])
-    return None
+    return content_window_cwd(window)
 
 
 class FancylogMonitor:

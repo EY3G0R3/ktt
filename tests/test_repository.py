@@ -33,6 +33,34 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertEqual(active_window_cwd(os_window), "/work/project")
 
+    def test_active_cwd_prefers_the_foreground_agent_process(self) -> None:
+        os_window = {
+            "tabs": [{
+                "is_active": True,
+                "active_window_history": [10],
+                "windows": [{
+                    "id": 10,
+                    "cwd": "/home/igor",
+                    "foreground_processes": [
+                        {
+                            "cmdline": ["claude", "--continue"],
+                            "cwd": "/work/squawk__worktrees/push-hirayama",
+                        },
+                        {
+                            "cmdline": ["xclip"],
+                            "cwd": "/",
+                        },
+                    ],
+                    "user_vars": {},
+                }],
+            }],
+        }
+
+        self.assertEqual(
+            active_window_cwd(os_window),
+            "/work/squawk__worktrees/push-hirayama",
+        )
+
     def test_repository_name_comes_from_fancylog_identity(self) -> None:
         self.assertEqual(
             repository_name_from_status(
