@@ -10,6 +10,7 @@ from ktt.render import (
     FLAME_RIGHT_CAP,
     LEFT_CAP,
     READY_RIGHT_CAP,
+    REPOSITORY_BACKGROUND,
     RIGHT_CAP,
     WAITING_BACKGROUNDS,
     WEDGE_BOTTOM_LEFT,
@@ -220,7 +221,37 @@ class RenderTests(unittest.TestCase):
             68,
             ansi=False,
         )
-        self.assertEqual(rendered.strip(), " ktt  ~/src/ktt  ·   main  ·  ✓ clean ")
+        self.assertEqual(rendered.strip(), " /ktt/  ~/src/ktt  ·   main  ·  ✓ clean ")
+
+    def test_repository_card_matches_the_tab_repository_label_color(self) -> None:
+        rows = [TreeRow(
+            TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None
+        )]
+        screen = render_screen(
+            rows,
+            0,
+            1,
+            60,
+            12,
+            ansi=True,
+            show_controls=False,
+            repository_lines=[
+                " (ktt) ~/src/ktt  ✓ working tree clean ",
+                "  main ",
+            ],
+        )
+        hue = repository_hue_assignments(("ktt",))["ktt"]
+        color = repository_label_foreground(
+            "ktt", REPOSITORY_BACKGROUND, hue
+        )
+        red, green, blue = (
+            int(color[offset:offset + 2], 16) for offset in (0, 2, 4)
+        )
+
+        self.assertIn(
+            f"\x1b[38;2;{red};{green};{blue}m/ktt/",
+            screen.split("\n")[-2],
+        )
 
     def test_repository_card_uses_tapered_caps_for_single_row_edge_styles(self) -> None:
         source = [" (ktt) ~/src/ktt  ✓ clean ", "  main "]

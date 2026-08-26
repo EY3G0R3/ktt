@@ -225,6 +225,12 @@ def repository_summary_parts(lines: list[str]) -> tuple[str, str, str]:
     return identity, branch, state
 
 
+def repository_identity_name(lines: list[str]) -> str | None:
+    identity, _, _ = repository_summary_parts(lines)
+    match = re.match(r"^\(([^)]+)\)", identity)
+    return match.group(1) if match else None
+
+
 def _trim_ansi_padding(text: str) -> str:
     first_visible: int | None = None
     last_visible: int | None = None
@@ -276,12 +282,21 @@ def render_repository_detail_lines(
     return rendered
 
 
-def _repository_segments(lines: list[str]) -> list[tuple[str, str, bool]]:
+def _repository_segments(
+    lines: list[str], repository_hue: float | None = None
+) -> list[tuple[str, str, bool]]:
     identity, branch, state = repository_summary_parts(lines)
     segments: list[tuple[str, str, bool]] = []
     identity_match = re.match(r"^\(([^)]+)\)\s*(.*)$", identity)
     if identity_match:
-        segments.append((identity_match.group(1), REPOSITORY_NAME_FOREGROUND, True))
+        repository = identity_match.group(1)
+        segments.append((
+            f"/{repository}/",
+            repository_label_foreground(
+                repository, REPOSITORY_BACKGROUND, repository_hue
+            ),
+            False,
+        ))
         if identity_match.group(2):
             segments.append((f"  {identity_match.group(2)}", REPOSITORY_META_FOREGROUND, False))
     elif identity:
@@ -348,10 +363,11 @@ def render_repository_card(
     *,
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_hue: float | None = None,
 ) -> str:
     if width <= 0 or not lines:
         return ""
-    segments = _repository_segments(lines)
+    segments = _repository_segments(lines, repository_hue)
     if not segments:
         return ""
     available = max(1, width - 1)
@@ -1055,6 +1071,9 @@ def render_screen(
                 width,
                 ansi=ansi,
                 edge_style=edge_style,
+                repository_hue=repository_hues.get(
+                    repository_identity_name(repository_lines) or ""
+                ),
             )
         )
     cards: list[str] = []
