@@ -123,10 +123,10 @@ back to the default Powerline caps.
 Added August 23, 2026 (PDT).
 Revised August 26, 2026 (PDT).
 
-Center title and repository or yadm identity as one group on the selected card's
-middle row instead of anchoring them to opposite sides. Center linked worktree
-and useful branch context on top, omitting default branches and any branch
-represented by the title or worktree. Center clean/dirty state on the bottom. Attach
+Left-align repository or yadm identity, linked worktree, useful branch, and
+title as one sequence on the selected card's middle row. Omit default branches
+and any branch represented by the title or worktree. Center clean/dirty state
+on the bottom. Attach
 changed-file rows below the card. When space permits a dirty heading plus at
 least one file, move dirty counts into that attachment and leave the card bottom
 empty; keep clean and space-constrained dirty state in the card.

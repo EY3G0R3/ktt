@@ -180,10 +180,9 @@ ktt shifts any near-collisions around the color wheel so the repositories in the
 current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
-contrast. In the normal three-row vertical view, `/repository/` precedes the
-title in a left-aligned middle-row group. Linked worktree and useful branch
-context are
-centered on top, while state is centered on the bottom. Ordinary `main` and
+contrast. In the normal three-row vertical view, `/repository/`, linked
+worktree, useful branch, and title form one left-aligned middle-row sequence.
+State is centered on the bottom. Ordinary `main` and
 `master` branches, branches represented by the title, and branches equivalent
 to the worktree label are omitted.
 
@@ -195,10 +194,10 @@ does not hide the repository until ktt restarts.
 
 ## Active repository context
 
-The selected three-row tab card embeds active repository context in its formerly
-empty rows: linked worktree and useful branch context centered on top, a single
-centered `title · /repository/` group in the middle, then centered clean state
-on the bottom. Redundant and default branch labels are omitted. Dirty counts move out of
+The selected three-row tab card embeds active repository context as a single
+left-aligned `/repository/ · worktree · branch · title` sequence in the middle,
+then centered clean state on the bottom. Redundant and default branch labels
+are omitted. Dirty counts move out of
 the card and become a heading above the changed-file rows whenever at least one
 file can remain visible; under tighter geometry the dirty state stays in the
 card so it never disappears. Changed-file rows attach immediately below the card,

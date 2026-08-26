@@ -236,9 +236,9 @@ repeat vertically to form a continuous flame or exhaust edge.
 
 Every vertical card left-aligns status, repository, and title as one stable
 group, with repository first; selection does not change that alignment. Linked
-worktree and
-nonredundant branch context are centered on the selected three-row card's top
-row; clean/dirty state is centered on the bottom. Changed files attach using
+worktree and nonredundant branch context follow the repository and precede the
+title on the selected card's middle row; clean/dirty state is centered on the
+bottom. Changed files attach using
 otherwise-empty screen rows, with dirty counts lifted into that file block when
 it fits. This adds
 context without consuming tab capacity. A later card-specific expansion can

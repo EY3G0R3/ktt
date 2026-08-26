@@ -895,6 +895,7 @@ def render_row(
     card_height: int = 1,
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
+    repository_branch: str | None = None,
     show_repository_metadata: bool = True,
     show_worktree_metadata: bool = True,
     center_content: bool = False,
@@ -919,25 +920,73 @@ def render_row(
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width
     remaining = max(1, body_width - card_prefix_width)
-    if show_repository_metadata:
-        title, repository, worktree = tab_labels(
-            tab,
-            remaining,
-            repository_location.worktree
-            if selected
-            and show_worktree_metadata
-            and repository_location is not None
-            else None,
+    worktree_name = (
+        repository_location.worktree
+        if selected
+        and show_worktree_metadata
+        and repository_location is not None
+        else None
+    )
+    useful_branch = (
+        repository_branch
+        if repository_branch
+        and branch_context_is_useful(
+            repository_branch,
+            title=tab.title,
+            worktree=worktree_name,
         )
+        else None
+    )
+    inline_context_segments: list[tuple[str, str, bool]] = []
+    if worktree_name:
+        inline_context_segments.append((
+            f"🌲{worktree_name}", REPOSITORY_WORKTREE_FOREGROUND, False
+        ))
+    if useful_branch:
+        if inline_context_segments:
+            inline_context_segments.append((
+                " · ", REPOSITORY_META_FOREGROUND, False
+            ))
+        inline_context_segments.append((
+            useful_branch, REPOSITORY_BRANCH_FOREGROUND, False
+        ))
+    inline_context_width = 0
+    if show_repository_metadata:
+        title, repository, worktree = tab_labels(tab, remaining)
+        if repository and inline_context_segments:
+            full_context_width = display_width("".join(
+                text for text, _, _ in inline_context_segments
+            ))
+            inline_context_width = min(
+                full_context_width,
+                max(
+                    0,
+                    remaining
+                    - display_width(repository)
+                    - 5
+                    - 7,
+                ),
+            )
+            if inline_context_width >= 5:
+                title_width = (
+                    remaining
+                    - display_width(repository)
+                    - inline_context_width
+                    - 7
+                )
+                title = truncate_cells(tab.title, title_width)
+            else:
+                inline_context_segments = []
+                title, repository, worktree = tab_labels(tab, remaining)
     else:
         title = truncate_cells(tab.title, remaining)
         repository = ""
         worktree = ""
-    metadata_width = (
-        display_width(repository)
-        + display_width(worktree)
-        + (2 if repository and worktree else 0)
-    )
+    metadata_width = display_width(repository)
+    if inline_context_segments:
+        metadata_width += 3 + inline_context_width
+    elif worktree:
+        metadata_width += 3 + display_width(worktree)
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     background = card_background(row)
@@ -973,9 +1022,16 @@ def render_row(
         if worktree
         else ""
     )
+    inline_context_label = (
+        f"{_render_repository_text(inline_context_segments, inline_context_width, ansi=ansi)}"
+        f"{restore}"
+        if inline_context_segments
+        else ""
+    )
     metadata = (
-        f"{repository_label}{'  ' if repository and worktree else ''}"
-        f"{worktree_label}"
+        f"{repository_label}"
+        f"{' · ' if repository and (worktree or inline_context_label) else ''}"
+        f"{inline_context_label or worktree_label}"
     )
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"
     verdict_cap = (
@@ -1262,27 +1318,8 @@ def render_card(
     hide_dirty_state: bool = False,
 ) -> list[str]:
     content_line = card_content_line(card_height)
-    metadata_embedded = bool(repository_lines) and card_height >= 3
-    top_segments: list[tuple[str, str, bool]] = []
-    branch_segments: list[tuple[str, str, bool]] = []
+    metadata_embedded = bool(repository_lines) and card_height >= 2
     _, branch, _ = repository_summary_parts(repository_lines or [])
-    if branch:
-        branch_segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
-    worktree = repository_location.worktree if repository_location else None
-    if worktree:
-        top_segments.append((
-            f"🌲{worktree}",
-            REPOSITORY_WORKTREE_FOREGROUND,
-            False,
-        ))
-    if branch and branch_context_is_useful(
-        branch, title=row.tab.title, worktree=worktree
-    ):
-        if top_segments:
-            top_segments.append((
-                "  ·  ", REPOSITORY_META_FOREGROUND, False
-            ))
-        top_segments.extend(branch_segments)
     summary_segments = _embedded_repository_state_segments(
         repository_lines or [], hide_dirty_state=hide_dirty_state
     )
@@ -1298,22 +1335,12 @@ def render_card(
             card_height=card_height,
             repository_hue=repository_hue,
             repository_location=repository_location,
+            repository_branch=branch if metadata_embedded else None,
             show_repository_metadata=True,
-            show_worktree_metadata=not metadata_embedded,
+            show_worktree_metadata=True,
             center_content=False,
         )
         if line == content_line
-        else render_card_context_row(
-            row,
-            top_segments,
-            width=width,
-            ansi=ansi,
-            edge_style=edge_style,
-            line_index=line,
-            card_height=card_height,
-            alignment="center",
-        )
-        if repository_lines and card_height >= 3 and line == 0
         else render_card_context_row(
             row,
             summary_segments,
@@ -1323,7 +1350,6 @@ def render_card(
             line_index=line,
             card_height=card_height,
             alignment="center",
-            right_segments=branch_segments if card_height < 3 else None,
         )
         if repository_lines and card_height >= 2 and line == card_height - 1
         else render_card_blank(
