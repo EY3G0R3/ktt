@@ -234,7 +234,9 @@ fallback. Every colored card row maps to the same mouse target. One black row
 separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
-Repository identity and title form one centered group. Linked worktree and
+Every vertical card left-aligns status, repository, and title as one stable
+group, with repository first; selection does not change that alignment. Linked
+worktree and
 nonredundant branch context are centered on the selected three-row card's top
 row; clean/dirty state is centered on the bottom. Changed files attach using
 otherwise-empty screen rows, with dirty counts lifted into that file block when

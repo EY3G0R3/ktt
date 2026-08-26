@@ -49,6 +49,11 @@ information when the sidebar has room. Fall back automatically to shorter
 cards, down to one line per tab, when the full tree would not fit. The model
 remains structured so adaptive rows do not require extra Kitty queries.
 
+Use the same left-aligned status, repository, and title sequence on every
+vertical card at every density, with the repository before the title.
+Selection and active repository context must not change that alignment.
+Disclosure hit testing remains in its fixed tree column.
+
 The first expanded fields should be repository/branch, agent phase, and the
 latest blocker or readiness reason.
 

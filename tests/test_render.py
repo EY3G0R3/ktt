@@ -511,7 +511,7 @@ class RenderTests(unittest.TestCase):
 
         self.assertNotIn(" topic/branch", screen)
         middle = next(line for line in screen.split("\n") if "push topic" in line)
-        self.assertIn("push topic branch · /quiver/", middle)
+        self.assertIn("/quiver/ · push topic branch", middle)
 
     def test_compact_tab_centers_top_identity_and_bottom_status(self) -> None:
         screen = render_screen(
@@ -707,7 +707,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("✗", rendered)
         self.assertIn("child", rendered)
 
-    def test_repository_badge_is_enclosed_and_inset_from_card_edge(self) -> None:
+    def test_repository_badge_precedes_title_in_left_aligned_group(self) -> None:
         rendered = render_row(
             TreeRow(
                 TabRecord(1, 1, "cloud runner", (10,), repository="quiver"),
@@ -718,9 +718,8 @@ class RenderTests(unittest.TestCase):
             width=60,
             ansi=False,
         )
-        self.assertIn("cloud runner", rendered)
-        self.assertGreater(rendered.index("/quiver/"), rendered.index("cloud runner"))
-        self.assertTrue(rendered.endswith(f"/quiver/ {RIGHT_CAP}"))
+        self.assertIn("/quiver/ · cloud runner", rendered)
+        self.assertTrue(rendered.endswith(RIGHT_CAP))
 
         colored = render_row(
             TreeRow(
@@ -915,7 +914,7 @@ class RenderTests(unittest.TestCase):
 
                 self.assertIn("🌲feature", card[0])
                 self.assertNotIn(" main", card[0])
-                self.assertIn("runner · /quiver/", card[1])
+                self.assertIn("/quiver/ · runner", card[1])
                 self.assertIn("✓ clean", card[2])
                 self.assertNotIn(" main", card[2])
                 self.assertLessEqual(
@@ -1140,7 +1139,7 @@ class RenderTests(unittest.TestCase):
             positions.append(display_width(rendered.split("fixed-title", 1)[0]))
         self.assertEqual(positions, [positions[0]] * len(positions))
 
-    def test_only_tree_depth_moves_title_column(self) -> None:
+    def test_tree_depth_moves_left_aligned_group_by_full_indent(self) -> None:
         root = render_row(
             TreeRow(TabRecord(1, 1, "fixed-title", (10,), status="💬"), 0, None),
             selected=False, width=40, ansi=False,
@@ -1152,6 +1151,33 @@ class RenderTests(unittest.TestCase):
         root_column = display_width(root.split("fixed-title", 1)[0])
         child_column = display_width(child.split("fixed-title", 1)[0])
         self.assertEqual(child_column - root_column, 8)
+
+    def test_repository_context_does_not_move_the_middle_group(self) -> None:
+        row = TreeRow(
+            TabRecord(1, 1, "fixed-title", (10,), repository="ktt"), 0, None
+        )
+        ordinary = render_card(
+            row,
+            selected=False,
+            width=48,
+            card_height=3,
+            ansi=False,
+        )[1]
+        contextual = render_card(
+            row,
+            selected=True,
+            width=48,
+            card_height=3,
+            ansi=False,
+            repository_lines=[
+                " (ktt) ~/src/ktt  ✓ clean ",
+                "  main ",
+            ],
+        )[1]
+
+        self.assertEqual(
+            ordinary.index("fixed-title"), contextual.index("fixed-title")
+        )
 
     def test_leaf_row_has_no_tree_dash(self) -> None:
         leaf = render_row(

@@ -938,14 +938,6 @@ def render_row(
         + display_width(worktree)
         + (2 if repository and worktree else 0)
     )
-    label_padding = max(
-        0,
-        remaining
-        - display_width(title)
-        - metadata_width
-        - int(bool(repository or worktree)),
-    )
-
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     background = card_background(row)
@@ -1043,9 +1035,17 @@ def render_row(
             f"{' ' * trailing_padding}"
         )
     else:
+        separator = " · " if metadata else ""
+        content_width = (
+            card_prefix_width
+            + metadata_width
+            + display_width(separator)
+            + display_width(title)
+        )
+        trailing_padding = max(0, body_width - content_width)
         body = (
-            f"{prefix}{title}{' ' * label_padding}{metadata}"
-            f"{' ' if metadata else ''}"
+            f"{prefix}{metadata}{separator}{title}"
+            f"{' ' * trailing_padding}"
         )
     return (
         f"{panel_style(ansi)}{left}{left_cap}{body}{right_cap}{reset}"
@@ -1300,7 +1300,7 @@ def render_card(
             repository_location=repository_location,
             show_repository_metadata=True,
             show_worktree_metadata=not metadata_embedded,
-            center_content=metadata_embedded,
+            center_content=False,
         )
         if line == content_line
         else render_card_context_row(

@@ -123,8 +123,11 @@ not create another selection. When the active tab is hidden inside a folded
 subtree, the visible ancestor uses a dimmer active background. Every tab has a
 background card; child cards start
 four columns farther right per level against the black panel, so card position
-alone shows the tree. Leaf rows have no decorative dash. Tall cards center the
-title/status line vertically. Filled themes keep one background color
+alone shows the tree. Leaf rows have no decorative dash. Every vertical card
+uses the same left-aligned status, `/repository/`, and title sequence, so
+selecting a card or adding active repository context does not move its middle
+row. Tall cards center that line vertically. Filled themes keep one background
+color
 throughout, while the rounded theme uses a colored outline around the content
 line. A black separator row distinguishes tall cards; every row inside the
 card boundary remains part of the mouse target. Compact one-line mode omits
@@ -177,8 +180,9 @@ ktt shifts any near-collisions around the color wheel so the repositories in the
 current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
-contrast. In the normal three-row vertical view, title and `/repository/` form
-one centered middle-row group. Linked worktree and useful branch context are
+contrast. In the normal three-row vertical view, `/repository/` precedes the
+title in a left-aligned middle-row group. Linked worktree and useful branch
+context are
 centered on top, while state is centered on the bottom. Ordinary `main` and
 `master` branches, branches represented by the title, and branches equivalent
 to the worktree label are omitted.
