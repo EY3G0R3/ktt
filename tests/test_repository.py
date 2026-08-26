@@ -5,8 +5,11 @@ from unittest.mock import patch
 from ktt.repository import (
     FancylogIdentityCache,
     FancylogMonitor,
+    RepositoryLocation,
+    RepositoryLocationCache,
     active_window_cwd,
     repository_name_from_status,
+    resolve_repository_location,
 )
 
 
@@ -37,6 +40,49 @@ class RepositoryTests(unittest.TestCase):
             ),
             "quiver",
         )
+
+    @patch("ktt.repository.subprocess.run")
+    def test_location_compacts_a_main_checkout_subdirectory(self, run) -> None:
+        run.return_value = subprocess.CompletedProcess(
+            [], 0, "/home/me/src/ktt\n/home/me/src/ktt/.git\n", ""
+        )
+
+        self.assertEqual(
+            resolve_repository_location("/home/me/src/ktt/build"),
+            RepositoryLocation(relative_path="build/"),
+        )
+
+    @patch("ktt.repository.subprocess.run")
+    def test_location_identifies_a_linked_worktree_and_subdirectory(self, run) -> None:
+        run.return_value = subprocess.CompletedProcess(
+            [],
+            0,
+            (
+                "/home/me/work/quiver__worktrees/feature\n"
+                "/home/me/work/quiver/.git\n"
+            ),
+            "",
+        )
+
+        self.assertEqual(
+            resolve_repository_location(
+                "/home/me/work/quiver__worktrees/feature/build"
+            ),
+            RepositoryLocation(worktree="feature", relative_path="build/"),
+        )
+
+    @patch("ktt.repository.resolve_repository_location")
+    def test_location_cache_resolves_each_directory_once(self, resolve) -> None:
+        resolve.return_value = RepositoryLocation(relative_path="build/")
+        cache = RepositoryLocationCache()
+
+        self.assertEqual(
+            cache.update("/work/project/build"),
+            RepositoryLocation(relative_path="build/"),
+        )
+        cache.update("/work/project/build")
+
+        resolve.assert_called_once_with("/work/project/build", 0.25)
         self.assertEqual(
             repository_name_from_status([" (yadm) ~  ✓ working tree clean "]),
             "yadm",

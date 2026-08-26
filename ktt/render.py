@@ -9,6 +9,7 @@ import time
 import unicodedata
 
 from .model import TabRecord, TreeRow
+from .repository import RepositoryLocation
 
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -68,6 +69,7 @@ REPOSITORY_BOTTOM_MARGIN = 1
 REPOSITORY_BACKGROUND = "20232a"
 REPOSITORY_NAME_FOREGROUND = "f8f8f2"
 REPOSITORY_META_FOREGROUND = "777d89"
+REPOSITORY_WORKTREE_FOREGROUND = "ffb86c"
 REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
 REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
@@ -283,7 +285,9 @@ def render_repository_detail_lines(
 
 
 def _repository_segments(
-    lines: list[str], repository_hue: float | None = None
+    lines: list[str],
+    repository_hue: float | None = None,
+    repository_location: RepositoryLocation | None = None,
 ) -> list[tuple[str, str, bool]]:
     identity, branch, state = repository_summary_parts(lines)
     segments: list[tuple[str, str, bool]] = []
@@ -297,7 +301,20 @@ def _repository_segments(
             ),
             False,
         ))
-        if identity_match.group(2):
+        if repository_location is not None:
+            if repository_location.worktree:
+                segments.append((
+                    f"   {repository_location.worktree}",
+                    REPOSITORY_WORKTREE_FOREGROUND,
+                    False,
+                ))
+            if repository_location.relative_path:
+                segments.append((
+                    f"  {repository_location.relative_path}",
+                    REPOSITORY_META_FOREGROUND,
+                    False,
+                ))
+        elif identity_match.group(2):
             segments.append((f"  {identity_match.group(2)}", REPOSITORY_META_FOREGROUND, False))
     elif identity:
         segments.append((identity, REPOSITORY_NAME_FOREGROUND, True))
@@ -364,10 +381,13 @@ def render_repository_card(
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_hue: float | None = None,
+    repository_location: RepositoryLocation | None = None,
 ) -> str:
     if width <= 0 or not lines:
         return ""
-    segments = _repository_segments(lines, repository_hue)
+    segments = _repository_segments(
+        lines, repository_hue, repository_location
+    )
     if not segments:
         return ""
     available = max(1, width - 1)
@@ -973,10 +993,17 @@ def render_horizontal_screen(
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
+    repository_location: RepositoryLocation | None = None,
     show_controls: bool = True,
     help_pinned: bool = False,
 ) -> str:
-    del os_window_id, total_tabs, help_pinned, repository_lines
+    del (
+        os_window_id,
+        total_tabs,
+        help_pinned,
+        repository_lines,
+        repository_location,
+    )
     repository_hues = repository_hue_assignments(tuple(
         row.tab.repository for row in rows if row.tab.repository
     ))
@@ -1041,6 +1068,7 @@ def render_screen(
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
+    repository_location: RepositoryLocation | None = None,
     show_controls: bool = True,
     help_pinned: bool = False,
 ) -> str:
@@ -1074,6 +1102,7 @@ def render_screen(
                 repository_hue=repository_hues.get(
                     repository_identity_name(repository_lines) or ""
                 ),
+                repository_location=repository_location,
             )
         )
     cards: list[str] = []

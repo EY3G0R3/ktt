@@ -2,6 +2,7 @@ import unittest
 import re
 
 from ktt.model import TabRecord, TreeRow
+from ktt.repository import RepositoryLocation
 from ktt.render import (
     CONTROL_ACTION_FOREGROUND,
     CONTROL_LINES,
@@ -251,6 +252,40 @@ class RenderTests(unittest.TestCase):
         self.assertIn(
             f"\x1b[38;2;{red};{green};{blue}m/ktt/",
             screen.split("\n")[-2],
+        )
+
+    def test_repository_card_compacts_main_checkout_paths(self) -> None:
+        rendered = render_repository_card(
+            [
+                " (ktt) ~/src/ktt/build  ✓ working tree clean ",
+                "  main ",
+            ],
+            68,
+            ansi=False,
+            repository_location=RepositoryLocation(relative_path="build/"),
+        )
+
+        self.assertEqual(
+            rendered.strip(),
+            " /ktt/  build/  ·   main  ·  ✓ clean ",
+        )
+
+    def test_repository_card_places_worktree_before_path_and_branch(self) -> None:
+        rendered = render_repository_card(
+            [
+                " (quiver) ~/work/quiver__worktrees/feature/build  ✓ clean ",
+                "  topic/branch ",
+            ],
+            88,
+            ansi=False,
+            repository_location=RepositoryLocation(
+                worktree="feature", relative_path="build/"
+            ),
+        )
+
+        self.assertEqual(
+            rendered.strip(),
+            " /quiver/   feature  build/  ·   topic/branch  ·  ✓ clean ",
         )
 
     def test_repository_card_uses_tapered_caps_for_single_row_edge_styles(self) -> None:

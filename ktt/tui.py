@@ -47,6 +47,7 @@ from .repository import (
     FancylogIdentityCache,
     FancylogMonitor,
     MAX_REPOSITORY_LINES,
+    RepositoryLocationCache,
     active_window_cwd,
 )
 from .views import view_for
@@ -282,6 +283,7 @@ def run_tui(
     help_pinned = False
     pending_navigation: list[int] = []
     repository_monitor = FancylogMonitor(palette=repository_palette)
+    repository_locations = RepositoryLocationCache()
     repository_identities = FancylogIdentityCache(palette=repository_palette)
     next_poll = 0.0
     next_source_check = 0.0
@@ -441,6 +443,7 @@ def run_tui(
                 repository_capacity,
                 now,
             )
+            repository_location = repository_locations.update(repository_path)
             render_now = time.monotonic()
             current_animation_frame = animation_frame(rows, render_now)
             render_signature: tuple[object, ...] = (
@@ -453,6 +456,7 @@ def run_tui(
                 edge_style,
                 orientation,
                 tuple(repository_lines),
+                repository_location,
                 sidebar_focused,
                 help_pinned,
                 current_animation_frame,
@@ -463,6 +467,7 @@ def run_tui(
                     total_tabs=len(records), error=error, now=render_now,
                     edge_style=edge_style,
                     repository_lines=repository_lines,
+                    repository_location=repository_location,
                     show_controls=sidebar_focused or help_pinned,
                     help_pinned=help_pinned,
                 )

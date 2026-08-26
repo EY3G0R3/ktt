@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 import os
+from pathlib import Path
 import re
 import subprocess
 import time
@@ -17,6 +19,67 @@ DEFAULT_REPOSITORY_PALETTE = "amber"
 MAX_REPOSITORY_LINES = 8
 IDENTITY_WIDTH = 256
 REPOSITORY_IDENTITY = re.compile(r"^\s*\(([^)]+)\)")
+
+
+@dataclass(frozen=True)
+class RepositoryLocation:
+    worktree: str | None = None
+    relative_path: str | None = None
+
+
+def resolve_repository_location(
+    path: str, timeout: float = 0.25
+) -> RepositoryLocation | None:
+    environment = os.environ.copy()
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                path,
+                "rev-parse",
+                "--path-format=absolute",
+                "--show-toplevel",
+                "--git-common-dir",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=environment,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    values = result.stdout.rstrip("\n").splitlines()
+    if result.returncode != 0 or len(values) != 2:
+        return None
+    root = Path(values[0]).resolve()
+    common_directory = Path(values[1]).resolve()
+    try:
+        relative = Path(path).resolve().relative_to(root)
+    except ValueError:
+        return None
+    linked_worktree = common_directory != (root / ".git").resolve()
+    return RepositoryLocation(
+        worktree=root.name if linked_worktree else None,
+        relative_path=None if str(relative) == "." else f"{relative}/",
+    )
+
+
+class RepositoryLocationCache:
+    def __init__(self, timeout: float = 0.25) -> None:
+        self.timeout = timeout
+        self.locations: dict[str, RepositoryLocation | None] = {}
+
+    def update(self, path: str | None) -> RepositoryLocation | None:
+        if not path:
+            return None
+        if path not in self.locations:
+            self.locations[path] = resolve_repository_location(
+                path, self.timeout
+            )
+        return self.locations[path]
 
 
 def fancylog_status_lines(
