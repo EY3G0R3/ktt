@@ -234,9 +234,9 @@ fallback. Every colored card row maps to the same mouse target. One black row
 separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
-Repository identity remains beside the title. Linked worktree uses the selected
-three-row card's top-right; clean/dirty state is centered on the bottom and
-branch is right-aligned there. Changed files attach directly below it using
+Repository identity remains beside the title. Linked worktree and branch are
+centered on the selected three-row card's top row and deduplicated when they
+match; clean/dirty state is centered on the bottom. Changed files attach using
 otherwise-empty screen rows. This adds
 context without consuming tab capacity. A later card-specific expansion can
 still show repository/branch for several tabs at once, plus agent phase and the

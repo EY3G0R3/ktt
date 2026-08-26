@@ -1227,12 +1227,19 @@ def render_card(
     _, branch, _ = repository_summary_parts(repository_lines or [])
     if branch:
         branch_segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
-    if repository_location and repository_location.worktree:
+    worktree = repository_location.worktree if repository_location else None
+    if worktree:
         top_segments.append((
-            f"🌲{repository_location.worktree}",
+            f"🌲{worktree}",
             REPOSITORY_WORKTREE_FOREGROUND,
             False,
         ))
+    if branch and not worktree_matches_branch(worktree, branch):
+        if top_segments:
+            top_segments.append((
+                "  ·  ", REPOSITORY_META_FOREGROUND, False
+            ))
+        top_segments.extend(branch_segments)
     summary_segments = _embedded_repository_state_segments(
         repository_lines or []
     )
@@ -1260,7 +1267,7 @@ def render_card(
             edge_style=edge_style,
             line_index=line,
             card_height=card_height,
-            alignment="right",
+            alignment="center",
         )
         if repository_lines and card_height >= 3 and line == 0
         else render_card_context_row(
@@ -1272,7 +1279,7 @@ def render_card(
             line_index=line,
             card_height=card_height,
             alignment="center",
-            right_segments=branch_segments,
+            right_segments=branch_segments if card_height < 3 else None,
         )
         if repository_lines and card_height >= 2 and line == card_height - 1
         else render_card_blank(

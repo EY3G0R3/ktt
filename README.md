@@ -179,8 +179,9 @@ current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
 contrast. In the normal three-row vertical view, `/repository/` stays beside
-the tab title on the middle row; linked worktree uses the top-right, while
-state is centered and branch is right-aligned on the bottom row.
+the tab title on the middle row; linked worktree and branch are centered on the
+top, while state is centered on the bottom. When worktree and branch identify
+the same checkout, only the worktree label is shown.
 
 Repository names come from Fancylog rather than a second set of Git, linked
 worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
@@ -191,9 +192,9 @@ does not hide the repository until ktt restarts.
 ## Active repository context
 
 The selected three-row tab card embeds active repository context in its formerly
-empty rows: linked worktree on the top-right, the existing repository label
-beside the title in the middle, then centered clean/dirty state and a
-right-aligned branch on the bottom.
+empty rows: linked worktree and branch centered on top, the existing repository
+label beside the title in the middle, then centered clean/dirty state on the
+bottom. A branch equivalent to the worktree label is omitted.
 Changed-file rows attach immediately below the card,
 right-align their actions against a shared path column, and follow the selected
 card's tree indent. Paths start immediately to the right of the action;
@@ -208,8 +209,8 @@ file state.
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
 asks `fancylog --status-only` to render the file column, a width-bounded
 identity/count row, and a branch row. Ktt preserves Fancylog's aligned,
-color-coded file rows and condenses the last two rows into its own repository
-card. The result is cached for three seconds with a 750 ms subprocess timeout.
+color-coded file rows and maps the last two rows into the selected tab card.
+The result is cached for three seconds with a 750 ms subprocess timeout.
 A tab, directory, width, or available-height change refreshes immediately. If
 fancylog is unavailable or the directory has no supported repository, the
 panel stays hidden.
