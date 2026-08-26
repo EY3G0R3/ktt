@@ -179,7 +179,8 @@ current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
 contrast. In the normal three-row vertical view, `/repository/` stays beside
-the tab title on the middle row; branch and linked worktree use the top row.
+the tab title on the middle row; linked worktree uses the top-right, while
+state is centered and branch is right-aligned on the bottom row.
 
 Repository names come from Fancylog rather than a second set of Git, linked
 worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
@@ -190,8 +191,9 @@ does not hide the repository until ktt restarts.
 ## Active repository context
 
 The selected three-row tab card embeds active repository context in its formerly
-empty rows: branch and linked worktree on top, the existing repository label
-beside the title in the middle, then only clean/dirty state on the bottom.
+empty rows: linked worktree on the top-right, the existing repository label
+beside the title in the middle, then centered clean/dirty state and a
+right-aligned branch on the bottom.
 Changed-file rows attach immediately below the card,
 right-align their actions against a shared path column, and follow the selected
 card's tree indent. Paths start immediately to the right of the action;

@@ -1080,8 +1080,10 @@ def render_card_context_row(
     line_index: int,
     card_height: int,
     alignment: str,
+    right_segments: list[tuple[str, str, bool]] | None = None,
 ) -> str:
-    if not segments:
+    right_segments = right_segments or []
+    if not segments and not right_segments:
         return render_card_blank(
             row,
             width=width,
@@ -1094,24 +1096,83 @@ def render_card_context_row(
     card_width = max(1, width - len(left) - 1)
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width
-    text_width = max(0, body_width - 2)
-    content_width = min(
-        text_width,
-        display_width("".join(text for text, _, _ in segments)),
-    )
-    if alignment == "right":
-        left_padding = max(0, body_width - content_width - 1)
-    else:
-        left_padding = max(0, (body_width - content_width) // 2)
-    right_padding = max(0, body_width - content_width - left_padding)
     background = card_background(row)
     base = _bg(background, ansi)
     reset = "\x1b[0m" if ansi else ""
-    content = _render_repository_text(segments, text_width, ansi=ansi)
-    body = (
-        f"{base}{' ' * left_padding}{content}{base}"
-        f"{' ' * right_padding}"
-    )
+    text_width = max(0, body_width - 2)
+    if right_segments:
+        if alignment == "center":
+            center_width = min(
+                text_width,
+                display_width("".join(text for text, _, _ in segments)),
+            )
+            center_start = max(0, (text_width - center_width) // 2)
+            right_available = max(
+                0, text_width - center_start - center_width - 2
+            )
+            right_width = min(
+                right_available,
+                display_width(
+                    "".join(text for text, _, _ in right_segments)
+                ),
+            )
+            center_content = _render_repository_text(
+                segments, center_width, ansi=ansi
+            )
+            right_content = _render_repository_text(
+                right_segments, right_width, ansi=ansi
+            )
+            center_drawn = display_width(strip_ansi(center_content))
+            right_drawn = display_width(strip_ansi(right_content))
+            right_start = text_width - right_drawn
+            middle_padding = max(
+                0, right_start - center_start - center_drawn
+            )
+            body = (
+                f"{base}{' ' * (center_start + 1)}{center_content}{base}"
+                f"{' ' * middle_padding}{right_content}{base} "
+            )
+        else:
+            right_width = min(
+                text_width,
+                display_width(
+                    "".join(text for text, _, _ in right_segments)
+                ),
+            )
+            gap = 2 if segments and text_width - right_width >= 3 else 0
+            left_width = max(0, text_width - right_width - gap)
+            left_content = _render_repository_text(
+                segments, left_width, ansi=ansi
+            )
+            right_content = _render_repository_text(
+                right_segments, right_width, ansi=ansi
+            )
+            left_drawn = display_width(strip_ansi(left_content))
+            right_drawn = display_width(strip_ansi(right_content))
+            middle_padding = max(
+                0, text_width - left_drawn - right_drawn
+            )
+            body = (
+                f"{base} {left_content}{base}{' ' * middle_padding}"
+                f"{right_content}{base} "
+            )
+    else:
+        content_width = min(
+            text_width,
+            display_width("".join(text for text, _, _ in segments)),
+        )
+        if alignment == "right":
+            left_padding = max(0, body_width - content_width - 1)
+        elif alignment == "left":
+            left_padding = min(1, body_width)
+        else:
+            left_padding = max(0, (body_width - content_width) // 2)
+        right_padding = max(0, body_width - content_width - left_padding)
+        content = _render_repository_text(segments, text_width, ansi=ansi)
+        body = (
+            f"{base}{' ' * left_padding}{content}{base}"
+            f"{' ' * right_padding}"
+        )
     if not show_caps:
         return f"{panel_style(ansi)}{left}{body}{reset}"
     verdict_cap = (
@@ -1161,20 +1222,13 @@ def render_card(
 ) -> list[str]:
     content_line = card_content_line(card_height)
     metadata_embedded = bool(repository_lines) and card_height >= 3
-    identity_segments: list[tuple[str, str, bool]] = []
+    top_segments: list[tuple[str, str, bool]] = []
+    branch_segments: list[tuple[str, str, bool]] = []
     _, branch, _ = repository_summary_parts(repository_lines or [])
     if branch:
-        if identity_segments:
-            identity_segments.append((
-                "  ·  ", REPOSITORY_META_FOREGROUND, False
-            ))
-        identity_segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
+        branch_segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
     if repository_location and repository_location.worktree:
-        if identity_segments:
-            identity_segments.append((
-                "  ·  ", REPOSITORY_META_FOREGROUND, False
-            ))
-        identity_segments.append((
+        top_segments.append((
             f"🌲{repository_location.worktree}",
             REPOSITORY_WORKTREE_FOREGROUND,
             False,
@@ -1200,7 +1254,7 @@ def render_card(
         if line == content_line
         else render_card_context_row(
             row,
-            identity_segments,
+            top_segments,
             width=width,
             ansi=ansi,
             edge_style=edge_style,
@@ -1218,6 +1272,7 @@ def render_card(
             line_index=line,
             card_height=card_height,
             alignment="center",
+            right_segments=branch_segments,
         )
         if repository_lines and card_height >= 2 and line == card_height - 1
         else render_card_blank(

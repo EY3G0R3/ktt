@@ -119,8 +119,9 @@ Added August 23, 2026 (PDT).
 Revised August 26, 2026 (PDT).
 
 Keep repository or yadm identity beside the title on the selected card's middle
-row. Use the top row for branch and linked worktree, and the bottom row only for
-clean/dirty state. Attach changed-file rows below the card. Those rows may
+row. Use the top-right for linked worktree, center clean/dirty state on the
+bottom, and right-align branch on that bottom row. Attach changed-file rows below the card.
+Those rows may
 consume only space left after rendering every
 tab and must not reduce tab-card height or capacity. They compact before they
 disappear as the tree grows. Lower cards shift as part of the centered group,
