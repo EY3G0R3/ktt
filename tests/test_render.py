@@ -363,7 +363,9 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertEqual(first_file_index, state_index + 1)
-        self.assertIn(" master", lines[state_index - 2])
+        self.assertTrue(lines[state_index].strip().endswith(":"))
+        self.assertIn(" master", lines[state_index - 3])
+        self.assertNotIn("unstaged", lines[state_index - 1])
         self.assertEqual(sum("/slock/" in line for line in lines), 1)
 
     def test_dirty_counts_lift_above_files_when_the_card_is_too_narrow(self) -> None:
@@ -400,7 +402,37 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertEqual(first_file_index, state_index + 1)
-        self.assertIn(" long/", lines[state_index - 2])
+        self.assertTrue(lines[state_index].strip().endswith(":"))
+        self.assertIn(" long/", lines[state_index - 3])
+        self.assertNotIn("unstaged", lines[state_index - 1])
+
+    def test_dirty_state_stays_in_card_when_only_one_attachment_row_fits(self) -> None:
+        screen = render_screen(
+            [TreeRow(
+                TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None
+            )],
+            0,
+            1,
+            60,
+            4,
+            ansi=False,
+            show_controls=False,
+            repository_lines=[
+                " modified one.py ",
+                " (ktt) ~/src/ktt  ◈ 1 unstaged ",
+                "  main ",
+            ],
+        )
+        lines = screen.split("\n")
+        dirty_index = next(
+            index for index, line in enumerate(lines) if "1 unstaged" in line
+        )
+        file_index = next(
+            index for index, line in enumerate(lines) if "modified one.py" in line
+        )
+
+        self.assertEqual(file_index, dirty_index + 1)
+        self.assertFalse(lines[dirty_index].strip().endswith(":"))
 
     def test_worktree_moves_into_selected_tab_and_out_of_summary(self) -> None:
         screen = render_screen(
@@ -779,7 +811,9 @@ class RenderTests(unittest.TestCase):
             TreeRow(TabRecord(1, 1, "one", (10,)), 0, None),
             TreeRow(TabRecord(2, 1, "two", (20,)), 0, None),
         ]
-        screen = render_screen(rows, 0, 1, 80, 32, ansi=False)
+        screen = render_screen(
+            rows, 0, 1, 80, 32, ansi=False, show_controls=True
+        )
         lines = screen.splitlines()
         top_padding = vertical_padding(2, 32)
         control_start = (top_padding - len(CONTROL_LINES)) // 2
@@ -931,7 +965,9 @@ class RenderTests(unittest.TestCase):
 
     def test_control_lines_fit_a_narrow_sidebar(self) -> None:
         width = 32
-        screen = render_screen([], 0, 1, width, 9, ansi=False)
+        screen = render_screen(
+            [], 0, 1, width, 9, ansi=False, show_controls=True
+        )
         lines = screen.splitlines()
         self.assertTrue(all(display_width(line) <= width for line in lines))
         self.assertEqual(len(lines), 9)
@@ -941,13 +977,21 @@ class RenderTests(unittest.TestCase):
         self.assertIn("q", lines[len(CONTROL_LINES) - 1])
 
     def test_controls_can_hide_without_changing_screen_geometry(self) -> None:
-        visible = render_screen([], 0, 1, 40, 10, ansi=False)
+        visible = render_screen(
+            [], 0, 1, 40, 10, ansi=False, show_controls=True
+        )
         hidden = render_screen(
             [], 0, 1, 40, 10, ansi=False, show_controls=False
         )
         self.assertEqual(len(visible.split("\n")), len(hidden.split("\n")))
         self.assertIn("switch tab", visible)
         self.assertNotIn("switch tab", hidden)
+
+    def test_controls_are_hidden_by_default(self) -> None:
+        screen = render_screen([], 0, 1, 40, 10, ansi=False)
+
+        self.assertNotIn("switch tab", screen)
+        self.assertNotIn("? │", screen)
 
     def test_pinned_help_labels_its_toggle(self) -> None:
         screen = render_screen(
@@ -961,7 +1005,8 @@ class RenderTests(unittest.TestCase):
 
     def test_control_legend_names_the_current_edge_style(self) -> None:
         screen = render_screen(
-            [], 0, 1, 48, 9, ansi=False, edge_style="rounded"
+            [], 0, 1, 48, 9, ansi=False, edge_style="rounded",
+            show_controls=True,
         )
         self.assertIn("e │ edge: rounded", screen)
 

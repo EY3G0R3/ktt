@@ -91,7 +91,7 @@ filtered inside Kitty. The one-second JSON poll remains as a recovery path when
 the watcher is absent or an event is lost.
 
 Rendering is independently demand-driven. A signature covers the visible tree,
-selection, geometry, focus/help state, repository rows, errors, theme, and the
+selection, geometry, pinned-help state, repository rows, errors, theme, and the
 current spinner frame. ktt repaints only when that signature changes. Without a
 working row, input waits until the next poll or source deadline rather than a
 fixed 50 ms timer; working rows add their next 120 ms frame boundary.
@@ -121,7 +121,9 @@ Revised August 26, 2026 (PDT).
 Keep repository or yadm identity beside the title on the selected card's middle
 row. Center linked worktree and branch on the top row, omitting branch when it
 matches the worktree, and center clean/dirty state on the bottom. Attach
-changed-file rows below the card.
+changed-file rows below the card. When space permits a dirty heading plus at
+least one file, move dirty counts into that attachment and leave the card bottom
+empty; keep clean and space-constrained dirty state in the card.
 Those rows may
 consume only space left after rendering every
 tab and must not reduce tab-card height or capacity. They compact before they

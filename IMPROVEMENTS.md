@@ -237,7 +237,8 @@ repeat vertically to form a continuous flame or exhaust edge.
 Repository identity remains beside the title. Linked worktree and branch are
 centered on the selected three-row card's top row and deduplicated when they
 match; clean/dirty state is centered on the bottom. Changed files attach using
-otherwise-empty screen rows. This adds
+otherwise-empty screen rows, with dirty counts lifted into that file block when
+it fits. This adds
 context without consuming tab capacity. A later card-specific expansion can
 still show repository/branch for several tabs at once, plus agent phase and the
 latest readiness or blocker reason. fancylog is the bounded metadata and

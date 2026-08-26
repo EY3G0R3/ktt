@@ -279,7 +279,6 @@ def run_tui(
     repository_path: str | None = None
     shared_snapshot: SharedSnapshot | None = None
     sidebar_windows: dict[int, int] = {}
-    sidebar_focused = False
     help_pinned = False
     pending_navigation: list[int] = []
     repository_monitor = FancylogMonitor(palette=repository_palette)
@@ -368,9 +367,6 @@ def run_tui(
                             continue
                         if update is not None:
                             os_window_id = update.os_window_id
-                            sidebar_focused = (
-                                self_window_id in update.focused_window_ids
-                            )
                             collapsed_tab_ids = set(update.folded_tab_ids)
                             fold_state_os_window_id = os_window_id
                             records = list(update.records)
@@ -379,9 +375,6 @@ def run_tui(
                             error = update.error
                     else:
                         snapshot = remote.snapshot()
-                        sidebar_focused = window_is_focused(
-                            snapshot, self_window_id
-                        )
                         os_window = choose_os_window(
                             snapshot, target_os_window_id, self_window_id
                         )
@@ -457,7 +450,6 @@ def run_tui(
                 orientation,
                 tuple(repository_lines),
                 repository_location,
-                sidebar_focused,
                 help_pinned,
                 current_animation_frame,
             )
@@ -468,7 +460,7 @@ def run_tui(
                     edge_style=edge_style,
                     repository_lines=repository_lines,
                     repository_location=repository_location,
-                    show_controls=sidebar_focused or help_pinned,
+                    show_controls=help_pinned,
                     help_pinned=help_pinned,
                 )
                 # Erase with ktt's own black background. Kitty's configured

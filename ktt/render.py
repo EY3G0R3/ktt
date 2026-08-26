@@ -388,10 +388,12 @@ def _repository_segments(
 
 def _embedded_repository_state_segments(
     lines: list[str],
+    *,
+    hide_dirty_state: bool = False,
 ) -> list[tuple[str, str, bool]]:
     _, _, state = repository_summary_parts(lines)
     segments: list[tuple[str, str, bool]] = []
-    if state:
+    if state and not (hide_dirty_state and not state.startswith("✓")):
         state_color = (
             REPOSITORY_CONFLICT_FOREGROUND
             if state.startswith("✗")
@@ -558,7 +560,9 @@ def render_attached_repository_context(
     context_width = max(1, width - len(indent))
     details = render_repository_detail_lines(lines, context_width, ansi=ansi)
     heading = repository_dirty_heading(lines) if details else None
-    show_heading = bool(heading) and not summary_embedded and capacity >= 3
+    show_heading = bool(heading) and (
+        capacity >= 2 if summary_embedded else capacity >= 3
+    )
     show_separator = bool(details) and not summary_embedded and capacity >= 4
     detail_capacity = max(
         0,
@@ -1219,6 +1223,7 @@ def render_card(
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
     repository_lines: list[str] | None = None,
+    hide_dirty_state: bool = False,
 ) -> list[str]:
     content_line = card_content_line(card_height)
     metadata_embedded = bool(repository_lines) and card_height >= 3
@@ -1241,7 +1246,7 @@ def render_card(
             ))
         top_segments.extend(branch_segments)
     summary_segments = _embedded_repository_state_segments(
-        repository_lines or []
+        repository_lines or [], hide_dirty_state=hide_dirty_state
     )
     return [
         render_row(
@@ -1410,13 +1415,12 @@ def render_horizontal_screen(
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
     repository_location: RepositoryLocation | None = None,
-    show_controls: bool = True,
+    show_controls: bool = False,
     help_pinned: bool = False,
 ) -> str:
     del (
         os_window_id,
         total_tabs,
-        help_pinned,
         repository_lines,
         repository_location,
     )
@@ -1453,7 +1457,7 @@ def render_horizontal_screen(
     )
     free_start = tree_height
     free_end = height
-    if show_controls and free_end > free_start:
+    if (show_controls or help_pinned) and free_end > free_start:
         text = truncate_cells(HORIZONTAL_CONTROL_TEXT, width)
         padding = " " * max(0, (width - display_width(text)) // 2)
         control_row = free_start + (free_end - free_start - 1) // 2
@@ -1485,7 +1489,7 @@ def render_screen(
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
     repository_location: RepositoryLocation | None = None,
-    show_controls: bool = True,
+    show_controls: bool = False,
     help_pinned: bool = False,
 ) -> str:
     repository_hues = repository_hue_assignments(tuple(
@@ -1520,6 +1524,15 @@ def render_screen(
             repository_location=repository_location,
             summary_embedded=card_height >= 2,
         )
+    dirty_state_is_attached = (
+        card_height >= 2
+        and context_capacity >= 2
+        and repository_dirty_heading(repository_lines or []) is not None
+        and any(
+            strip_ansi(line).strip()
+            for line in (repository_lines or [])[:-2]
+        )
+    )
     top_padding = vertical_padding(
         len(rows), height, card_height, len(context)
     )
@@ -1547,6 +1560,10 @@ def render_screen(
                     if start + offset == selected_index
                     else None
                 ),
+                hide_dirty_state=(
+                    dirty_state_is_attached
+                    and start + offset == selected_index
+                ),
             )
         )
         if start + offset == selected_index:
@@ -1556,7 +1573,7 @@ def render_screen(
         if index >= height:
             break
         output[index] = line
-    if show_controls and top_padding >= len(CONTROL_ROWS):
+    if (show_controls or help_pinned) and top_padding >= len(CONTROL_ROWS):
         controls = list(
             render_control_line(
                 shortcut,

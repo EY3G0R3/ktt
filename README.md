@@ -8,11 +8,10 @@ when the whole tree fits, squeeze to two rows when necessary, and fall back to
 one row under pressure. The normal TUI has no diagnostic
 header; target-window details remain available through commands and errors
 without permanently consuming a row. The help block is a centered two-column
-legend with a visible separator between shortcuts and their actions. The
-legend appears while the ktt OS window has focus; `?` pins or unpins it for
-reference while working in the main window. It is vertically centered inside
-otherwise-unused space above the centered tab stack, so showing or hiding it
-does not move cards or mouse targets.
+legend with a visible separator between shortcuts and their actions. It stays
+hidden by default; `?` shows or hides it. The legend is vertically centered
+inside otherwise-unused space above the centered tab stack, so toggling it does
+not move cards or mouse targets.
 
 Horizontal mode gives each root tree a fixed-width column and stacks its
 descendants downward with four-cell indentation. Cards are capped at forty
@@ -193,14 +192,16 @@ does not hide the repository until ktt restarts.
 
 The selected three-row tab card embeds active repository context in its formerly
 empty rows: linked worktree and branch centered on top, the existing repository
-label beside the title in the middle, then centered clean/dirty state on the
-bottom. A branch equivalent to the worktree label is omitted.
-Changed-file rows attach immediately below the card,
+label beside the title in the middle, then centered clean state on the bottom.
+A branch equivalent to the worktree label is omitted. Dirty counts move out of
+the card and become a heading above the changed-file rows whenever at least one
+file can remain visible; under tighter geometry the dirty state stays in the
+card so it never disappears. Changed-file rows attach immediately below the card,
 right-align their actions against a shared path column, and follow the selected
 card's tree indent. Paths start immediately to the right of the action;
 only staged entries add the literal `staged`, while unstaged is the default.
 Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
-states. Changed files use up to six rows left after rendering every tab and
+states. Changed files and their dirty heading use up to six rows left after rendering every tab and
 collapse when the tree needs those rows. Summary polling continues even without
 spare rows because it renders inside the card. No extra repository command is
 needed: the existing three-second Fancylog snapshot supplies both summary and
