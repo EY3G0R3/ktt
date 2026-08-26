@@ -277,6 +277,30 @@ def _trim_ansi_padding(text: str) -> str:
     return f"{prefix}{text[first_visible:last_visible + 1]}{suffix}"
 
 
+def truncate_ansi_cells(text: str, width: int) -> str:
+    if display_width(strip_ansi(text)) <= width:
+        return text
+    if width <= 0:
+        return ""
+    budget = max(0, width - 1)
+    output: list[str] = []
+    used = 0
+    cursor = 0
+    for escape in [*ANSI_ESCAPE.finditer(text), None]:
+        end = escape.start() if escape is not None else len(text)
+        for character in text[cursor:end]:
+            character_width = display_width(character)
+            if used + character_width > budget:
+                reset = "\x1b[0m" if ANSI_ESCAPE.search(text) else ""
+                return "".join(output) + f"…{reset}"
+            output.append(character)
+            used += character_width
+        if escape is not None:
+            output.append(escape.group())
+            cursor = escape.end()
+    return "".join(output)
+
+
 def render_repository_detail_lines(
     lines: list[str],
     width: int,
@@ -298,9 +322,11 @@ def render_repository_detail_lines(
     rendered: list[str] = []
     for line, first_column in zip(details, first_columns):
         content = _trim_ansi_padding(line if ansi else strip_ansi(line))
-        rendered.append(
-            f"{panel_style(ansi)}"
+        row = (
             f"{' ' * (left_margin + first_column - block_left)}{content}"
+        )
+        rendered.append(
+            f"{panel_style(ansi)}{truncate_ansi_cells(row, available)}"
         )
     return rendered
 

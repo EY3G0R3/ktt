@@ -18,6 +18,7 @@ REPOSITORY_PALETTES = (
 DEFAULT_REPOSITORY_PALETTE = "amber"
 MAX_REPOSITORY_LINES = 8
 IDENTITY_WIDTH = 256
+MINIMUM_STATUS_SOURCE_WIDTH = 256
 REPOSITORY_IDENTITY = re.compile(r"^\s*\(([^)]+)\)")
 
 
@@ -196,7 +197,7 @@ class FancylogMonitor:
         lines = fancylog_status_lines(
             self.executable,
             path,
-            width,
+            max(MINIMUM_STATUS_SOURCE_WIDTH, width * 3),
             max_lines,
             self.palette,
             self.timeout,

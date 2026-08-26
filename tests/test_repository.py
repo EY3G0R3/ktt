@@ -149,7 +149,7 @@ class RepositoryTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertEqual(command[0], "/usr/bin/fancylog")
         self.assertIn("--status-only", command)
-        self.assertEqual(command[command.index("--width") + 1], "48")
+        self.assertEqual(command[command.index("--width") + 1], "256")
         self.assertEqual(command[command.index("--height") + 1], "2")
         self.assertEqual(
             command[command.index("--header-palette") + 1], "amber"

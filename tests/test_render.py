@@ -41,6 +41,7 @@ from ktt.render import (
     worktree_matches_branch,
     status_icon,
     strip_ansi,
+    truncate_ansi_cells,
     vertical_padding,
     vertical_bottom_padding,
 )
@@ -463,6 +464,31 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertIn(path, rendered[0])
+
+    def test_repository_file_rows_only_truncate_at_the_physical_width(self) -> None:
+        path = (
+            "crates/application/src/application_function_runner/"
+            "mutation_admission.rs"
+        )
+        rendered = render_repository_detail_lines(
+            [
+                f"modified {path}",
+                " (convex-backend) /repo  ◈ 1 unstaged ",
+                "  main ",
+            ],
+            48,
+            ansi=False,
+        )[0]
+
+        self.assertIn("modified crates/application/", rendered)
+        self.assertNotIn("mutation_admission.rs", rendered)
+        self.assertTrue(rendered.endswith("…"))
+        self.assertLessEqual(display_width(strip_ansi(rendered)), 47)
+
+    def test_ansi_cell_truncation_keeps_full_text_when_it_fits(self) -> None:
+        colored = "\x1b[38;5;3mmodified \x1b[38;5;8mfull/path.rs\x1b[0m"
+
+        self.assertEqual(truncate_ansi_cells(colored, 40), colored)
 
     def test_panel_uses_explicit_black_background(self) -> None:
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")
