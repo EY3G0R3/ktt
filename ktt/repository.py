@@ -217,11 +217,14 @@ class FancylogIdentityCache:
         executable: str = "fancylog",
         palette: str = DEFAULT_REPOSITORY_PALETTE,
         workers: int = 2,
+        retry_interval: float = 3.0,
     ) -> None:
         self.timeout = timeout
         self.executable = executable
         self.palette = palette
+        self.retry_interval = retry_interval
         self.names: dict[str, str | None] = {}
+        self.retry_after: dict[str, float] = {}
         self.pending: dict[str, Future[str | None]] = {}
         self.executor = ThreadPoolExecutor(
             max_workers=workers,
@@ -240,7 +243,12 @@ class FancylogIdentityCache:
         )
         return repository_name_from_status(lines)
 
-    def update(self, paths: Iterable[str | None]) -> dict[str, str]:
+    def update(
+        self,
+        paths: Iterable[str | None],
+        now: float | None = None,
+    ) -> dict[str, str]:
+        current = time.monotonic() if now is None else now
         for path, future in list(self.pending.items()):
             if not future.done():
                 continue
@@ -248,9 +256,15 @@ class FancylogIdentityCache:
                 self.names[path] = future.result()
             except Exception:
                 self.names[path] = None
+            if self.names[path] is None:
+                self.retry_after[path] = current + self.retry_interval
+            else:
+                self.retry_after.pop(path, None)
             del self.pending[path]
         for path in dict.fromkeys(path for path in paths if path):
-            if path not in self.names and path not in self.pending:
+            if path in self.pending or self.names.get(path) is not None:
+                continue
+            if current >= self.retry_after.get(path, 0.0):
                 self.pending[path] = self.executor.submit(self._resolve, path)
         return {path: name for path, name in self.names.items() if name is not None}
 

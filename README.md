@@ -182,9 +182,9 @@ contrast.
 
 Repository names come from Fancylog rather than a second set of Git, linked
 worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
-two-worker background cache once, then reuses that result for the rest of the
-process. Polling and tab switches only read the cache. Entering a new directory
-triggers one new lookup; restarting ktt starts a fresh cache.
+two-worker background cache, then reuses a successful result for the rest of
+the process. Failed lookups retry after three seconds so a launch-time timeout
+does not hide the repository until ktt restarts.
 
 ## Active repository context
 

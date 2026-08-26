@@ -136,6 +136,30 @@ class RepositoryTests(unittest.TestCase):
         finally:
             cache.close()
 
+    def test_identity_cache_retries_failed_lookup_after_backoff(self) -> None:
+        cache = FancylogIdentityCache(workers=1, retry_interval=3.0)
+        try:
+            with patch.object(
+                cache,
+                "_resolve",
+                side_effect=[None, "convex-backend"],
+            ) as resolve:
+                self.assertEqual(cache.update(["/work/convex"], now=10.0), {})
+                cache.pending["/work/convex"].result(timeout=1.0)
+                self.assertEqual(cache.update(["/work/convex"], now=10.1), {})
+                self.assertEqual(cache.update(["/work/convex"], now=13.0), {})
+                self.assertEqual(resolve.call_count, 1)
+
+                self.assertEqual(cache.update(["/work/convex"], now=13.1), {})
+                cache.pending["/work/convex"].result(timeout=1.0)
+                self.assertEqual(
+                    cache.update(["/work/convex"], now=13.2),
+                    {"/work/convex": "convex-backend"},
+                )
+                self.assertEqual(resolve.call_count, 2)
+        finally:
+            cache.close()
+
     @patch("ktt.repository.subprocess.run")
     def test_monitor_requests_bounded_status_only_output(self, run) -> None:
         run.return_value = subprocess.CompletedProcess(
