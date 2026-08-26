@@ -70,6 +70,7 @@ REPOSITORY_BACKGROUND = "20232a"
 REPOSITORY_NAME_FOREGROUND = "f8f8f2"
 REPOSITORY_META_FOREGROUND = "777d89"
 REPOSITORY_WORKTREE_FOREGROUND = "ffb86c"
+REPOSITORY_HEADING_FOREGROUND = "f1fa8c"
 REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
 REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
@@ -233,6 +234,26 @@ def repository_identity_name(lines: list[str]) -> str | None:
     return match.group(1) if match else None
 
 
+def repository_dirty_heading(lines: list[str]) -> str | None:
+    _, _, state = repository_summary_parts(lines)
+    if not state or state.startswith("✓"):
+        return None
+    counts = [int(value) for value in re.findall(r"\b(\d+)\b", state)]
+    if counts:
+        count = sum(counts)
+        noun = "file" if count == 1 else "files"
+        return f"{count} modified {noun}:"
+    return f"{state.rstrip(':')}:"
+
+
+def worktree_matches_branch(worktree: str | None, branch: str) -> bool:
+    if not worktree or not branch:
+        return False
+    branch_name = re.sub(r"^[^\w/.-]+\s*", "", branch)
+    normalize = lambda value: re.sub(r"[^a-z0-9]+", "", value.casefold())
+    return normalize(worktree) == normalize(branch_name)
+
+
 def _trim_ansi_padding(text: str) -> str:
     first_visible: int | None = None
     last_visible: int | None = None
@@ -288,6 +309,7 @@ def _repository_segments(
     lines: list[str],
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
+    show_state: bool = True,
 ) -> list[tuple[str, str, bool]]:
     identity, branch, state = repository_summary_parts(lines)
     segments: list[tuple[str, str, bool]] = []
@@ -318,11 +340,14 @@ def _repository_segments(
             segments.append((f"  {identity_match.group(2)}", REPOSITORY_META_FOREGROUND, False))
     elif identity:
         segments.append((identity, REPOSITORY_NAME_FOREGROUND, True))
-    if branch:
+    if branch and not worktree_matches_branch(
+        repository_location.worktree if repository_location else None,
+        branch,
+    ):
         if segments:
             segments.append(("  ·  ", REPOSITORY_META_FOREGROUND, False))
         segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
-    if state:
+    if state and show_state:
         if segments:
             segments.append(("  ·  ", REPOSITORY_META_FOREGROUND, False))
         state_color = (
@@ -382,11 +407,12 @@ def render_repository_card(
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
+    show_state: bool = True,
 ) -> str:
     if width <= 0 or not lines:
         return ""
     segments = _repository_segments(
-        lines, repository_hue, repository_location
+        lines, repository_hue, repository_location, show_state
     )
     if not segments:
         return ""
@@ -420,6 +446,42 @@ def render_repository_card(
         f"{panel_style(ansi)}{' ' * left_margin}{left_edge}"
         f"{' ' * left_text_padding}{rendered_text}{background}"
         f"{' ' * right_text_padding}{right_edge}{reset}"
+    )
+
+
+def repository_card_fits(
+    lines: list[str],
+    width: int,
+    *,
+    repository_hue: float | None = None,
+    repository_location: RepositoryLocation | None = None,
+) -> bool:
+    segments = _repository_segments(
+        lines, repository_hue, repository_location
+    )
+    content_width = display_width("".join(text for text, _, _ in segments))
+    return content_width + 4 <= max(1, width - 1)
+
+
+def render_repository_heading(
+    lines: list[str],
+    details: list[str],
+    width: int,
+    *,
+    ansi: bool = True,
+) -> str:
+    heading = repository_dirty_heading(lines)
+    if not heading or not details or width <= 0:
+        return ""
+    plain_details = [strip_ansi(detail) for detail in details]
+    left_margin = min(
+        display_width(detail) - display_width(detail.lstrip())
+        for detail in plain_details
+    )
+    text = truncate_cells(heading, max(0, width - left_margin))
+    return (
+        f"{panel_style(ansi)}{' ' * left_margin}"
+        f"{_fg(REPOSITORY_HEADING_FOREGROUND, ansi)}{text}"
     )
 
 
@@ -1086,12 +1148,34 @@ def render_screen(
     context_capacity = max(0, bottom_padding - context_spacing)
     context: list[str] = []
     if repository_lines and context_capacity:
+        repository_hue = repository_hues.get(
+            repository_identity_name(repository_lines) or ""
+        )
         details = render_repository_detail_lines(
             repository_lines,
             width,
             ansi=ansi,
         )
-        visible_details = details[:max(0, context_capacity - 1)]
+        lift_state = (
+            bool(details)
+            and context_capacity >= 3
+            and not repository_card_fits(
+                repository_lines,
+                width,
+                repository_hue=repository_hue,
+                repository_location=repository_location,
+            )
+        )
+        visible_details = details[
+            :max(0, context_capacity - 1 - int(lift_state))
+        ]
+        if lift_state:
+            context.append(render_repository_heading(
+                repository_lines,
+                visible_details,
+                width,
+                ansi=ansi,
+            ))
         context.extend(visible_details)
         context.append(
             render_repository_card(
@@ -1099,10 +1183,9 @@ def render_screen(
                 width,
                 ansi=ansi,
                 edge_style=edge_style,
-                repository_hue=repository_hues.get(
-                    repository_identity_name(repository_lines) or ""
-                ),
+                repository_hue=repository_hue,
                 repository_location=repository_location,
+                show_state=not lift_state,
             )
         )
     cards: list[str] = []

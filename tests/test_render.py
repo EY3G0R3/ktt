@@ -32,10 +32,12 @@ from ktt.render import (
     render_horizontal_card,
     render_horizontal_screen,
     render_repository_card,
+    repository_dirty_heading,
     render_row,
     render_screen,
     repository_hue_assignments,
     repository_label_foreground,
+    worktree_matches_branch,
     status_icon,
     strip_ansi,
     vertical_padding,
@@ -287,6 +289,103 @@ class RenderTests(unittest.TestCase):
             rendered.strip(),
             " /quiver/   feature  build/  ·   topic/branch  ·  ✓ clean ",
         )
+
+    def test_dirty_counts_stay_in_the_bottom_card_when_they_fit(self) -> None:
+        repository_lines = [
+            " modified one.py ",
+            " untracked two.py ",
+            " untracked three.py ",
+            " (slock) ~/src/slock  ◈ 1 unstaged  ·  2 untracked ",
+            "  master ",
+        ]
+        screen = render_screen(
+            [TreeRow(TabRecord(1, 1, "one", (10,), repository="slock"), 0, None)],
+            0,
+            1,
+            72,
+            18,
+            ansi=False,
+            show_controls=False,
+            repository_lines=repository_lines,
+            repository_location=RepositoryLocation(),
+        )
+
+        self.assertIn(
+            "/slock/  ·   master  ·  ◈ 1 unstaged  ·  2 untracked",
+            screen.split("\n")[-2],
+        )
+        self.assertNotIn("modified files:", screen)
+
+    def test_dirty_counts_lift_above_files_when_the_card_is_too_narrow(self) -> None:
+        repository_lines = [
+            " modified one.py ",
+            " untracked two.py ",
+            " untracked three.py ",
+            (
+                " (quiver) /long/worktree/path  "
+                "◈ 1 unstaged  ·  2 untracked "
+            ),
+            "  long/topic/branch ",
+        ]
+        screen = render_screen(
+            [TreeRow(TabRecord(1, 1, "one", (10,), repository="quiver"), 0, None)],
+            0,
+            1,
+            46,
+            20,
+            ansi=False,
+            show_controls=False,
+            repository_lines=repository_lines,
+            repository_location=RepositoryLocation(
+                worktree="feature", relative_path="deep/build/"
+            ),
+        )
+        lines = screen.split("\n")
+        heading_index = next(
+            index for index, line in enumerate(lines) if "3 modified files:" in line
+        )
+        first_file_index = next(
+            index for index, line in enumerate(lines) if "modified one.py" in line
+        )
+
+        self.assertLess(heading_index, first_file_index)
+        self.assertNotIn("unstaged", lines[-2])
+        self.assertNotIn("untracked", lines[-2])
+
+    def test_equivalent_worktree_and_branch_are_not_repeated(self) -> None:
+        rendered = render_repository_card(
+            [
+                " (convex-backend) /worktree  ✓ clean ",
+                "  perf/optimize-concurrency ",
+            ],
+            80,
+            ansi=False,
+            repository_location=RepositoryLocation(
+                worktree="perf-optimize-concurrency"
+            ),
+        )
+
+        self.assertIn(
+            "/convex-backend/   perf-optimize-concurrency",
+            rendered,
+        )
+        self.assertNotIn("", rendered)
+        self.assertTrue(worktree_matches_branch(
+            "perf-optimize-concurrency", " perf/optimize-concurrency"
+        ))
+
+    def test_dirty_heading_aggregates_fancylog_status_counts(self) -> None:
+        self.assertEqual(
+            repository_dirty_heading([
+                " (slock) ~/src/slock  ◈ 1 unstaged  ·  2 untracked ",
+                "  master ",
+            ]),
+            "3 modified files:",
+        )
+        self.assertIsNone(repository_dirty_heading([
+            " (slock) ~/src/slock  ✓ working tree clean ",
+            "  master ",
+        ]))
 
     def test_repository_card_uses_tapered_caps_for_single_row_edge_styles(self) -> None:
         source = [" (ktt) ~/src/ktt  ✓ clean ", "  main "]
