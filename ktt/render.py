@@ -238,12 +238,8 @@ def repository_dirty_heading(lines: list[str]) -> str | None:
     _, _, state = repository_summary_parts(lines)
     if not state or state.startswith("✓"):
         return None
-    counts = [int(value) for value in re.findall(r"\b(\d+)\b", state)]
-    if counts:
-        count = sum(counts)
-        noun = "file" if count == 1 else "files"
-        return f"{count} modified {noun}:"
-    return f"{state.rstrip(':')}:"
+    text = re.sub(r"^[^\w]+", "", state).rstrip(":")
+    return f"{text}:"
 
 
 def worktree_matches_branch(worktree: str | None, branch: str) -> bool:
@@ -351,8 +347,10 @@ def _repository_segments(
         ))
         if repository_location is not None:
             if repository_location.worktree:
+                # Monochrome Nerd Font fallbacks if the emoji is too green:
+                # 󰔱 (Material Design tree) or  (bolder Font Awesome tree).
                 segments.append((
-                    f"  wt:{repository_location.worktree}",
+                    f"  🌲{repository_location.worktree}",
                     REPOSITORY_WORKTREE_FOREGROUND,
                     False,
                 ))
@@ -499,12 +497,9 @@ def render_repository_heading(
     heading = repository_dirty_heading(lines)
     if not heading or not details or width <= 0:
         return ""
-    plain_details = [strip_ansi(detail) for detail in details]
-    left_margin = min(
-        display_width(detail) - display_width(detail.lstrip())
-        for detail in plain_details
-    )
-    text = truncate_cells(heading, max(0, width - left_margin))
+    available = max(1, width - 1)
+    text = truncate_cells(heading, available)
+    left_margin = max(0, (available - display_width(text)) // 2)
     return (
         f"{panel_style(ansi)}{' ' * left_margin}"
         f"{_fg(REPOSITORY_HEADING_FOREGROUND, ansi)}{text}"
@@ -1184,17 +1179,13 @@ def render_screen(
         )
         lift_state = (
             bool(details)
-            and context_capacity >= 3
-            and not repository_card_fits(
-                repository_lines,
-                width,
-                repository_hue=repository_hue,
-                repository_location=repository_location,
-            )
+            and context_capacity >= 2
+            and repository_dirty_heading(repository_lines) is not None
         )
-        visible_details = details[
-            :max(0, context_capacity - 1 - int(lift_state))
-        ]
+        detail_capacity = context_capacity - 1 - int(lift_state)
+        visible_details = (
+            details[:detail_capacity - 1] if detail_capacity >= 2 else []
+        )
         if lift_state:
             context.append(render_repository_heading(
                 repository_lines,
@@ -1203,6 +1194,8 @@ def render_screen(
                 ansi=ansi,
             ))
         context.extend(visible_details)
+        if visible_details:
+            context.append("")
         context.append(
             render_repository_card(
                 repository_lines,

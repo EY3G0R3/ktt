@@ -289,10 +289,10 @@ class RenderTests(unittest.TestCase):
 
         self.assertEqual(
             rendered.strip(),
-            " /quiver/  wt:feature  build/  ·   topic/branch  ·  ✓ clean ",
+            " /quiver/  🌲feature  build/  ·   topic/branch  ·  ✓ clean ",
         )
 
-    def test_dirty_counts_stay_in_the_bottom_card_when_they_fit(self) -> None:
+    def test_dirty_counts_move_above_files_when_the_card_fits(self) -> None:
         repository_lines = [
             " modified one.py ",
             " untracked two.py ",
@@ -312,11 +312,28 @@ class RenderTests(unittest.TestCase):
             repository_location=RepositoryLocation(),
         )
 
-        self.assertIn(
-            "/slock/  ·   master  ·  ◈ 1 unstaged  ·  2 untracked",
-            screen.split("\n")[-2],
+        lines = screen.split("\n")
+        heading_index = next(
+            index for index, line in enumerate(lines)
+            if "1 unstaged  ·  2 untracked:" in line
         )
-        self.assertNotIn("modified files:", screen)
+        first_file_index = next(
+            index for index, line in enumerate(lines) if "modified one.py" in line
+        )
+
+        self.assertLess(heading_index, first_file_index)
+        heading = "1 unstaged  ·  2 untracked:"
+        heading_left = lines[heading_index].index(heading)
+        self.assertLessEqual(
+            abs(heading_left * 2 + display_width(heading) - 71), 1
+        )
+        card_index = next(
+            index for index, line in enumerate(lines)
+            if line.strip().startswith(" /slock/")
+        )
+        self.assertEqual(lines[card_index - 1], "")
+        self.assertNotIn("unstaged", lines[-2])
+        self.assertNotIn("untracked", lines[-2])
 
     def test_dirty_counts_lift_above_files_when_the_card_is_too_narrow(self) -> None:
         repository_lines = [
@@ -344,7 +361,8 @@ class RenderTests(unittest.TestCase):
         )
         lines = screen.split("\n")
         heading_index = next(
-            index for index, line in enumerate(lines) if "3 modified files:" in line
+            index for index, line in enumerate(lines)
+            if "1 unstaged  ·  2 untracked:" in line
         )
         first_file_index = next(
             index for index, line in enumerate(lines) if "modified one.py" in line
@@ -368,7 +386,7 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "/convex-backend/  wt:perf-optimize-concurrency",
+            "/convex-backend/  🌲perf-optimize-concurrency",
             rendered,
         )
         self.assertNotIn("", rendered)
@@ -376,13 +394,13 @@ class RenderTests(unittest.TestCase):
             "perf-optimize-concurrency", " perf/optimize-concurrency"
         ))
 
-    def test_dirty_heading_aggregates_fancylog_status_counts(self) -> None:
+    def test_dirty_heading_removes_icon_and_adds_colon(self) -> None:
         self.assertEqual(
             repository_dirty_heading([
                 " (slock) ~/src/slock  ◈ 1 unstaged  ·  2 untracked ",
                 "  master ",
             ]),
-            "3 modified files:",
+            "1 unstaged  ·  2 untracked:",
         )
         self.assertIsNone(repository_dirty_heading([
             " (slock) ~/src/slock  ✓ working tree clean ",
@@ -422,7 +440,12 @@ class RenderTests(unittest.TestCase):
                 "  main ",
             ],
         )
-        rendered_modified, rendered_untracked = screen.split("\n")[-4:-2]
+        rendered_modified = next(
+            line for line in screen.split("\n") if "ktt/render.py" in line
+        )
+        rendered_untracked = next(
+            line for line in screen.split("\n") if "new.py" in line
+        )
         modified_plain = strip_ansi(rendered_modified)
         untracked_plain = strip_ansi(rendered_untracked)
         self.assertEqual(
@@ -449,8 +472,8 @@ class RenderTests(unittest.TestCase):
             ansi=False,
             repository_lines=[detail, " (ktt) ~/src/ktt  ◈ 1 untracked ", "  main "],
         )
-        self.assertEqual(
-            screen.split("\n")[-3], "                     untracked new.py"
+        self.assertIn(
+            "                     untracked new.py", screen.split("\n")
         )
 
     def test_repository_file_rows_preserve_long_paths_that_fit(self) -> None:
