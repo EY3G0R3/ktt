@@ -134,11 +134,10 @@ class RemoteControlTests(unittest.TestCase):
         subcommand, arguments = remote.call
         self.assertEqual(subcommand, "action")
         self.assertEqual(arguments[:2], ("--match", "id:12"))
-        self.assertEqual(arguments[-2:], (
+        self.assertEqual(arguments[-1:], (
             str(Path(kitty_module.__file__).with_name(
-                "tree_navigation_kitten.py"
+                "native_tabs_kitten.py"
             )),
-            "toggle-tabs",
         ))
 
     def test_running_sidebar_reapplies_launch_appearance_and_identity(self) -> None:
@@ -218,6 +217,7 @@ class RemoteControlTests(unittest.TestCase):
         self.assertIn("--location=vsplit", arguments)
         self.assertIn("--bias=20", arguments)
         self.assertIn("ktt_orientation=vertical", arguments)
+        self.assertIn("ktt_pane_percent=20", arguments)
         self.assertEqual(
             arguments[arguments.index("--orientation") + 1], "vertical"
         )

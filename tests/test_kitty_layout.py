@@ -1,12 +1,17 @@
 from collections import deque
 import unittest
 
-from ktt.kitty_layout import place_window_at_left_edge
+from ktt.kitty_layout import (
+    capture_embedded_left_edge_placements,
+    place_window_at_left_edge,
+    restore_embedded_left_edge_placements,
+)
 
 
 class Window:
-    def __init__(self, window_id: int) -> None:
+    def __init__(self, window_id: int, user_vars=None) -> None:
         self.id = window_id
+        self.user_vars = user_vars or {}
 
 
 class Group:
@@ -65,6 +70,13 @@ class Tab:
     def relayout(self) -> None:
         self.relayout_count += 1
 
+    def __iter__(self):
+        return (group.window for group in self.windows.groups)
+
+    @property
+    def active_window(self) -> Window:
+        return self.windows.active_window
+
 
 class KittyLayoutTests(unittest.TestCase):
     def test_places_exact_sidebar_at_root_edge_without_changing_active_window(
@@ -111,6 +123,59 @@ class KittyLayoutTests(unittest.TestCase):
 
         self.assertIs(tab.windows.active_window, source)
         self.assertEqual(tab.relayout_count, 1)
+
+    def test_captures_and_restores_all_vertical_embedded_panes(self) -> None:
+        sidebar_vars = {
+            "ktt_sidebar": "1",
+            "ktt_orientation": "vertical",
+            "ktt_cockpit_role": "ktt",
+            "ktt_pane_percent": "23",
+        }
+        source = Window(100, {"ktt_cockpit_role": "agent"})
+        sidebar = Window(190, sidebar_vars)
+        tab = Tab(source, sidebar, active_group_idx=1)
+
+        placements = capture_embedded_left_edge_placements(
+            [[tab]],
+            sidebar_var="ktt_sidebar",
+            orientation_var="ktt_orientation",
+            pane_percent_var="ktt_pane_percent",
+            cockpit_role_var="ktt_cockpit_role",
+        )
+
+        self.assertEqual(len(placements), 1)
+        self.assertEqual(placements[0].bias, 23)
+        self.assertEqual(restore_embedded_left_edge_placements(placements), 1)
+        self.assertEqual(tab.current_layout.calls, [
+            ("move_to_screen_edge", ("left",), 190),
+            ("bias", ("23",), 190),
+        ])
+        self.assertIs(tab.active_window, source)
+
+    def test_capture_ignores_horizontal_and_standalone_sidebars(self) -> None:
+        source = Window(100)
+        sidebars = [
+            Window(190, {
+                "ktt_sidebar": "1",
+                "ktt_orientation": "horizontal",
+                "ktt_cockpit_role": "ktt",
+            }),
+            Window(191, {
+                "ktt_sidebar": "1",
+                "ktt_orientation": "vertical",
+            }),
+        ]
+        tabs = [Tab(source, sidebar) for sidebar in sidebars]
+
+        placements = capture_embedded_left_edge_placements(
+            [tabs],
+            sidebar_var="ktt_sidebar",
+            orientation_var="ktt_orientation",
+            pane_percent_var="ktt_pane_percent",
+            cockpit_role_var="ktt_cockpit_role",
+        )
+
+        self.assertEqual(placements, [])
 
 
 if __name__ == "__main__":

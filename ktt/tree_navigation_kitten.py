@@ -14,33 +14,6 @@ def main(_args: list[str]) -> None:
     pass
 
 
-def _toggle_native_tabs(boss: Boss) -> None:
-    from kitty.fast_data_types import get_options
-
-    options = get_options()
-    hidden = (
-        options.tab_bar_style == "hidden"
-        or options.tab_bar_min_tabs >= 1000000
-    )
-    if hidden:
-        overrides = ["tab_bar_min_tabs 1"]
-        if options.tab_bar_style == "hidden":
-            # Compatibility with the first ktt experiment, which hid the bar
-            # by replacing its style and therefore forgot the configured one.
-            overrides.append("tab_bar_style fade")
-    else:
-        overrides = ["tab_bar_min_tabs 1000000"]
-    boss.load_config_file(
-        apply_overrides=False,
-        overrides=tuple(overrides),
-    )
-    # Kitty's option reload resizes managers before TabManager.apply_options()
-    # changes tab_bar_hidden. Resize once more with the new visibility so the
-    # terminal grid yields/reclaims the bar row instead of painting over it.
-    for tab_manager in boss.all_tab_managers:
-        tab_manager.resize()
-
-
 @result_handler(no_ui=True)
 def handle_result(
     args: list[str], _answer: str, target_window_id: int, boss: Boss
@@ -60,9 +33,6 @@ def handle_result(
     from ktt.model import adjacent_tree_tab_id, records_for_os_window, tree_rows
 
     action = args[1]
-    if action == "toggle-tabs":
-        _toggle_native_tabs(boss)
-        return
     direction = 1 if action == "next" else -1 if action == "previous" else 0
     if direction == 0:
         return

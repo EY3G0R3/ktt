@@ -13,6 +13,7 @@ from .model import COCKPIT_ROLE_VAR, PARENT_VAR, SIDEBAR_VAR
 
 TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
 ORIENTATION_VAR = "ktt_orientation"
+PANE_PERCENT_VAR = "ktt_pane_percent"
 SIDEBAR_BACKGROUND = "#000000"
 KITTY_COMMAND_PREFIX = b"\x1bP@kitty-cmd"
 KITTY_COMMAND_SUFFIX = b"\x1b\\"
@@ -160,14 +161,13 @@ class RemoteControl:
             self.focus_window(sidebar_window_id)
 
     def toggle_native_tabs(self, source_window_id: int) -> None:
-        kitten = Path(__file__).with_name("tree_navigation_kitten.py")
+        kitten = Path(__file__).with_name("native_tabs_kitten.py")
         self.run(
             "action",
             "--match",
             f"id:{source_window_id}",
             "kitten",
             str(kitten),
-            "toggle-tabs",
         )
 
     def place_sidebar_left(
@@ -298,6 +298,8 @@ class RemoteControl:
             f"{TARGET_OS_WINDOW_VAR}={target_os_window_id}",
             "--var",
             f"{ORIENTATION_VAR}={orientation}",
+            "--var",
+            f"{PANE_PERCENT_VAR}={pane_percent}",
             "--var",
             f"{COCKPIT_ROLE_VAR}=ktt",
             *process,
