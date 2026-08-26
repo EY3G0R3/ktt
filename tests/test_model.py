@@ -6,6 +6,7 @@ from ktt.model import (
     choose_os_window,
     clean_title,
     records_for_os_window,
+    reordered_tree_tab_ids,
     tree_rows,
     with_active_tab,
     with_repository_names,
@@ -252,6 +253,42 @@ class ModelTests(unittest.TestCase):
         self.assertEqual([row.tab.id for row in rows], [1, 3])
         self.assertEqual(adjacent_tree_tab_id(rows, 1), 3)
         self.assertIsNone(adjacent_tree_tab_id(rows, -1))
+
+    def test_reorder_swaps_complete_root_subtrees(self) -> None:
+        records = [
+            TabRecord(1, 1, "first root", (10,), source_index=0),
+            TabRecord(2, 1, "first child", (20,), parent_window_id=10, source_index=1),
+            TabRecord(3, 1, "grandchild", (30,), parent_window_id=20, source_index=2),
+            TabRecord(4, 1, "second root", (40,), source_index=3),
+            TabRecord(5, 1, "second child", (50,), parent_window_id=40, source_index=4),
+            TabRecord(6, 1, "last root", (60,), source_index=5),
+        ]
+        rows = tree_rows(records)
+
+        self.assertEqual(
+            reordered_tree_tab_ids(rows, 1, 1),
+            (4, 5, 1, 2, 3, 6),
+        )
+        self.assertEqual(
+            reordered_tree_tab_ids(rows, 4, -1),
+            (4, 5, 1, 2, 3, 6),
+        )
+
+    def test_reorder_only_moves_among_siblings(self) -> None:
+        records = [
+            TabRecord(1, 1, "root", (10,), source_index=0),
+            TabRecord(2, 1, "first child", (20,), parent_window_id=10, source_index=1),
+            TabRecord(3, 1, "second child", (30,), parent_window_id=10, source_index=2),
+            TabRecord(4, 1, "other root", (40,), source_index=3),
+        ]
+        rows = tree_rows(records)
+
+        self.assertEqual(
+            reordered_tree_tab_ids(rows, 2, 1),
+            (1, 3, 2, 4),
+        )
+        self.assertIsNone(reordered_tree_tab_ids(rows, 3, 1))
+        self.assertIsNone(reordered_tree_tab_ids(rows, 2, -1))
 
     def test_with_active_tab_moves_active_state(self) -> None:
         records = [

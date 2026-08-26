@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 import sys
@@ -12,6 +13,40 @@ from kittens.tui.handler import result_handler
 
 def main(_args: list[str]) -> None:
     pass
+
+
+def _apply_tab_order(tab_manager: object, desired_tab_ids: tuple[int, ...]) -> None:
+    from kitty.fast_data_types import swap_tabs
+
+    tabs = tab_manager.tabs
+    active_tab = tab_manager.active_tab
+    by_id = {tab.id: tab for tab in tabs}
+    desired = [by_id[tab_id] for tab_id in desired_tab_ids if tab_id in by_id]
+    desired_ids = {tab.id for tab in desired}
+    known_slots = [
+        index for index, tab in enumerate(tabs) if tab.id in desired_ids
+    ]
+    final_order = list(tabs)
+    for index, tab in zip(known_slots, desired):
+        final_order[index] = tab
+    if final_order == tabs:
+        return
+
+    for target_index, target in enumerate(final_order):
+        current_index = tabs.index(target)
+        while current_index > target_index:
+            previous_index = current_index - 1
+            tabs[previous_index], tabs[current_index] = (
+                tabs[current_index],
+                tabs[previous_index],
+            )
+            swap_tabs(tab_manager.os_window_id, previous_index, current_index)
+            current_index = previous_index
+    if active_tab is not None:
+        tab_manager._set_active_tab(
+            tabs.index(active_tab), store_in_history=False
+        )
+    tab_manager.mark_tab_bar_dirty()
 
 
 @result_handler(no_ui=True)
@@ -29,13 +64,24 @@ def handle_result(
     package_root = Path(args[0]).resolve().parent.parent
     sys.path.insert(0, str(package_root))
     import ktt.events as events
+    import ktt.model as model
     from ktt.kitty import SIDEBAR_VAR, TARGET_OS_WINDOW_VAR
-    from ktt.model import adjacent_tree_tab_id, records_for_os_window, tree_rows
+
+    # Kitty caches imported package modules between kitten invocations. Reload
+    # the pure tree model so source updates work without restarting Kitty.
+    model = importlib.reload(model)
 
     action = args[1]
-    direction = 1 if action == "next" else -1 if action == "previous" else 0
+    direction = (
+        1
+        if action in ("next", "move-next")
+        else -1
+        if action in ("previous", "move-previous")
+        else 0
+    )
     if direction == 0:
         return
+    reorder = action.startswith("move-")
 
     target_value = str(source.user_vars.get(TARGET_OS_WINDOW_VAR) or "")
     from_sidebar = (
@@ -45,14 +91,47 @@ def handle_result(
     target_os_window_id = (
         int(target_value) if from_sidebar else tab_manager.os_window_id
     )
+    target_manager = boss.os_window_map.get(target_os_window_id)
+    if target_manager is None:
+        return
+    if reorder:
+        from ktt.order import read_visible_order
+
+        visible = read_visible_order(
+            target_os_window_id, kitty_pid=os.getpid()
+        )
+        anchor_tab_id = (
+            visible.anchor_tab_id
+            if visible is not None
+            else target_manager.active_tab.id
+            if target_manager.active_tab is not None
+            else None
+        )
+        os_window = next(
+            (
+                value
+                for value in boss.list_os_windows(self_window=source)
+                if int(value["id"]) == target_os_window_id
+            ),
+            None,
+        )
+        if anchor_tab_id is None or os_window is None:
+            return
+        desired_tab_ids = model.reordered_tree_tab_ids(
+            model.tree_rows(model.records_for_os_window(os_window)),
+            anchor_tab_id,
+            direction,
+        )
+        if desired_tab_ids is not None:
+            _apply_tab_order(target_manager, desired_tab_ids)
+        return
     if from_sidebar:
         from ktt.order import read_visible_order
 
         visible = read_visible_order(
             target_os_window_id, kitty_pid=os.getpid()
         )
-        target_manager = boss.os_window_map.get(target_os_window_id)
-        if visible is not None and target_manager is not None:
+        if visible is not None:
             index = visible.tab_ids.index(visible.anchor_tab_id)
             target_index = index + direction
             if not 0 <= target_index < len(visible.tab_ids):
@@ -89,12 +168,9 @@ def handle_result(
     )
     if os_window is None:
         return
-    target_tab_id = adjacent_tree_tab_id(
-        tree_rows(records_for_os_window(os_window)), direction
+    target_tab_id = model.adjacent_tree_tab_id(
+        model.tree_rows(model.records_for_os_window(os_window)), direction
     )
-    target_manager = boss.os_window_map.get(target_os_window_id)
-    if target_manager is None:
-        return
     target = next(
         (candidate for candidate in target_manager if candidate.id == target_tab_id),
         None,

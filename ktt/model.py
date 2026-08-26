@@ -268,6 +268,62 @@ def adjacent_tree_tab_id(rows: list[TreeRow], direction: int) -> int | None:
     return rows[target_index].tab.id
 
 
+def reordered_tree_tab_ids(
+    rows: list[TreeRow], tab_id: int, direction: int
+) -> tuple[int, ...] | None:
+    """Move a tab's whole subtree before or after its adjacent sibling."""
+    if not rows or direction == 0:
+        return None
+    row_index = next(
+        (index for index, row in enumerate(rows) if row.tab.id == tab_id),
+        None,
+    )
+    if row_index is None:
+        return None
+    row = rows[row_index]
+    sibling_indexes = [
+        index
+        for index, candidate in enumerate(rows)
+        if candidate.parent_tab_id == row.parent_tab_id
+        and candidate.depth == row.depth
+    ]
+    sibling_position = sibling_indexes.index(row_index)
+    target_position = sibling_position + (1 if direction > 0 else -1)
+    if not 0 <= target_position < len(sibling_indexes):
+        return None
+
+    def subtree_end(start: int) -> int:
+        depth = rows[start].depth
+        return next(
+            (
+                index
+                for index in range(start + 1, len(rows))
+                if rows[index].depth <= depth
+            ),
+            len(rows),
+        )
+
+    target_index = sibling_indexes[target_position]
+    tab_ids = tuple(candidate.tab.id for candidate in rows)
+    if direction > 0:
+        current_end = subtree_end(row_index)
+        target_end = subtree_end(target_index)
+        return (
+            tab_ids[:row_index]
+            + tab_ids[target_index:target_end]
+            + tab_ids[row_index:current_end]
+            + tab_ids[target_end:]
+        )
+    target_end = subtree_end(target_index)
+    current_end = subtree_end(row_index)
+    return (
+        tab_ids[:target_index]
+        + tab_ids[row_index:current_end]
+        + tab_ids[target_index:target_end]
+        + tab_ids[current_end:]
+    )
+
+
 def with_active_tab(records: Iterable[TabRecord], tab_id: int) -> list[TabRecord]:
     return [
         replace(record, is_active=record.id == tab_id)

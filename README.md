@@ -82,6 +82,8 @@ run `ktt navigation-kitten-path`, then map the printed absolute path:
 ```conf
 map alt+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py next
 map alt+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py previous
+map alt+shift+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py move-next
+map alt+shift+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py move-previous
 ```
 
 When the main window is focused, the kitten sends navigation to ktt so folded
@@ -94,7 +96,10 @@ bounded at the first and last visible rows, and no path rewrites native tabs.
 Rapid key repeats are drained one transition per repaint at 50 ms intervals, so
 every adjacent row remains visible instead of several queued switches appearing
 as one jump. This cadence exists only while navigation is queued and does not
-change idle polling.
+change idle polling. `Alt+Shift+j` and `Alt+Shift+k` move the active node among
+its siblings without wrapping. Parent nodes move together with their complete
+subtrees, and Kitty's native tab order is normalized to the same preorder shown
+by ktt. Reordering never changes a tab's parent.
 
 Inside the tree:
 

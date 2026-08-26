@@ -71,6 +71,11 @@ OS-window focus. Folded subtrees are skipped exactly as rendered. The kitten
 computes the complete tree itself when no ktt listener or snapshot is
 available; no path reorders native tabs.
 
+`Alt+Shift+j` and `Alt+Shift+k` reorder sibling nodes in the same direction as
+tree navigation. A parent and its descendants move as one block, and the
+resulting native Kitty order is normalized to the tree preorder. Reordering is
+bounded within one sibling list and never implicitly changes parent metadata.
+
 Fold state is local to one Kitty process and target OS window, but durable
 across ktt process replacement. Store the collapsed tab-ID set atomically in
 the owner-only runtime directory, reload it before building the first tree, and
