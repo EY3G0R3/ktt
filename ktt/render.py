@@ -248,6 +248,22 @@ def worktree_matches_branch(worktree: str | None, branch: str) -> bool:
     return normalize(worktree) == normalize(branch_name)
 
 
+def branch_context_is_useful(
+    branch: str,
+    *,
+    title: str,
+    worktree: str | None,
+) -> bool:
+    branch_name = re.sub(r"^[^\w/.-]+\s*", "", branch)
+    normalize = lambda value: re.sub(r"[^a-z0-9]+", "", value.casefold())
+    normalized_branch = normalize(branch_name)
+    if not normalized_branch or normalized_branch in {"main", "master"}:
+        return False
+    if worktree_matches_branch(worktree, branch):
+        return False
+    return normalized_branch not in normalize(title)
+
+
 def _trim_ansi_padding(text: str) -> str:
     first_visible: int | None = None
     last_visible: int | None = None
@@ -881,6 +897,7 @@ def render_row(
     repository_location: RepositoryLocation | None = None,
     show_repository_metadata: bool = True,
     show_worktree_metadata: bool = True,
+    center_content: bool = False,
 ) -> str:
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
@@ -1008,11 +1025,30 @@ def render_row(
     else:
         left_cap = base
         right_cap = ""
+    prefix = f"{disclosure}{orphan}{status} "
+    if center_content:
+        separator = " · " if metadata else ""
+        content_width = (
+            card_prefix_width
+            + display_width(title)
+            + display_width(separator)
+            + metadata_width
+        )
+        leading_padding = max(0, (body_width - content_width) // 2)
+        trailing_padding = max(
+            0, body_width - content_width - leading_padding
+        )
+        body = (
+            f"{' ' * leading_padding}{prefix}{title}{separator}{metadata}"
+            f"{' ' * trailing_padding}"
+        )
+    else:
+        body = (
+            f"{prefix}{title}{' ' * label_padding}{metadata}"
+            f"{' ' if metadata else ''}"
+        )
     return (
-        f"{panel_style(ansi)}{left}{left_cap}{disclosure}{orphan}{status}"
-        f" {title}{' ' * label_padding}{metadata}"
-        f"{' ' if metadata else ''}"
-        f"{right_cap}{reset}"
+        f"{panel_style(ansi)}{left}{left_cap}{body}{right_cap}{reset}"
     )
 
 
@@ -1239,7 +1275,9 @@ def render_card(
             REPOSITORY_WORKTREE_FOREGROUND,
             False,
         ))
-    if branch and not worktree_matches_branch(worktree, branch):
+    if branch and branch_context_is_useful(
+        branch, title=row.tab.title, worktree=worktree
+    ):
         if top_segments:
             top_segments.append((
                 "  ·  ", REPOSITORY_META_FOREGROUND, False
@@ -1262,6 +1300,7 @@ def render_card(
             repository_location=repository_location,
             show_repository_metadata=True,
             show_worktree_metadata=not metadata_embedded,
+            center_content=metadata_embedded,
         )
         if line == content_line
         else render_card_context_row(

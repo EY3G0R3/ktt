@@ -184,7 +184,7 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("fancylog status", screen)
         self.assertNotIn(" main", screen)
 
-    def test_branch_uses_the_top_and_status_uses_the_bottom_row(self) -> None:
+    def test_default_branch_is_hidden_and_status_uses_the_bottom_row(self) -> None:
         rows = [TreeRow(
             TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None
         )]
@@ -204,7 +204,7 @@ class RenderTests(unittest.TestCase):
             if "✓ clean" in line
         )
         self.assertEqual(status_index, tab_index + 1)
-        self.assertIn(" main", lines[tab_index - 1])
+        self.assertNotIn(" main", screen)
         self.assertIn("/ktt/", lines[tab_index])
 
     def test_repository_status_is_clipped_to_available_padding(self) -> None:
@@ -245,11 +245,9 @@ class RenderTests(unittest.TestCase):
         )
         lines = screen.split("\n")
         first = next(index for index, line in enumerate(lines) if "one" in line)
-        identity = next(index for index, line in enumerate(lines) if " main" in line)
         state = next(index for index, line in enumerate(lines) if "✓ clean" in line)
         second = next(index for index, line in enumerate(lines) if "two" in line)
 
-        self.assertEqual(identity, first - 1)
         self.assertEqual(state, first + 1)
         self.assertEqual(second, state + 3)
         self.assertIn("/ktt/", lines[second])
@@ -364,7 +362,7 @@ class RenderTests(unittest.TestCase):
 
         self.assertEqual(first_file_index, state_index + 1)
         self.assertTrue(lines[state_index].strip().endswith(":"))
-        self.assertIn(" master", lines[state_index - 3])
+        self.assertNotIn(" master", screen)
         self.assertNotIn("unstaged", lines[state_index - 1])
         self.assertEqual(sum("/slock/" in line for line in lines), 1)
 
@@ -489,6 +487,31 @@ class RenderTests(unittest.TestCase):
 
         self.assertIn("🌲topic-branch", top)
         self.assertNotIn(" topic/branch", top)
+
+    def test_top_row_omits_branch_represented_by_title(self) -> None:
+        screen = render_screen(
+            [TreeRow(
+                TabRecord(
+                    1, 1, "push topic branch", (10,), repository="quiver"
+                ),
+                0,
+                None,
+            )],
+            0,
+            1,
+            72,
+            12,
+            ansi=False,
+            show_controls=False,
+            repository_lines=[
+                " (quiver) ~/work/quiver  ✓ clean ",
+                "  topic/branch ",
+            ],
+        )
+
+        self.assertNotIn(" topic/branch", screen)
+        middle = next(line for line in screen.split("\n") if "push topic" in line)
+        self.assertIn("push topic branch · /quiver/", middle)
 
     def test_compact_tab_centers_top_identity_and_bottom_status(self) -> None:
         screen = render_screen(
@@ -890,9 +913,9 @@ class RenderTests(unittest.TestCase):
                     repository_location=RepositoryLocation(worktree="feature"),
                 )
 
-                self.assertIn("🌲feature  ·   main", card[0])
-                self.assertIn("runner", card[1])
-                self.assertIn("/quiver/", card[1])
+                self.assertIn("🌲feature", card[0])
+                self.assertNotIn(" main", card[0])
+                self.assertIn("runner · /quiver/", card[1])
                 self.assertIn("✓ clean", card[2])
                 self.assertNotIn(" main", card[2])
                 self.assertLessEqual(

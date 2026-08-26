@@ -177,10 +177,11 @@ ktt shifts any near-collisions around the color wheel so the repositories in the
 current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
-contrast. In the normal three-row vertical view, `/repository/` stays beside
-the tab title on the middle row; linked worktree and branch are centered on the
-top, while state is centered on the bottom. When worktree and branch identify
-the same checkout, only the worktree label is shown.
+contrast. In the normal three-row vertical view, title and `/repository/` form
+one centered middle-row group. Linked worktree and useful branch context are
+centered on top, while state is centered on the bottom. Ordinary `main` and
+`master` branches, branches represented by the title, and branches equivalent
+to the worktree label are omitted.
 
 Repository names come from Fancylog rather than a second set of Git, linked
 worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
@@ -191,9 +192,9 @@ does not hide the repository until ktt restarts.
 ## Active repository context
 
 The selected three-row tab card embeds active repository context in its formerly
-empty rows: linked worktree and branch centered on top, the existing repository
-label beside the title in the middle, then centered clean state on the bottom.
-A branch equivalent to the worktree label is omitted. Dirty counts move out of
+empty rows: linked worktree and useful branch context centered on top, a single
+centered `title · /repository/` group in the middle, then centered clean state
+on the bottom. Redundant and default branch labels are omitted. Dirty counts move out of
 the card and become a heading above the changed-file rows whenever at least one
 file can remain visible; under tighter geometry the dirty state stays in the
 card so it never disappears. Changed-file rows attach immediately below the card,
