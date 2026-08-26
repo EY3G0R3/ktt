@@ -178,7 +178,8 @@ ktt shifts any near-collisions around the color wheel so the repositories in the
 current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
-contrast.
+contrast. In the normal three-row vertical view, `/repository/` stays beside
+the tab title on the middle row; branch and linked worktree use the top row.
 
 Repository names come from Fancylog rather than a second set of Git, linked
 worktree, or yadm rules. Ktt submits each previously unseen tab `cwd` to a
@@ -188,17 +189,19 @@ does not hide the repository until ktt restarts.
 
 ## Active repository context
 
-The otherwise-unused bottom padding shows the active main tab's changed files
-above one compact repository card. The card groups repository, working
-directory, branch, and clean/dirty state into one centered line using the
-selected edge treatment. Changed-file actions are right-aligned against the
-shared path column, and the entire visible file block is centered. Paths start
-immediately to the right of the action; only staged entries add the literal
-`staged`, while unstaged is the default. Fancylog's ANSI colors distinguish
-modified, untracked, staged, and conflict states. The column uses up to six
-spare rows and collapses overflow. The entire context disappears when the tab
-tree needs every row. Help similarly uses only spare space above the tree, so
-card height, capacity, centering, and mouse coordinates remain stable.
+The selected three-row tab card embeds active repository context in its formerly
+empty rows: branch and linked worktree on top, the existing repository label
+beside the title in the middle, then only clean/dirty state on the bottom.
+Changed-file rows attach immediately below the card,
+right-align their actions against a shared path column, and follow the selected
+card's tree indent. Paths start immediately to the right of the action;
+only staged entries add the literal `staged`, while unstaged is the default.
+Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
+states. Changed files use up to six rows left after rendering every tab and
+collapse when the tree needs those rows. Summary polling continues even without
+spare rows because it renders inside the card. No extra repository command is
+needed: the existing three-second Fancylog snapshot supplies both summary and
+file state.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
 asks `fancylog --status-only` to render the file column, a width-bounded

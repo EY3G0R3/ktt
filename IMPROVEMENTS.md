@@ -234,10 +234,12 @@ fallback. Every colored card row maps to the same mouse target. One black row
 separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
-Repository, directory, branch, upstream divergence, and worktree state now use
-otherwise-empty padding below the tree. This gives the active tab ambient
-context without consuming card rows. A later card-specific expansion can still
-show repository/branch for several tabs at once, plus agent phase and the
+Repository identity remains beside the title. Branch and linked worktree use
+the selected three-row card's formerly empty top row, while clean/dirty state
+uses the bottom. Changed files attach directly below it using only otherwise-
+empty screen rows. This adds
+context without consuming tab capacity. A later card-specific expansion can
+still show repository/branch for several tabs at once, plus agent phase and the
 latest readiness or blocker reason. fancylog is the bounded metadata and
 rendering provider; repository-type expansion belongs there rather than in
 ktt.

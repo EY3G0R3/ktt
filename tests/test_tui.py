@@ -180,6 +180,38 @@ class MouseTests(unittest.TestCase):
         self.assertEqual(view_for().name, "vertical")
         self.assertEqual(view_for("horizontal").name, "horizontal")
 
+    def test_embedded_repository_rows_remain_tab_mouse_targets(self) -> None:
+        rows = [
+            TreeRow(TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None),
+            TreeRow(TabRecord(2, 1, "two", (20,), repository="ktt"), 0, None),
+        ]
+        view = view_for("vertical")
+        arguments = {
+            "rows": rows,
+            "width": 60,
+            "height": 14,
+            "selected_index": 0,
+            "card_height": 3,
+            "mouse_column": 10,
+            "repository_lines": [
+                " (ktt) ~/src/ktt  ✓ clean ",
+                "  main ",
+            ],
+        }
+
+        self.assertEqual(view.hit_target(mouse_row=6, **arguments).index, 0)
+        self.assertIsNone(view.hit_target(mouse_row=7, **arguments).index)
+        self.assertEqual(view.hit_target(mouse_row=9, **arguments).index, 1)
+
+    def test_three_row_cards_poll_summary_even_without_spare_rows(self) -> None:
+        rows = [
+            TreeRow(TabRecord(index, 1, str(index), (index,)), 0, None)
+            for index in range(3)
+        ]
+        view = view_for("vertical")
+
+        self.assertEqual(view.repository_capacity(rows, 60, 11, 0, 3), 2)
+
     def test_active_row_uses_visible_folded_ancestor(self) -> None:
         inactive = TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)
         folded = TreeRow(

@@ -64,8 +64,6 @@ CONTROL_SEPARATOR = " │ "
 CONTROL_SHORTCUT_FOREGROUND = "5f7a82"
 CONTROL_SEPARATOR_FOREGROUND = "3f4552"
 CONTROL_ACTION_FOREGROUND = "777d89"
-REPOSITORY_TOP_GAP = 1
-REPOSITORY_BOTTOM_MARGIN = 1
 REPOSITORY_BACKGROUND = "20232a"
 REPOSITORY_NAME_FOREGROUND = "f8f8f2"
 REPOSITORY_META_FOREGROUND = "777d89"
@@ -332,21 +330,24 @@ def _repository_segments(
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
     show_state: bool = True,
+    show_identity: bool = True,
+    show_worktree: bool = True,
 ) -> list[tuple[str, str, bool]]:
     identity, branch, state = repository_summary_parts(lines)
     segments: list[tuple[str, str, bool]] = []
     identity_match = re.match(r"^\(([^)]+)\)\s*(.*)$", identity)
     if identity_match:
         repository = identity_match.group(1)
-        segments.append((
-            f"/{repository}/",
-            repository_label_foreground(
-                repository, REPOSITORY_BACKGROUND, repository_hue
-            ),
-            False,
-        ))
+        if show_identity:
+            segments.append((
+                f"/{repository}/",
+                repository_label_foreground(
+                    repository, REPOSITORY_BACKGROUND, repository_hue
+                ),
+                False,
+            ))
         if repository_location is not None:
-            if repository_location.worktree:
+            if show_worktree and repository_location.worktree:
                 # Monochrome Nerd Font fallbacks if the emoji is too green:
                 # 󰔱 (Material Design tree) or  (bolder Font Awesome tree).
                 segments.append((
@@ -374,6 +375,23 @@ def _repository_segments(
     if state and show_state:
         if segments:
             segments.append(("  ·  ", REPOSITORY_META_FOREGROUND, False))
+        state_color = (
+            REPOSITORY_CONFLICT_FOREGROUND
+            if state.startswith("✗")
+            else REPOSITORY_CLEAN_FOREGROUND
+            if state.startswith("✓")
+            else REPOSITORY_DIRTY_FOREGROUND
+        )
+        segments.append((state, state_color, False))
+    return segments
+
+
+def _embedded_repository_state_segments(
+    lines: list[str],
+) -> list[tuple[str, str, bool]]:
+    _, _, state = repository_summary_parts(lines)
+    segments: list[tuple[str, str, bool]] = []
+    if state:
         state_color = (
             REPOSITORY_CONFLICT_FOREGROUND
             if state.startswith("✗")
@@ -432,11 +450,18 @@ def render_repository_card(
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
     show_state: bool = True,
+    show_identity: bool = True,
+    show_worktree: bool = True,
 ) -> str:
     if width <= 0 or not lines:
         return ""
     segments = _repository_segments(
-        lines, repository_hue, repository_location, show_state
+        lines,
+        repository_hue,
+        repository_location,
+        show_state,
+        show_identity,
+        show_worktree,
     )
     if not segments:
         return ""
@@ -504,6 +529,80 @@ def render_repository_heading(
         f"{panel_style(ansi)}{' ' * left_margin}"
         f"{_fg(REPOSITORY_HEADING_FOREGROUND, ansi)}{text}"
     )
+
+
+def vertical_repository_capacity(
+    row_count: int,
+    height: int,
+    card_height: int,
+) -> int:
+    """Return rows that can be attached without hiding or shrinking tabs."""
+    return max(0, height - cards_height(row_count, card_height))
+
+
+def render_attached_repository_context(
+    lines: list[str],
+    width: int,
+    capacity: int,
+    *,
+    row: TreeRow,
+    ansi: bool = True,
+    edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_hue: float | None = None,
+    repository_location: RepositoryLocation | None = None,
+    summary_embedded: bool = False,
+) -> list[str]:
+    if not lines or capacity <= 0:
+        return []
+    indent = " " * (TREE_INDENT_WIDTH * row.depth)
+    context_width = max(1, width - len(indent))
+    details = render_repository_detail_lines(lines, context_width, ansi=ansi)
+    heading = repository_dirty_heading(lines) if details else None
+    show_heading = bool(heading) and not summary_embedded and capacity >= 3
+    show_separator = bool(details) and not summary_embedded and capacity >= 4
+    detail_capacity = max(
+        0,
+        capacity
+        - int(not summary_embedded)
+        - int(show_heading)
+        - int(show_separator),
+    )
+    visible_details = details[:detail_capacity]
+    card_width = max(1, context_width - 1)
+    body_width = card_width - 2 if card_width >= 3 else card_width
+    remaining = max(1, body_width - (2 + STATUS_CELL_WIDTH + 1))
+    _, tab_repository, tab_worktree = tab_labels(
+        row.tab,
+        remaining,
+        repository_location.worktree if repository_location else None,
+    )
+    identity_is_in_tab = (
+        bool(tab_repository)
+        and repository_identity_name(lines) == row.tab.repository
+    )
+    context: list[str] = []
+    if show_heading:
+        context.append(render_repository_heading(
+            lines, visible_details, context_width, ansi=ansi
+        ))
+    context.extend(visible_details)
+    if visible_details and show_separator:
+        context.append("")
+    if not summary_embedded:
+        summary = render_repository_card(
+            lines,
+            context_width,
+            ansi=ansi,
+            edge_style=edge_style,
+            repository_hue=repository_hue,
+            repository_location=repository_location,
+            show_state=not show_heading,
+            show_identity=not identity_is_in_tab,
+            show_worktree=not bool(tab_worktree),
+        )
+        if summary:
+            context.append(summary)
+    return [f"{panel_style(ansi)}{indent}{line}" for line in context]
 
 
 def display_width(text: str) -> int:
@@ -738,16 +837,30 @@ def card_capacity(available: int, card_height: int) -> int:
     return max(0, (available + gap) // (card_height + gap))
 
 
-def tab_labels(tab: TabRecord, width: int) -> tuple[str, str]:
+def tab_labels(
+    tab: TabRecord,
+    width: int,
+    worktree: str | None = None,
+) -> tuple[str, str, str]:
     repository = tab.repository or ""
     if not repository or width < 14:
-        return truncate_cells(tab.title, max(0, width)), ""
+        return truncate_cells(tab.title, max(0, width)), "", ""
     repository_width = min(20, max(6, width // 3))
     repository = f"/{truncate_cells(repository, repository_width - 2)}/"
-    title_width = width - display_width(repository) - 4
+    worktree_label = f"🌲{worktree}" if worktree else ""
+    metadata_width = display_width(repository)
+    if worktree_label:
+        worktree_budget = min(
+            display_width(worktree_label),
+            max(0, width // 2 - metadata_width - 2),
+        )
+        worktree_label = truncate_cells(worktree_label, worktree_budget)
+        if worktree_label:
+            metadata_width += 2 + display_width(worktree_label)
+    title_width = width - metadata_width - 4
     if title_width < 5:
-        return truncate_cells(tab.title, max(0, width)), ""
-    return truncate_cells(tab.title, title_width), repository
+        return truncate_cells(tab.title, max(0, width)), "", ""
+    return truncate_cells(tab.title, title_width), repository, worktree_label
 
 
 def render_row(
@@ -761,6 +874,9 @@ def render_row(
     line_index: int = 0,
     card_height: int = 1,
     repository_hue: float | None = None,
+    repository_location: RepositoryLocation | None = None,
+    show_repository_metadata: bool = True,
+    show_worktree_metadata: bool = True,
 ) -> str:
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
@@ -782,13 +898,31 @@ def render_row(
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width
     remaining = max(1, body_width - card_prefix_width)
-    title, repository = tab_labels(tab, remaining)
+    if show_repository_metadata:
+        title, repository, worktree = tab_labels(
+            tab,
+            remaining,
+            repository_location.worktree
+            if selected
+            and show_worktree_metadata
+            and repository_location is not None
+            else None,
+        )
+    else:
+        title = truncate_cells(tab.title, remaining)
+        repository = ""
+        worktree = ""
+    metadata_width = (
+        display_width(repository)
+        + display_width(worktree)
+        + (2 if repository and worktree else 0)
+    )
     label_padding = max(
         0,
         remaining
         - display_width(title)
-        - display_width(repository)
-        - int(bool(repository)),
+        - metadata_width
+        - int(bool(repository or worktree)),
     )
 
     base = ""
@@ -819,6 +953,16 @@ def render_row(
         f"{unbold}{repository}{restore}"
         if repository
         else ""
+    )
+    worktree_label = (
+        f"{_fg(REPOSITORY_WORKTREE_FOREGROUND, ansi)}"
+        f"{unbold}{worktree}{restore}"
+        if worktree
+        else ""
+    )
+    metadata = (
+        f"{repository_label}{'  ' if repository and worktree else ''}"
+        f"{worktree_label}"
     )
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"
     verdict_cap = (
@@ -862,8 +1006,8 @@ def render_row(
         right_cap = ""
     return (
         f"{panel_style(ansi)}{left}{left_cap}{disclosure}{orphan}{status}"
-        f" {title}{' ' * label_padding}{repository_label}"
-        f"{' ' if repository else ''}"
+        f" {title}{' ' * label_padding}{metadata}"
+        f"{' ' if metadata else ''}"
         f"{right_cap}{reset}"
     )
 
@@ -926,6 +1070,82 @@ def render_card_blank(
     raise ValueError(f"unknown edge style: {edge_style}")
 
 
+def render_card_context_row(
+    row: TreeRow,
+    segments: list[tuple[str, str, bool]],
+    *,
+    width: int,
+    ansi: bool,
+    edge_style: str,
+    line_index: int,
+    card_height: int,
+    alignment: str,
+) -> str:
+    if not segments:
+        return render_card_blank(
+            row,
+            width=width,
+            ansi=ansi,
+            edge_style=edge_style,
+            line_index=line_index,
+            card_height=card_height,
+        )
+    left = " " * (TREE_INDENT_WIDTH * row.depth)
+    card_width = max(1, width - len(left) - 1)
+    show_caps = card_width >= 3
+    body_width = card_width - 2 if show_caps else card_width
+    text_width = max(0, body_width - 2)
+    content_width = min(
+        text_width,
+        display_width("".join(text for text, _, _ in segments)),
+    )
+    if alignment == "right":
+        left_padding = max(0, body_width - content_width - 1)
+    else:
+        left_padding = max(0, (body_width - content_width) // 2)
+    right_padding = max(0, body_width - content_width - left_padding)
+    background = card_background(row)
+    base = _bg(background, ansi)
+    reset = "\x1b[0m" if ansi else ""
+    content = _render_repository_text(segments, text_width, ansi=ansi)
+    body = (
+        f"{base}{' ' * left_padding}{content}{base}"
+        f"{' ' * right_padding}"
+    )
+    if not show_caps:
+        return f"{panel_style(ansi)}{left}{body}{reset}"
+    verdict_cap = (
+        READY_RIGHT_CAP
+        if row.tab.status == "ready_to_merge"
+        else FLAME_RIGHT_CAP
+        if row.tab.status == "blocked"
+        else None
+    )
+    cap_style = f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}"
+    if edge_style == "tapered":
+        left_edge = f"{panel_style(ansi)} "
+        right_edge = f"{cap_style}{verdict_cap}" if verdict_cap else panel_style(ansi) + " "
+    elif edge_style == "straight":
+        left_edge = f"{base} "
+        right_edge = f"{cap_style}{verdict_cap}" if verdict_cap else f"{base} "
+    elif edge_style == "rounded":
+        bottom = line_index == card_height - 1
+        left_glyph, right_glyph = ("╰", "╯") if bottom else ("╭", "╮")
+        left_edge = f"{cap_style}{left_glyph}"
+        right_edge = f"{cap_style}{verdict_cap or right_glyph}"
+    elif edge_style == "wedge":
+        bottom = line_index == card_height - 1
+        left_glyph = WEDGE_BOTTOM_LEFT if bottom else WEDGE_TOP_LEFT
+        right_glyph = WEDGE_BOTTOM_RIGHT if bottom else WEDGE_TOP_RIGHT
+        left_edge = f"{cap_style}{left_glyph}"
+        right_edge = f"{cap_style}{verdict_cap or right_glyph}"
+    else:
+        raise ValueError(f"unknown edge style: {edge_style}")
+    return (
+        f"{panel_style(ansi)}{left}{left_edge}{body}{right_edge}{reset}"
+    )
+
+
 def render_card(
     row: TreeRow,
     *,
@@ -936,8 +1156,32 @@ def render_card(
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_hue: float | None = None,
+    repository_location: RepositoryLocation | None = None,
+    repository_lines: list[str] | None = None,
 ) -> list[str]:
     content_line = card_content_line(card_height)
+    metadata_embedded = bool(repository_lines) and card_height >= 3
+    identity_segments: list[tuple[str, str, bool]] = []
+    _, branch, _ = repository_summary_parts(repository_lines or [])
+    if branch:
+        if identity_segments:
+            identity_segments.append((
+                "  ·  ", REPOSITORY_META_FOREGROUND, False
+            ))
+        identity_segments.append((branch, REPOSITORY_BRANCH_FOREGROUND, False))
+    if repository_location and repository_location.worktree:
+        if identity_segments:
+            identity_segments.append((
+                "  ·  ", REPOSITORY_META_FOREGROUND, False
+            ))
+        identity_segments.append((
+            f"🌲{repository_location.worktree}",
+            REPOSITORY_WORKTREE_FOREGROUND,
+            False,
+        ))
+    summary_segments = _embedded_repository_state_segments(
+        repository_lines or []
+    )
     return [
         render_row(
             row,
@@ -949,8 +1193,33 @@ def render_card(
             line_index=line,
             card_height=card_height,
             repository_hue=repository_hue,
+            repository_location=repository_location,
+            show_repository_metadata=True,
+            show_worktree_metadata=not metadata_embedded,
         )
         if line == content_line
+        else render_card_context_row(
+            row,
+            identity_segments,
+            width=width,
+            ansi=ansi,
+            edge_style=edge_style,
+            line_index=line,
+            card_height=card_height,
+            alignment="right",
+        )
+        if repository_lines and card_height >= 3 and line == 0
+        else render_card_context_row(
+            row,
+            summary_segments,
+            width=width,
+            ansi=ansi,
+            edge_style=edge_style,
+            line_index=line,
+            card_height=card_height,
+            alignment="center",
+        )
+        if repository_lines and card_height >= 2 and line == card_height - 1
         else render_card_blank(
             row,
             width=width,
@@ -982,7 +1251,9 @@ def render_horizontal_card(
     show_caps = width >= 3
     body_width = width - 2 if show_caps else width
     prefix_width = 2 + STATUS_CELL_WIDTH + 1
-    title, repository = tab_labels(tab, max(0, body_width - prefix_width))
+    title, repository, _ = tab_labels(
+        tab, max(0, body_width - prefix_width)
+    )
     repository_suffix = f" · {repository}" if repository else ""
     content_width = min(
         body_width,
@@ -1049,7 +1320,7 @@ def horizontal_disclosure_column(
 ) -> int:
     body_width = placement.width - 2 if placement.width >= 3 else placement.width
     prefix_width = 2 + STATUS_CELL_WIDTH + 1
-    title, repository = tab_labels(
+    title, repository, _ = tab_labels(
         row.tab,
         max(0, body_width - prefix_width),
     )
@@ -1163,50 +1434,33 @@ def render_screen(
     capacity = card_capacity(available, card_height)
     start = visible_start(len(rows), selected_index, height, card_height)
     visible = rows[start:start + capacity]
-    top_padding = vertical_padding(len(rows), height, card_height)
-    bottom_padding = vertical_bottom_padding(len(rows), height, card_height)
-    context_spacing = REPOSITORY_TOP_GAP + REPOSITORY_BOTTOM_MARGIN
-    context_capacity = max(0, bottom_padding - context_spacing)
+    context_capacity = vertical_repository_capacity(
+        len(rows), height, card_height
+    )
     context: list[str] = []
-    if repository_lines and context_capacity:
+    if (
+        repository_lines
+        and context_capacity
+        and 0 <= selected_index < len(rows)
+        and start <= selected_index < start + len(visible)
+    ):
         repository_hue = repository_hues.get(
             repository_identity_name(repository_lines) or ""
         )
-        details = render_repository_detail_lines(
+        context = render_attached_repository_context(
             repository_lines,
             width,
+            context_capacity,
+            row=rows[selected_index],
             ansi=ansi,
+            edge_style=edge_style,
+            repository_hue=repository_hue,
+            repository_location=repository_location,
+            summary_embedded=card_height >= 2,
         )
-        lift_state = (
-            bool(details)
-            and context_capacity >= 2
-            and repository_dirty_heading(repository_lines) is not None
-        )
-        detail_capacity = context_capacity - 1 - int(lift_state)
-        visible_details = (
-            details[:detail_capacity - 1] if detail_capacity >= 2 else []
-        )
-        if lift_state:
-            context.append(render_repository_heading(
-                repository_lines,
-                visible_details,
-                width,
-                ansi=ansi,
-            ))
-        context.extend(visible_details)
-        if visible_details:
-            context.append("")
-        context.append(
-            render_repository_card(
-                repository_lines,
-                width,
-                ansi=ansi,
-                edge_style=edge_style,
-                repository_hue=repository_hue,
-                repository_location=repository_location,
-                show_state=not lift_state,
-            )
-        )
+    top_padding = vertical_padding(
+        len(rows), height, card_height, len(context)
+    )
     cards: list[str] = []
     for offset, row in enumerate(visible):
         if offset:
@@ -1221,8 +1475,20 @@ def render_screen(
                 ansi=ansi,
                 edge_style=edge_style,
                 repository_hue=repository_hues.get(row.tab.repository or ""),
+                repository_location=(
+                    repository_location
+                    if start + offset == selected_index
+                    else None
+                ),
+                repository_lines=(
+                    repository_lines
+                    if start + offset == selected_index
+                    else None
+                ),
             )
         )
+        if start + offset == selected_index:
+            cards.extend(context)
     output = ["" for _ in range(height)]
     for index, line in enumerate(cards, start=top_padding):
         if index >= height:
@@ -1244,9 +1510,6 @@ def render_screen(
         )
         control_start = (top_padding - len(controls)) // 2
         output[control_start:control_start + len(controls)] = controls
-    if context:
-        context_start = height - REPOSITORY_BOTTOM_MARGIN - len(context)
-        output[context_start:context_start + len(context)] = context
     if error:
         blank = next(
             (index for index in range(height - 1, -1, -1) if not output[index]),
@@ -1281,12 +1544,13 @@ def vertical_padding(
     row_count: int,
     height: int,
     card_height: int | None = None,
+    context_height: int = 0,
 ) -> int:
     available = content_height(height)
     if row_count == 0:
         return available
     card_height = card_height or adaptive_card_height(row_count, height)
-    used = cards_height(row_count, card_height)
+    used = cards_height(row_count, card_height) + context_height
     if used >= available:
         return 0
     return (available - used) // 2

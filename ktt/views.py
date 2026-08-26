@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from .model import TreeRow
+from .repository import RepositoryLocation
 from .render import (
     DEFAULT_ORIENTATION,
-    REPOSITORY_BOTTOM_MARGIN,
-    REPOSITORY_TOP_GAP,
     TREE_INDENT_WIDTH,
     adaptive_card_height,
+    card_capacity,
     card_content_line,
     card_gap,
     content_height,
@@ -17,8 +17,9 @@ from .render import (
     horizontal_index_at_mouse,
     horizontal_layout,
     render_horizontal_screen,
+    render_attached_repository_context,
     render_screen,
-    vertical_bottom_padding,
+    vertical_repository_capacity,
     vertical_padding,
     visible_start,
 )
@@ -57,6 +58,8 @@ class View(Protocol):
         card_height: int,
         mouse_column: int,
         mouse_row: int,
+        repository_lines: list[str] | None = None,
+        repository_location: RepositoryLocation | None = None,
     ) -> HitTarget: ...
 
 
@@ -103,11 +106,10 @@ class VerticalView:
         card_height: int,
     ) -> int:
         del width, selected_index
-        return (
-            vertical_bottom_padding(len(rows), height, card_height)
-            - REPOSITORY_TOP_GAP
-            - REPOSITORY_BOTTOM_MARGIN
+        spare = vertical_repository_capacity(
+            len(rows), height, card_height
         )
+        return spare + 2 if rows and card_height >= 2 else spare
 
     def hit_target(
         self,
@@ -118,25 +120,50 @@ class VerticalView:
         card_height: int,
         mouse_column: int,
         mouse_row: int,
+        repository_lines: list[str] | None = None,
+        repository_location: RepositoryLocation | None = None,
     ) -> HitTarget:
-        del width
         start = visible_start(len(rows), selected_index, height, card_height)
-        top_padding = vertical_padding(len(rows), height, card_height)
-        index = row_index_at_mouse(
-            mouse_row,
-            start=start,
-            row_count=len(rows),
-            height=height,
-            top_padding=top_padding,
-            card_height=card_height,
+        capacity = vertical_repository_capacity(
+            len(rows), height, card_height
         )
+        context = (
+            render_attached_repository_context(
+                repository_lines,
+                width,
+                capacity,
+                row=rows[selected_index],
+                ansi=False,
+                repository_location=repository_location,
+                summary_embedded=card_height >= 2,
+            )
+            if repository_lines
+            and capacity
+            and 0 <= selected_index < len(rows)
+            else []
+        )
+        top_padding = vertical_padding(
+            len(rows), height, card_height, len(context)
+        )
+        cursor = 1 + top_padding
+        index: int | None = None
+        line_in_card = -1
+        visible_count = card_capacity(
+            content_height(height), card_height
+        )
+        for candidate in range(start, min(len(rows), start + visible_count)):
+            if cursor <= mouse_row < cursor + card_height:
+                index = candidate
+                line_in_card = mouse_row - cursor
+                break
+            cursor += card_height
+            if candidate == selected_index:
+                cursor += len(context)
+            if candidate + 1 < min(len(rows), start + visible_count):
+                cursor += card_gap(card_height)
         if index is None:
             return HitTarget(None)
-        content_line = (
-            (mouse_row - 1 - top_padding)
-            % (card_height + card_gap(card_height))
-            == card_content_line(card_height)
-        )
+        content_line = line_in_card == card_content_line(card_height)
         return HitTarget(
             index,
             content_line and mouse_column == disclosure_column(rows[index]),
@@ -172,8 +199,10 @@ class HorizontalView:
         card_height: int,
         mouse_column: int,
         mouse_row: int,
+        repository_lines: list[str] | None = None,
+        repository_location: RepositoryLocation | None = None,
     ) -> HitTarget:
-        del card_height
+        del card_height, repository_lines, repository_location
         placements = horizontal_layout(rows, width, height, selected_index)
         index = horizontal_index_at_mouse(
             mouse_column, mouse_row, placements

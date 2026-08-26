@@ -522,6 +522,8 @@ def run_tui(
                     hit_target = view.hit_target(
                         rows, width, height, selected_index, card_height,
                         mouse.column, mouse.row,
+                        repository_lines=repository_lines,
+                        repository_location=repository_location,
                     )
                     clicked_index = hit_target.index
                     if clicked_index is not None:

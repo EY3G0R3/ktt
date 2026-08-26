@@ -113,15 +113,19 @@ All styles share the same tree, status, density, scrolling, and mouse-hit
 model. In one-line compact mode, shapes that require vertical geometry fall
 back to the default Powerline caps.
 
-## 7. Repository context occupies only spare padding
+## 7. Repository context uses the selected card's spare rows
 
 Added August 23, 2026 (PDT).
+Revised August 26, 2026 (PDT).
 
-Show repository, directory, branch, and worktree state at the bottom of the
-sidebar for the active main-window tab. The panel may replace otherwise-empty
-padding below the centered tab stack, but must not reduce tab-card height or
-capacity. It compacts before it disappears as the tree grows. Keyboard help is
-centered separately in the spare space above the tabs.
+Keep repository or yadm identity beside the title on the selected card's middle
+row. Use the top row for branch and linked worktree, and the bottom row only for
+clean/dirty state. Attach changed-file rows below the card. Those rows may
+consume only space left after rendering every
+tab and must not reduce tab-card height or capacity. They compact before they
+disappear as the tree grows. Lower cards shift as part of the centered group,
+and mouse hit testing follows their rendered positions. Keyboard help remains
+centered separately in the spare space above the group.
 
 Kitty's active-window `cwd` is the path authority. ktt passes it, the available
 row count, and the sidebar width to `fancylog --status-only`, then caches the

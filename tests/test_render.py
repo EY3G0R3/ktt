@@ -184,8 +184,10 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("fancylog status", screen)
         self.assertNotIn(" main", screen)
 
-    def test_repository_status_uses_bottom_padding_without_moving_cards(self) -> None:
-        rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
+    def test_repository_status_uses_the_selected_tab_bottom_row(self) -> None:
+        rows = [TreeRow(
+            TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None
+        )]
         screen = render_screen(
             rows,
             0,
@@ -193,17 +195,22 @@ class RenderTests(unittest.TestCase):
             48,
             18,
             ansi=False,
-            repository_lines=["fancylog status", " main"],
+            repository_lines=[" (ktt) ~/src/ktt  ✓ clean ", "  main "],
         )
         lines = screen.split("\n")
-        self.assertIn(" fancylog status  ·   main", lines[-2])
-        self.assertTrue(lines[-2].endswith(""))
-        self.assertEqual(lines[-3], "")
-        self.assertEqual(lines[-1], "")
-        self.assertIn("one", lines[8])
+        tab_index = next(index for index, line in enumerate(lines) if "one" in line)
+        status_index = next(
+            index for index, line in enumerate(lines)
+            if "✓ clean" in line
+        )
+        self.assertEqual(status_index, tab_index + 1)
+        self.assertIn(" main", lines[tab_index - 1])
+        self.assertIn("/ktt/", lines[tab_index])
 
     def test_repository_status_is_clipped_to_available_padding(self) -> None:
-        rows = [TreeRow(TabRecord(1, 1, "one", (10,)), 0, None)]
+        rows = [TreeRow(
+            TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None
+        )]
         screen = render_screen(
             rows,
             0,
@@ -211,11 +218,41 @@ class RenderTests(unittest.TestCase):
             40,
             8,
             ansi=False,
-            repository_lines=["fancylog status", " main"],
+            repository_lines=[" (ktt) ~/src/ktt  ✓ clean ", "  main "],
         )
         lines = screen.split("\n")
-        self.assertIn(" fancylog status  ·   main", lines[-2])
-        self.assertEqual(lines[-1], "")
+        tab_index = next(index for index, line in enumerate(lines) if "one" in line)
+        status_index = next(
+            index for index, line in enumerate(lines)
+            if "✓ clean" in line
+        )
+        self.assertEqual(status_index, tab_index + 1)
+
+    def test_embedded_repository_context_keeps_lower_tabs_in_the_group(self) -> None:
+        rows = [
+            TreeRow(TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None),
+            TreeRow(TabRecord(2, 1, "two", (20,), repository="ktt"), 0, None),
+        ]
+        screen = render_screen(
+            rows,
+            0,
+            1,
+            60,
+            14,
+            ansi=False,
+            show_controls=False,
+            repository_lines=[" (ktt) ~/src/ktt  ✓ clean ", "  main "],
+        )
+        lines = screen.split("\n")
+        first = next(index for index, line in enumerate(lines) if "one" in line)
+        identity = next(index for index, line in enumerate(lines) if " main" in line)
+        state = next(index for index, line in enumerate(lines) if "✓ clean" in line)
+        second = next(index for index, line in enumerate(lines) if "two" in line)
+
+        self.assertEqual(identity, first - 1)
+        self.assertEqual(state, first + 1)
+        self.assertEqual(second, state + 3)
+        self.assertIn("/ktt/", lines[second])
 
     def test_repository_card_compacts_fancylog_into_one_colored_pill(self) -> None:
         rendered = render_repository_card(
@@ -253,9 +290,13 @@ class RenderTests(unittest.TestCase):
             int(color[offset:offset + 2], 16) for offset in (0, 2, 4)
         )
 
+        repository_lines = [
+            line for line in screen.split("\n") if "/ktt/" in strip_ansi(line)
+        ]
+        self.assertEqual(len(repository_lines), 1)
         self.assertIn(
-            f"\x1b[38;2;{red};{green};{blue}m/ktt/",
-            screen.split("\n")[-2],
+            f"\x1b[38;2;{red};{green};{blue}m\x1b[22m/ktt/",
+            repository_lines[0],
         )
 
     def test_repository_card_compacts_main_checkout_paths(self) -> None:
@@ -313,27 +354,17 @@ class RenderTests(unittest.TestCase):
         )
 
         lines = screen.split("\n")
-        heading_index = next(
+        state_index = next(
             index for index, line in enumerate(lines)
-            if "1 unstaged  ·  2 untracked:" in line
+            if "1 unstaged  ·  2 untracked" in line
         )
         first_file_index = next(
             index for index, line in enumerate(lines) if "modified one.py" in line
         )
 
-        self.assertLess(heading_index, first_file_index)
-        heading = "1 unstaged  ·  2 untracked:"
-        heading_left = lines[heading_index].index(heading)
-        self.assertLessEqual(
-            abs(heading_left * 2 + display_width(heading) - 71), 1
-        )
-        card_index = next(
-            index for index, line in enumerate(lines)
-            if line.strip().startswith(" /slock/")
-        )
-        self.assertEqual(lines[card_index - 1], "")
-        self.assertNotIn("unstaged", lines[-2])
-        self.assertNotIn("untracked", lines[-2])
+        self.assertEqual(first_file_index, state_index + 1)
+        self.assertIn(" master", lines[state_index - 2])
+        self.assertEqual(sum("/slock/" in line for line in lines), 1)
 
     def test_dirty_counts_lift_above_files_when_the_card_is_too_narrow(self) -> None:
         repository_lines = [
@@ -360,17 +391,77 @@ class RenderTests(unittest.TestCase):
             ),
         )
         lines = screen.split("\n")
-        heading_index = next(
+        state_index = next(
             index for index, line in enumerate(lines)
-            if "1 unstaged  ·  2 untracked:" in line
+            if "1 unstaged  ·  2 untracked" in line
         )
         first_file_index = next(
             index for index, line in enumerate(lines) if "modified one.py" in line
         )
 
-        self.assertLess(heading_index, first_file_index)
-        self.assertNotIn("unstaged", lines[-2])
-        self.assertNotIn("untracked", lines[-2])
+        self.assertEqual(first_file_index, state_index + 1)
+        self.assertIn(" long/", lines[state_index - 2])
+
+    def test_worktree_moves_into_selected_tab_and_out_of_summary(self) -> None:
+        screen = render_screen(
+            [TreeRow(
+                TabRecord(1, 1, "runner", (10,), repository="quiver"),
+                0,
+                None,
+            )],
+            0,
+            1,
+            72,
+            12,
+            ansi=False,
+            show_controls=False,
+            repository_lines=[
+                " (quiver) /worktree/build  ✓ clean ",
+                "  topic/branch ",
+            ],
+            repository_location=RepositoryLocation(
+                worktree="feature", relative_path="build/"
+            ),
+        )
+        lines = screen.split("\n")
+        tab_line = next(line for line in lines if "runner" in line)
+        identity = next(line for line in lines if " topic/branch" in line)
+        summary = next(line for line in lines if "✓ clean" in line)
+
+        self.assertIn(" topic/branch  ·  🌲feature", identity)
+        self.assertIn("/quiver/", tab_line)
+        self.assertNotIn("/quiver/", summary)
+        self.assertNotIn("🌲feature", summary)
+        self.assertNotIn(" topic/branch", summary)
+
+    def test_compact_tab_keeps_repository_middle_and_branch_on_top(self) -> None:
+        screen = render_screen(
+            [TreeRow(
+                TabRecord(1, 1, "runner", (10,), repository="quiver"),
+                0,
+                None,
+            )],
+            0,
+            1,
+            32,
+            8,
+            ansi=False,
+            show_controls=False,
+            repository_lines=[
+                " (quiver) /worktree  ✓ clean ",
+                "  topic/branch ",
+            ],
+            repository_location=RepositoryLocation(worktree="feature"),
+        )
+        lines = screen.split("\n")
+        tab_line = next(line for line in lines if "runner" in line)
+        identity = next(line for line in lines if "" in line)
+        summary = next(line for line in lines if "✓ clean" in line)
+
+        self.assertIn("/quiver/", tab_line)
+        self.assertNotIn("/quiver/", identity)
+        self.assertIn("", identity)
+        self.assertNotIn("", summary)
 
     def test_equivalent_worktree_and_branch_are_not_repeated(self) -> None:
         rendered = render_repository_card(
@@ -719,6 +810,30 @@ class RenderTests(unittest.TestCase):
             all(display_width(line) == 29 for line in card)
             for card in cards.values()
         ))
+
+    def test_all_edge_styles_fill_spare_rows_with_selected_repository_context(self) -> None:
+        row = TreeRow(
+            TabRecord(1, 1, "runner", (10,), repository="quiver"), 0, None
+        )
+        source = [" (quiver) /worktree  ✓ clean ", "  main "]
+        for edge_style in EDGE_STYLES:
+            with self.subTest(edge_style=edge_style):
+                card = render_card(
+                    row,
+                    selected=True,
+                    width=48,
+                    card_height=3,
+                    ansi=False,
+                    edge_style=edge_style,
+                    repository_lines=source,
+                    repository_location=RepositoryLocation(worktree="feature"),
+                )
+
+                self.assertIn(" main  ·  🌲feature", card[0])
+                self.assertIn("runner", card[1])
+                self.assertIn("/quiver/", card[1])
+                self.assertEqual(card[2].strip(" ╰╯"), "✓ clean")
+                self.assertTrue(all(display_width(line) == 47 for line in card))
 
     def test_three_line_card_centers_content_inside_background(self) -> None:
         row = TreeRow(
