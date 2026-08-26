@@ -228,9 +228,9 @@ class RemoteControlTests(unittest.TestCase):
                 "id:123",
                 "kitten",
                 str(Path(kitty_module.__file__).with_name(
-                    "tree_navigation_kitten.py"
+                    "embedded_pane_layout_kitten.py"
                 )),
-                "place-sidebar-left",
+                "123",
                 "456",
                 "20",
             ),
@@ -329,9 +329,9 @@ class RemoteControlTests(unittest.TestCase):
                 "id:101",
                 "kitten",
                 str(Path(kitty_module.__file__).with_name(
-                    "tree_navigation_kitten.py"
+                    "embedded_pane_layout_kitten.py"
                 )),
-                "place-sidebar-left",
+                "101",
                 "456",
                 "20",
             ),

@@ -176,14 +176,14 @@ class RemoteControl:
         sidebar_window_id: int,
         pane_percent: int,
     ) -> None:
-        kitten = Path(__file__).with_name("tree_navigation_kitten.py")
+        kitten = Path(__file__).with_name("embedded_pane_layout_kitten.py")
         self.run(
             "action",
             "--match",
             f"id:{source_window_id}",
             "kitten",
             str(kitten),
-            "place-sidebar-left",
+            str(source_window_id),
             str(sidebar_window_id),
             str(pane_percent),
         )
