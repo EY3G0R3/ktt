@@ -3,11 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 
-def place_window_at_left_edge(tab: Any, window: Any, bias: int) -> bool:
+def place_window_at_left_edge(
+    tab: Any,
+    window: Any,
+    bias: int,
+    *,
+    restore_window: Any | None = None,
+) -> bool:
     """Promote one window to the splits-layout left edge without changing focus."""
     windows = tab.windows
     target_index = windows.group_idx_for_window(window)
-    original_window = windows.active_window
+    original_window = restore_window or windows.active_window
     if target_index is None or original_window is None:
         return False
     original_history = tuple(windows.active_group_history)

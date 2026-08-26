@@ -59,6 +59,21 @@ def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
     )
 
 
+def _content_title_for_embedded_tab(
+    tab: dict[str, Any], windows: list[dict[str, Any]]
+) -> str:
+    title = str(tab.get("title") or "")
+    active_sidebar_titles = {
+        str(window.get("title") or "")
+        for window in tab.get("windows") or []
+        if window.get("is_active")
+        and str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") == "1"
+    }
+    if title in active_sidebar_titles and windows:
+        return str(windows[0].get("title") or title)
+    return title
+
+
 def _first_user_var(windows: Iterable[dict[str, Any]], key: str) -> str | None:
     for window in windows:
         value = str((window.get("user_vars") or {}).get(key) or "")
@@ -111,7 +126,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
         if not windows:
             continue
         window_ids = tuple(int(window["id"]) for window in windows)
-        title = str(tab.get("title") or "")
+        title = _content_title_for_embedded_tab(tab, windows)
         if title == "surf" or not title:
             title = next(
                 (

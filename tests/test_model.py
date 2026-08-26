@@ -118,6 +118,62 @@ class ModelTests(unittest.TestCase):
         self.assertEqual([record.id for record in records], [10])
         self.assertEqual(records[0].window_ids, (101,))
 
+    def test_active_embedded_sidebar_does_not_replace_content_title(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "ktt",
+                "windows": [
+                    {
+                        "id": 101,
+                        "title": "⠋ feature-name",
+                        "is_active": False,
+                        "user_vars": {"workmux_status": "💬"},
+                    },
+                    {
+                        "id": 190,
+                        "title": "ktt",
+                        "is_active": True,
+                        "user_vars": {"ktt_sidebar": "1"},
+                    },
+                ],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(record.title, "feature-name")
+        self.assertEqual(record.status, "🤖")
+
+    def test_active_embedded_sidebar_preserves_explicit_tab_title(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "[CVX] mutation-capacity",
+                "windows": [
+                    {
+                        "id": 101,
+                        "title": "mutation-capacity",
+                        "is_active": False,
+                        "user_vars": {},
+                    },
+                    {
+                        "id": 190,
+                        "title": "ktt",
+                        "is_active": True,
+                        "user_vars": {"ktt_sidebar": "1"},
+                    },
+                ],
+            }],
+        }
+
+        self.assertEqual(
+            records_for_os_window(os_window)[0].title,
+            "[CVX] mutation-capacity",
+        )
+
     def test_tree_supports_multiple_levels_and_reorders_children(self) -> None:
         records = [
             TabRecord(3, 1, "grandchild", (30,), parent_window_id=20, source_index=0),

@@ -16,9 +16,11 @@ class Group:
 
 
 class Windows:
-    def __init__(self, source: Window, sidebar: Window) -> None:
+    def __init__(
+        self, source: Window, sidebar: Window, active_group_idx: int = 0
+    ) -> None:
         self.groups = [Group(10, source), Group(20, sidebar)]
-        self.active_group_idx = 0
+        self.active_group_idx = active_group_idx
         self.active_group_history = deque([10], 64)
 
     @property
@@ -53,8 +55,10 @@ class Layout:
 
 
 class Tab:
-    def __init__(self, source: Window, sidebar: Window) -> None:
-        self.windows = Windows(source, sidebar)
+    def __init__(
+        self, source: Window, sidebar: Window, active_group_idx: int = 0
+    ) -> None:
+        self.windows = Windows(source, sidebar, active_group_idx)
         self.current_layout = Layout()
         self.relayout_count = 0
 
@@ -93,6 +97,20 @@ class KittyLayoutTests(unittest.TestCase):
         ])
         self.assertIs(tab.windows.active_window, source)
         self.assertEqual(tab.relayout_count, 0)
+
+    def test_restores_explicit_content_when_new_sidebar_became_active(self) -> None:
+        source = Window(100)
+        sidebar = Window(190)
+        tab = Tab(source, sidebar, active_group_idx=1)
+
+        self.assertTrue(
+            place_window_at_left_edge(
+                tab, sidebar, 20, restore_window=source
+            )
+        )
+
+        self.assertIs(tab.windows.active_window, source)
+        self.assertEqual(tab.relayout_count, 1)
 
 
 if __name__ == "__main__":

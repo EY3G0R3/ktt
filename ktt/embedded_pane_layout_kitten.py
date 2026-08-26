@@ -33,4 +33,6 @@ def handle_result(
     sys.path.insert(0, str(package_root))
     from ktt.kitty_layout import place_window_at_left_edge
 
-    place_window_at_left_edge(tab, sidebar, bias)
+    place_window_at_left_edge(
+        tab, sidebar, bias, restore_window=source
+    )
