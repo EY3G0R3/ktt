@@ -258,13 +258,13 @@ def capture_session(
         tabs: list[SessionTab] = []
         for tab_index, (record, raw_tab, content) in enumerate(record_tabs, start=1):
             logical_id = f"tab-{os_index}-{tab_index}"
-            primary = _primary_content_window(content)
             parent = runtime_to_logical.get(record.parent_window_id)
             if record.parent_window_id is not None and parent is None:
                 warnings.append(
                     f"{logical_id}: parent window was outside the captured ktt tree"
                 )
-            agent = detect_agent(primary, resolver)
+            agent_window, agent = detect_tab_agent(content, resolver)
+            agent_cwd = _optional_text(agent_window.get("cwd")) or record.cwd
             if len(content) > 1:
                 warnings.append(
                     f"{logical_id}: {len(content)} content panes collapsed to the active pane"
@@ -275,7 +275,7 @@ def capture_session(
                 SessionTab(
                     logical_id=logical_id,
                     title=record.title,
-                    cwd=record.cwd,
+                    cwd=agent_cwd,
                     parent=parent,
                     active=record.is_active,
                     focused=bool(raw_os_window.get("is_focused"))
@@ -348,6 +348,25 @@ def detect_agent(window: Mapping[str, Any], resolver: SessionResolver) -> AgentS
             reason=f"unsupported foreground process {other!r}; opening a shell placeholder",
         )
     return AgentState("shell", other or "shell")
+
+
+def detect_tab_agent(
+    windows: Sequence[Mapping[str, Any]],
+    resolver: SessionResolver,
+) -> tuple[Mapping[str, Any], AgentState]:
+    primary = _primary_content_window(windows)
+    ordered = [primary, *(window for window in windows if window is not primary)]
+    candidates = [(window, detect_agent(window, resolver)) for window in ordered]
+
+    def rank(candidate: tuple[Mapping[str, Any], AgentState]) -> int:
+        agent = candidate[1]
+        if agent.kind in {"codex", "claude", "tmux"}:
+            return 0 if agent.restorable else 1
+        if agent.kind == "shell":
+            return 2
+        return 3
+
+    return min(candidates, key=rank)
 
 
 def resolve_agent_session(

@@ -188,6 +188,50 @@ class SessionTests(unittest.TestCase):
         self.assertTrue(focused.active)
         self.assertTrue(focused.focused)
 
+    def test_capture_prefers_a_resumable_agent_over_the_focused_utility_pane(
+        self,
+    ) -> None:
+        snapshot = [
+            {
+                "id": 91,
+                "wm_name": "work",
+                "is_focused": True,
+                "tabs": [
+                    {
+                        "id": 101,
+                        "title": "agent-with-fancylog",
+                        "is_active": True,
+                        "is_focused": True,
+                        "windows": [
+                            content_window(
+                                1001,
+                                "/work/project",
+                                ["fancylog"],
+                                focused=True,
+                            ),
+                            content_window(
+                                1002,
+                                "/work/project",
+                                ["codex"],
+                            ),
+                        ],
+                    }
+                ],
+            }
+        ]
+
+        manifest = capture_session(
+            snapshot,
+            hostname="host",
+            created_at="2026-08-27T12:00:00-07:00",
+            session_resolver=lambda kind, pid, cwd, argv: "codex-session",
+        )
+
+        tab = manifest.os_windows[0].tabs[0]
+        self.assertEqual(tab.agent.kind, "codex")
+        self.assertEqual(tab.agent.session_id, "codex-session")
+        self.assertEqual(tab.cwd, "/work/project")
+
     def test_restore_remaps_relationships_to_new_kitty_ids(self) -> None:
         manifest = SessionManifest(
             created_at="2026-08-27T12:00:00-07:00",
