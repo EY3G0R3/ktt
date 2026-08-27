@@ -238,6 +238,20 @@ selection does not change that alignment. Linked worktree follows the repository
 when present, the selected card's cached clean/dirty state is right-aligned on the
 middle row, and useful branch plus nonredundant title share the bottom row. A title
 equivalent to the worktree is omitted.
+
+The worktree glyph could eventually encode cached repository state: green for
+clean, yellow for dirty, and red for conflicts. Do this only when state is
+available for that tab without adding costly polling or presenting stale color
+as current state. Today only the selected tab has a regularly refreshed
+Fancylog state, so inactive worktree glyphs remain identity-colored.
+
+The selected small-font marker is the attached proportional `🌳`. Preserve the
+full visually tested alternative batch for a future one-line swap: `󰔱`, `🌲`,
+`@`, `●`, `◉`, `◎`, `⊙`, and `🌳`. Each was evaluated attached directly to the
+worktree name inside the live tab background. The bolder `` is rejected because
+it resembles a bell at the configured font size; `⎇`, `♣`, `↳`, and `wt:` were
+also tried and rejected.
+
 Changed files attach using otherwise-empty screen rows, with dirty counts
 repeated as that file block's heading when it fits. This adds
 context without consuming tab capacity. A later card-specific expansion can

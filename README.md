@@ -197,7 +197,7 @@ using its existing three-second detailed refresh.
 ## Active repository context
 
 Every three-row tab card places `/repository/` on the middle-left and appends
-`🌲worktree` only for a linked worktree.
+`🌳worktree` only for a linked worktree.
 The selected tab adds cached clean/dirty state on the middle-right. Useful
 branch and nonredundant title share the bottom row. Redundant and default branch labels
 are omitted, as are titles that repeat the worktree. Dirty counts remain on the

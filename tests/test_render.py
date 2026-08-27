@@ -16,6 +16,7 @@ from ktt.render import (
     REPOSITORY_WORKTREE_FOREGROUND,
     RIGHT_CAP,
     WAITING_BACKGROUNDS,
+    WORKTREE_GLYPH,
     WEDGE_BOTTOM_LEFT,
     WEDGE_BOTTOM_RIGHT,
     WEDGE_TOP_LEFT,
@@ -41,6 +42,7 @@ from ktt.render import (
     repository_hue_assignments,
     repository_label_foreground,
     worktree_foreground,
+    worktree_glyph_foreground,
     worktree_matches_branch,
     status_icon,
     strip_ansi,
@@ -332,7 +334,7 @@ class RenderTests(unittest.TestCase):
 
         self.assertEqual(
             rendered.strip(),
-            " /quiver/  🌲feature  build/  ·   topic/branch  ·  ✓ clean ",
+            f" /quiver/  {WORKTREE_GLYPH}feature  build/  ·   topic/branch  ·  ✓ clean ",
         )
 
     def test_dirty_counts_move_above_files_when_the_card_fits(self) -> None:
@@ -410,7 +412,8 @@ class RenderTests(unittest.TestCase):
 
         self.assertEqual(first_file_index, state_index + 1)
         self.assertTrue(lines[state_index].strip().endswith(":"))
-        self.assertIn("🌲fea…", lines[state_index - 2])
+        self.assertIn(WORKTREE_GLYPH, lines[state_index - 2])
+        self.assertIn("…", lines[state_index - 2])
         self.assertNotIn("unstaged", lines[state_index - 1])
         self.assertIn("1 unstaged", lines[state_index - 2])
 
@@ -465,14 +468,17 @@ class RenderTests(unittest.TestCase):
         )
         lines = screen.split("\n")
         secondary = next(line for line in lines if "runner" in line)
-        middle = next(line for line in lines if "🌲feature" in line)
+        middle = next(
+            line for line in lines if f"{WORKTREE_GLYPH}feature" in line
+        )
         summary = next(line for line in lines if "✓ clean" in line)
 
-        self.assertIn("/quiver/🌲feature", middle)
+        self.assertIn(f"/quiver/ {WORKTREE_GLYPH}feature", middle)
         self.assertIn(" topic/branch · runner", secondary)
         self.assertEqual(summary, middle)
         self.assertGreater(
-            middle.index("✓ clean"), middle.index("🌲feature")
+            middle.index("✓ clean"),
+            middle.index(f"{WORKTREE_GLYPH}feature"),
         )
 
     def test_middle_row_omits_branch_when_it_matches_worktree(self) -> None:
@@ -494,10 +500,12 @@ class RenderTests(unittest.TestCase):
             ],
             repository_location=RepositoryLocation(worktree="topic-branch"),
         )
-        middle = next(line for line in screen.split("\n") if "🌲" in line)
+        middle = next(
+            line for line in screen.split("\n") if WORKTREE_GLYPH in line
+        )
 
         secondary = next(line for line in screen.split("\n") if "runner" in line)
-        self.assertIn("/quiver/🌲topic-branch", middle)
+        self.assertIn(f"/quiver/ {WORKTREE_GLYPH}topic-branch", middle)
         self.assertIn("runner", secondary)
         self.assertNotIn(" topic/branch", middle)
 
@@ -522,12 +530,14 @@ class RenderTests(unittest.TestCase):
             ],
             repository_location=RepositoryLocation(worktree="topic-branch"),
         )
-        middle = next(line for line in screen.split("\n") if "🌲" in line)
+        middle = next(
+            line for line in screen.split("\n") if WORKTREE_GLYPH in line
+        )
         secondary = next(
             line for line in screen.split("\n") if " release/next" in line
         )
 
-        self.assertIn("/quiver/🌲topic-branch", middle)
+        self.assertIn(f"/quiver/ {WORKTREE_GLYPH}topic-branch", middle)
         self.assertIn(" release/next", secondary)
         self.assertNotIn("topic branch", secondary)
 
@@ -580,16 +590,17 @@ class RenderTests(unittest.TestCase):
             repository_location=RepositoryLocation(worktree="feature"),
         )
         lines = screen.split("\n")
-        tab_line = next(line for line in lines if "🌲" in line)
+        tab_line = next(line for line in lines if WORKTREE_GLYPH in line)
         summary = next(line for line in lines if "✓ clean" in line)
 
-        self.assertIn("🌲feature", tab_line)
+        self.assertIn(f"{WORKTREE_GLYPH}feature", tab_line)
         self.assertNotIn("", tab_line)
         self.assertEqual(summary, tab_line)
         self.assertNotIn("", summary)
         self.assertIn(" topic/branch", screen)
         self.assertGreater(
-            summary.index("✓ clean"), summary.index("🌲feature")
+            summary.index("✓ clean"),
+            summary.index(f"{WORKTREE_GLYPH}feature"),
         )
 
     def test_all_tabs_show_cached_worktree_but_only_selected_shows_state(self) -> None:
@@ -626,13 +637,17 @@ class RenderTests(unittest.TestCase):
         )
         lines = screen.split("\n")
         inactive_middle = next(
-            line for line in lines if "🌲feature-two" in line
+            line
+            for line in lines
+            if f"{WORKTREE_GLYPH}feature-two" in line
         )
         inactive_secondary = next(
             line for line in lines if line.strip().endswith("two")
         )
 
-        self.assertIn("/quiver/🌲feature-two", inactive_middle)
+        self.assertIn(
+            f"/quiver/ {WORKTREE_GLYPH}feature-two", inactive_middle
+        )
         self.assertNotIn("clean", inactive_middle)
         self.assertNotIn("unstaged", inactive_middle)
         self.assertIn("two", inactive_secondary)
@@ -652,7 +667,7 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "/convex-backend/  🌲perf-optimize-concurrency",
+            f"/convex-backend/  {WORKTREE_GLYPH}perf-optimize-concurrency",
             rendered,
         )
         self.assertNotIn("", rendered)
@@ -930,14 +945,19 @@ class RenderTests(unittest.TestCase):
             width=70,
             repository_location=RepositoryLocation(worktree="push-hirayama"),
         )
-        light_color = worktree_foreground(WAITING_BACKGROUNDS[0])
-        light_rgb = tuple(
-            int(light_color[offset:offset + 2], 16) for offset in (0, 2, 4)
+        glyph_color = worktree_glyph_foreground(WAITING_BACKGROUNDS[0])
+        glyph_rgb = tuple(
+            int(glyph_color[offset:offset + 2], 16) for offset in (0, 2, 4)
+        )
+        text_color = worktree_foreground(WAITING_BACKGROUNDS[0])
+        text_rgb = tuple(
+            int(text_color[offset:offset + 2], 16) for offset in (0, 2, 4)
         )
 
-        self.assertNotEqual(light_color, REPOSITORY_WORKTREE_FOREGROUND)
+        self.assertNotEqual(text_color, REPOSITORY_WORKTREE_FOREGROUND)
         self.assertIn(
-            f"\x1b[38;2;{';'.join(map(str, light_rgb))}m🌲push-hirayama",
+            f"\x1b[38;2;{';'.join(map(str, glyph_rgb))}m {WORKTREE_GLYPH}"
+            f"\x1b[38;2;{';'.join(map(str, text_rgb))}mpush-hirayama",
             rendered,
         )
         self.assertEqual(
@@ -1040,13 +1060,16 @@ class RenderTests(unittest.TestCase):
                     repository_location=RepositoryLocation(worktree="feature"),
                 )
 
-                self.assertNotIn("🌲feature", card[0])
+                self.assertNotIn(f"{WORKTREE_GLYPH}feature", card[0])
                 self.assertNotIn(" main", card[0])
-                self.assertIn("/quiver/🌲feature", card[1])
+                self.assertIn(
+                    f"/quiver/ {WORKTREE_GLYPH}feature", card[1]
+                )
                 self.assertIn("✓ clean", card[1])
                 self.assertNotIn(" main", card[1])
                 self.assertGreater(
-                    card[1].index("✓ clean"), card[1].index("🌲feature")
+                    card[1].index("✓ clean"),
+                    card[1].index(f"{WORKTREE_GLYPH}feature"),
                 )
                 self.assertNotIn("✓ clean", card[2])
                 self.assertIn("runner", card[2])

@@ -67,7 +67,11 @@ CONTROL_ACTION_FOREGROUND = "777d89"
 REPOSITORY_BACKGROUND = "20232a"
 REPOSITORY_NAME_FOREGROUND = "f8f8f2"
 REPOSITORY_META_FOREGROUND = "777d89"
-REPOSITORY_WORKTREE_FOREGROUND = "ffb86c"
+REPOSITORY_WORKTREE_FOREGROUND = "d08770"
+REPOSITORY_WORKTREE_GLYPH_FOREGROUND = "d08770"
+# Small-font alternatives tested in the live tab card:
+# 󰔱  🌲  @  ●  ◉  ◎  ⊙  🌳
+WORKTREE_GLYPH = "🌳"
 REPOSITORY_HEADING_FOREGROUND = "f1fa8c"
 REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
@@ -159,13 +163,12 @@ def repository_label_foreground(
     return max(candidates, key=lambda candidate: candidate[2])[1]
 
 
-@lru_cache(maxsize=16)
-def worktree_foreground(background: str) -> str:
-    """Keep the worktree orange readable across light and dark cards."""
-    if _contrast_ratio(REPOSITORY_WORKTREE_FOREGROUND, background) >= 4.5:
-        return REPOSITORY_WORKTREE_FOREGROUND
+@lru_cache(maxsize=32)
+def _adaptive_accent_foreground(foreground: str, background: str) -> str:
+    if _contrast_ratio(foreground, background) >= 4.5:
+        return foreground
     red, green, blue = (
-        int(REPOSITORY_WORKTREE_FOREGROUND[offset:offset + 2], 16) / 255
+        int(foreground[offset:offset + 2], 16) / 255
         for offset in (0, 2, 4)
     )
     hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
@@ -188,6 +191,20 @@ def worktree_foreground(background: str) -> str:
             key=lambda candidate: abs(candidate[0] - lightness),
         )[1]
     return max(candidates, key=lambda candidate: candidate[2])[1]
+
+
+def worktree_foreground(background: str) -> str:
+    """Keep worktree text readable across light and dark cards."""
+    return _adaptive_accent_foreground(
+        REPOSITORY_WORKTREE_FOREGROUND, background
+    )
+
+
+def worktree_glyph_foreground(background: str) -> str:
+    """Keep the worktree glyph readable across light and dark cards."""
+    return _adaptive_accent_foreground(
+        REPOSITORY_WORKTREE_GLYPH_FOREGROUND, background
+    )
 
 
 def _hue_distance(first: float, second: float) -> float:
@@ -391,11 +408,14 @@ def _repository_segments(
             ))
         if repository_location is not None:
             if show_worktree and repository_location.worktree:
-                # Monochrome Nerd Font fallbacks if the emoji is too green:
-                # 󰔱 (Material Design tree) or  (bolder Font Awesome tree).
                 segments.append((
-                    f"  🌲{repository_location.worktree}",
-                    REPOSITORY_WORKTREE_FOREGROUND,
+                    f"  {WORKTREE_GLYPH}",
+                    worktree_glyph_foreground(REPOSITORY_BACKGROUND),
+                    False,
+                ))
+                segments.append((
+                    repository_location.worktree,
+                    worktree_foreground(REPOSITORY_BACKGROUND),
                     False,
                 ))
             if repository_location.relative_path:
@@ -875,7 +895,7 @@ def tab_labels(
         return truncate_cells(tab.title, max(0, width)), "", ""
     repository_width = min(20, max(6, width // 3))
     repository = f"/{truncate_cells(repository, repository_width - 2)}/"
-    worktree_label = f"🌲{worktree}" if worktree else ""
+    worktree_label = f" {WORKTREE_GLYPH}{worktree}" if worktree else ""
     metadata_width = display_width(repository)
     if worktree_label:
         worktree_budget = min(
@@ -937,7 +957,7 @@ def render_row(
     )
     minimum_worktree_width = min(
         5,
-        display_width(f"🌲{worktree_name}") if worktree_name else 0,
+        display_width(f" {WORKTREE_GLYPH}{worktree_name}") if worktree_name else 0,
     )
     state_color = (
         REPOSITORY_CONFLICT_FOREGROUND
@@ -970,7 +990,10 @@ def render_row(
     inline_context_segments: list[tuple[str, str, bool]] = []
     if worktree_name:
         inline_context_segments.append((
-            f"🌲{worktree_name}", worktree_foreground(background), False
+            f" {WORKTREE_GLYPH}", worktree_glyph_foreground(background), False
+        ))
+        inline_context_segments.append((
+            worktree_name, worktree_foreground(background), False
         ))
     inline_context_width = 0
     if show_repository_metadata:
