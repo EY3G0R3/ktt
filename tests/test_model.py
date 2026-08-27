@@ -343,6 +343,24 @@ class ModelTests(unittest.TestCase):
     def test_clean_title_removes_existing_decorations(self) -> None:
         self.assertEqual(clean_title("⠋  feature-name"), "feature-name")
 
+    def test_clean_title_uses_tilde_for_home_directory_name(self) -> None:
+        self.assertEqual(
+            clean_title(
+                "igorg",
+                cwd="/home/igorg",
+                home="/home/igorg",
+            ),
+            "~",
+        )
+        self.assertEqual(
+            clean_title(
+                "igorg",
+                cwd="/work/igorg",
+                home="/home/igorg",
+            ),
+            "igorg",
+        )
+
     def test_working_title_overrides_transient_waiting_user_var(self) -> None:
         os_window = {
             "id": 7,

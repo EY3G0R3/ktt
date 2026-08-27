@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
 import re
 from typing import Any, Iterable
 
@@ -123,13 +124,21 @@ def _positive_int(value: str | None) -> int | None:
     return parsed if parsed > 0 else None
 
 
-def clean_title(title: str) -> str:
+def clean_title(
+    title: str,
+    *,
+    cwd: str | None = None,
+    home: str | None = None,
+) -> str:
     title = title.strip()
     while title and title[0] in CLAUDE_SPINNER_CHARS:
         title = title[1:].lstrip()
     if title.startswith(" "):
         title = title[2:].lstrip()
     title = re.sub(r"^[^@\s]+@[^:]+:", "", title, count=1)
+    home_path = Path.home() if home is None else Path(home)
+    if cwd and Path(cwd) == home_path and title == home_path.name:
+        return "~"
     return title or "untitled"
 
 
@@ -159,11 +168,12 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
         status = _first_user_var(windows, STATUS_VAR)
         if status == WAITING_STATUS and title_is_working(title):
             status = WORKING_STATUS
+        cwd = _first_cwd(windows)
         records.append(
             TabRecord(
                 id=int(tab["id"]),
                 os_window_id=os_window_id,
-                title=clean_title(title),
+                title=clean_title(title, cwd=cwd),
                 window_ids=window_ids,
                 is_active=bool(tab.get("is_active")),
                 parent_window_id=_positive_int(
@@ -171,7 +181,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 ),
                 status=status,
                 source_index=index,
-                cwd=_first_cwd(windows),
+                cwd=cwd,
             )
         )
     return records
