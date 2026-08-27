@@ -9,9 +9,11 @@ from ktt.render import (
     CONTROL_SHORTCUT_FOREGROUND,
     EDGE_STYLES,
     FLAME_RIGHT_CAP,
+    INACTIVE_BACKGROUND,
     LEFT_CAP,
     READY_RIGHT_CAP,
     REPOSITORY_BACKGROUND,
+    REPOSITORY_WORKTREE_FOREGROUND,
     RIGHT_CAP,
     WAITING_BACKGROUNDS,
     WEDGE_BOTTOM_LEFT,
@@ -38,6 +40,7 @@ from ktt.render import (
     render_screen,
     repository_hue_assignments,
     repository_label_foreground,
+    worktree_foreground,
     worktree_matches_branch,
     status_icon,
     strip_ansi,
@@ -906,6 +909,41 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("\x1b[38;2;32;35;42m", rendered)
         self.assertIn(RIGHT_CAP, rendered)
+
+    def test_waiting_row_darkens_worktree_orange_for_contrast(self) -> None:
+        waiting = TreeRow(
+            TabRecord(
+                2,
+                1,
+                "question",
+                (20,),
+                status="💬",
+                repository="squawk",
+                repository_worktree="push-hirayama",
+            ),
+            0,
+            None,
+        )
+        rendered = render_row(
+            waiting,
+            selected=False,
+            width=70,
+            repository_location=RepositoryLocation(worktree="push-hirayama"),
+        )
+        light_color = worktree_foreground(WAITING_BACKGROUNDS[0])
+        light_rgb = tuple(
+            int(light_color[offset:offset + 2], 16) for offset in (0, 2, 4)
+        )
+
+        self.assertNotEqual(light_color, REPOSITORY_WORKTREE_FOREGROUND)
+        self.assertIn(
+            f"\x1b[38;2;{';'.join(map(str, light_rgb))}m🌲push-hirayama",
+            rendered,
+        )
+        self.assertEqual(
+            worktree_foreground(INACTIVE_BACKGROUND),
+            REPOSITORY_WORKTREE_FOREGROUND,
+        )
 
     def test_active_waiting_row_is_brighter_than_inactive_waiting(self) -> None:
         inactive = card_background(TreeRow(

@@ -159,6 +159,37 @@ def repository_label_foreground(
     return max(candidates, key=lambda candidate: candidate[2])[1]
 
 
+@lru_cache(maxsize=16)
+def worktree_foreground(background: str) -> str:
+    """Keep the worktree orange readable across light and dark cards."""
+    if _contrast_ratio(REPOSITORY_WORKTREE_FOREGROUND, background) >= 4.5:
+        return REPOSITORY_WORKTREE_FOREGROUND
+    red, green, blue = (
+        int(REPOSITORY_WORKTREE_FOREGROUND[offset:offset + 2], 16) / 255
+        for offset in (0, 2, 4)
+    )
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+    candidates: list[tuple[float, str, float]] = []
+    for step in range(15, 86):
+        candidate_lightness = step / 100
+        channels = colorsys.hls_to_rgb(hue, candidate_lightness, saturation)
+        foreground = "".join(
+            f"{round(channel * 255):02x}" for channel in channels
+        )
+        candidates.append((
+            candidate_lightness,
+            foreground,
+            _contrast_ratio(foreground, background),
+        ))
+    readable = [candidate for candidate in candidates if candidate[2] >= 4.5]
+    if readable:
+        return min(
+            readable,
+            key=lambda candidate: abs(candidate[0] - lightness),
+        )[1]
+    return max(candidates, key=lambda candidate: candidate[2])[1]
+
+
 def _hue_distance(first: float, second: float) -> float:
     distance = abs(first - second)
     return min(distance, 1 - distance)
@@ -879,6 +910,7 @@ def render_row(
     center_content: bool = False,
 ) -> str:
     tab = row.tab
+    background = card_background(row)
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
     indent = " " * (TREE_INDENT_WIDTH * row.depth)
     orphan = "?" if row.orphaned else " "
@@ -938,7 +970,7 @@ def render_row(
     inline_context_segments: list[tuple[str, str, bool]] = []
     if worktree_name:
         inline_context_segments.append((
-            f"🌲{worktree_name}", REPOSITORY_WORKTREE_FOREGROUND, False
+            f"🌲{worktree_name}", worktree_foreground(background), False
         ))
     inline_context_width = 0
     if show_repository_metadata:
@@ -1023,7 +1055,6 @@ def render_row(
         metadata_width += display_width(worktree)
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
-    background = card_background(row)
     if ansi:
         foreground = (
             "20232a"
@@ -1051,7 +1082,7 @@ def render_row(
         else ""
     )
     worktree_label = (
-        f"{_fg(REPOSITORY_WORKTREE_FOREGROUND, ansi)}"
+        f"{_fg(worktree_foreground(background), ansi)}"
         f"{unbold}{worktree}{restore}"
         if worktree
         else ""
