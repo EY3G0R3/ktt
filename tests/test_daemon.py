@@ -7,6 +7,8 @@ from ktt.daemon import (
     SharedSnapshot,
     SharedSnapshotClient,
     SnapshotServer,
+    _shared_sidebar_width,
+    _sidebar_percent,
     daemon_arguments,
     daemon_socket_path,
 )
@@ -15,6 +17,66 @@ from ktt.repository import RepositoryLocation
 
 
 class SharedSnapshotTests(unittest.TestCase):
+    @staticmethod
+    def _sidebar_tab(
+        tab_id: int,
+        sidebar_id: int,
+        columns: int,
+        *,
+        active: bool = False,
+        bias: float = 0.2,
+    ) -> dict:
+        return {
+            "id": tab_id,
+            "is_active": active,
+            "groups": [
+                {"id": sidebar_id, "windows": [sidebar_id]},
+                {"id": tab_id * 100, "windows": [tab_id * 100]},
+            ],
+            "layout_state": {
+                "pairs": {
+                    "bias": bias,
+                    "one": sidebar_id,
+                    "two": tab_id * 100,
+                },
+            },
+            "windows": [
+                {"id": tab_id * 100, "columns": 240, "user_vars": {}},
+                {
+                    "id": sidebar_id,
+                    "columns": columns,
+                    "user_vars": {"ktt_sidebar": "1"},
+                },
+            ],
+        }
+
+    def test_active_sidebar_establishes_initial_shared_width(self) -> None:
+        os_window = {"tabs": [
+            self._sidebar_tab(1, 11, 65, active=True),
+            self._sidebar_tab(2, 22, 73),
+        ]}
+
+        self.assertEqual(
+            _shared_sidebar_width(os_window, {1: 11, 2: 22}, None),
+            65,
+        )
+
+    def test_one_resized_sidebar_becomes_shared_even_after_tab_switch(self) -> None:
+        os_window = {"tabs": [
+            self._sidebar_tab(1, 11, 65, active=True),
+            self._sidebar_tab(2, 22, 70, bias=0.22),
+            self._sidebar_tab(3, 33, 65),
+        ]}
+
+        self.assertEqual(
+            _shared_sidebar_width(os_window, {1: 11, 2: 22, 3: 33}, 65),
+            70,
+        )
+        self.assertEqual(
+            _sidebar_percent(os_window, {1: 11, 2: 22, 3: 33}, 70, 20),
+            22,
+        )
+
     def test_socket_path_is_scoped_to_kitty_and_os_window(self) -> None:
         self.assertEqual(
             daemon_socket_path(7, runtime_dir="/run/user/test", kitty_pid=42),

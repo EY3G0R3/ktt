@@ -436,6 +436,97 @@ def _focused_window_ids(os_window: dict[str, Any]) -> tuple[int, ...]:
     )
 
 
+def _embedded_sidebar_widths(
+    os_window: dict[str, Any], sidebar_windows: dict[int, int]
+) -> dict[int, int]:
+    widths: dict[int, int] = {}
+    for tab in os_window.get("tabs") or []:
+        tab_id = int(tab.get("id") or 0)
+        sidebar_window_id = sidebar_windows.get(tab_id)
+        if sidebar_window_id is None:
+            continue
+        for window in tab.get("windows") or []:
+            if int(window.get("id") or 0) != sidebar_window_id:
+                continue
+            columns = int(window.get("columns") or 0)
+            if columns > 0:
+                widths[tab_id] = columns
+            break
+    return widths
+
+
+def _shared_sidebar_width(
+    os_window: dict[str, Any],
+    sidebar_windows: dict[int, int],
+    current: int | None,
+) -> int | None:
+    """Choose a user-resized pane without mistaking a new tab for the source."""
+    widths = _embedded_sidebar_widths(os_window, sidebar_windows)
+    if not widths:
+        return current
+    active_tab_id = next(
+        (
+            int(tab.get("id") or 0)
+            for tab in os_window.get("tabs") or []
+            if tab.get("is_active")
+        ),
+        None,
+    )
+    if current is None:
+        return widths.get(active_tab_id) or next(iter(widths.values()))
+    divergent = [width for width in widths.values() if width != current]
+    if len(divergent) == 1:
+        return divergent[0]
+    active_width = widths.get(active_tab_id)
+    if active_width is not None and active_width != current:
+        return active_width
+    return current
+
+
+def _sidebar_percent(
+    os_window: dict[str, Any],
+    sidebar_windows: dict[int, int],
+    sidebar_columns: int,
+    fallback: int,
+) -> int:
+    """Recover Kitty's nearest integer split bias for persisted placement."""
+    for tab in os_window.get("tabs") or []:
+        tab_id = int(tab.get("id") or 0)
+        sidebar_window_id = sidebar_windows.get(tab_id)
+        if sidebar_window_id is None:
+            continue
+        sidebar = next(
+            (
+                window
+                for window in tab.get("windows") or []
+                if int(window.get("id") or 0) == sidebar_window_id
+            ),
+            None,
+        )
+        if sidebar is None or int(sidebar.get("columns") or 0) != sidebar_columns:
+            continue
+        group_id = next(
+            (
+                int(group.get("id") or 0)
+                for group in tab.get("groups") or []
+                if sidebar_window_id in {
+                    int(window_id) for window_id in group.get("windows") or []
+                }
+            ),
+            sidebar_window_id,
+        )
+        pairs = (tab.get("layout_state") or {}).get("pairs") or {}
+        try:
+            bias = float(pairs.get("bias", 0.5))
+        except (TypeError, ValueError):
+            continue
+        if pairs.get("one") == group_id:
+            return max(1, min(99, round(bias * 100)))
+        if pairs.get("two") == group_id:
+            return max(1, min(99, round((1.0 - bias) * 100)))
+    return fallback
+
+
 def _embedded_sidebar_width(
     os_window: dict[str, Any], sidebar_windows: dict[int, int]
 ) -> int:
@@ -449,6 +540,29 @@ def _embedded_sidebar_width(
         ),
         default=0,
     )
+
+
+def _write_daemon_state(
+    state_path: Path,
+    target_os_window_id: int,
+    pane_percent: int,
+    orientation: str,
+    changed_files_placement: str,
+    sidebar_columns: int | None,
+) -> int:
+    temporary = state_path.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps({
+        "pid": os.getpid(),
+        "target_os_window_id": target_os_window_id,
+        "pane_percent": pane_percent,
+        "sidebar_columns": sidebar_columns,
+        "orientation": orientation,
+        "changed_files_placement": changed_files_placement,
+    }))
+    temporary.chmod(0o600)
+    inode = temporary.stat().st_ino
+    temporary.replace(state_path)
+    return inode
 
 
 def run_daemon(
@@ -479,6 +593,7 @@ def run_daemon(
     state_inode: int | None = None
     repository_monitor = FancylogMonitor(palette=repository_palette)
     repository_locations = RepositoryLocationCache()
+    shared_sidebar_columns: int | None = None
     try:
         with (
             SnapshotServer(socket_path) as server,
@@ -487,17 +602,14 @@ def run_daemon(
             FancylogIdentityCache(palette=repository_palette) as identities,
         ):
             state_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            temporary = state_path.with_suffix(f".{os.getpid()}.tmp")
-            temporary.write_text(json.dumps({
-                "pid": os.getpid(),
-                "target_os_window_id": target_os_window_id,
-                "pane_percent": pane_percent,
-                "orientation": orientation,
-                "changed_files_placement": changed_files_placement,
-            }))
-            temporary.chmod(0o600)
-            state_inode = temporary.stat().st_ino
-            temporary.replace(state_path)
+            state_inode = _write_daemon_state(
+                state_path,
+                target_os_window_id,
+                pane_percent,
+                orientation,
+                changed_files_placement,
+                shared_sidebar_columns,
+            )
             tab_events.bind(target_os_window_id)
 
             while not stopping:
@@ -535,6 +647,32 @@ def run_daemon(
                     ):
                         break
                     os_window = os_window_by_id(snapshot, target_os_window_id)
+                    sidebar_windows = embedded_sidebar_windows(
+                        os_window, orientation
+                    )
+                    if orientation == "vertical":
+                        next_width = _shared_sidebar_width(
+                            os_window,
+                            sidebar_windows,
+                            shared_sidebar_columns,
+                        )
+                        if next_width != shared_sidebar_columns:
+                            shared_sidebar_columns = next_width
+                            if shared_sidebar_columns is not None:
+                                pane_percent = _sidebar_percent(
+                                    os_window,
+                                    sidebar_windows,
+                                    shared_sidebar_columns,
+                                    pane_percent,
+                                )
+                            state_inode = _write_daemon_state(
+                                state_path,
+                                target_os_window_id,
+                                pane_percent,
+                                orientation,
+                                changed_files_placement,
+                                shared_sidebar_columns,
+                            )
                     created = remote.sync_embedded_panes(
                         snapshot,
                         target_os_window_id,
@@ -548,6 +686,41 @@ def run_daemon(
                     if created:
                         snapshot = remote.snapshot()
                         os_window = os_window_by_id(snapshot, target_os_window_id)
+                    if orientation == "vertical":
+                        sidebar_windows = embedded_sidebar_windows(
+                            os_window, orientation
+                        )
+                        if shared_sidebar_columns is None:
+                            shared_sidebar_columns = _shared_sidebar_width(
+                                os_window, sidebar_windows, None
+                            )
+                            if shared_sidebar_columns is not None:
+                                pane_percent = _sidebar_percent(
+                                    os_window,
+                                    sidebar_windows,
+                                    shared_sidebar_columns,
+                                    pane_percent,
+                                )
+                                state_inode = _write_daemon_state(
+                                    state_path,
+                                    target_os_window_id,
+                                    pane_percent,
+                                    orientation,
+                                    changed_files_placement,
+                                    shared_sidebar_columns,
+                                )
+                        if shared_sidebar_columns is not None:
+                            resized = remote.sync_embedded_sidebar_widths(
+                                snapshot,
+                                target_os_window_id,
+                                shared_sidebar_columns,
+                                pane_percent,
+                            )
+                            if resized:
+                                snapshot = remote.snapshot()
+                                os_window = os_window_by_id(
+                                    snapshot, target_os_window_id
+                                )
                     records = records_for_os_window(os_window)
                     names = identities.update(record.cwd for record in records)
                     records = with_repository_names(records, names)
@@ -557,7 +730,9 @@ def run_daemon(
                     folded = read_folded_tab_ids(target_os_window_id)
                     rows = tree_rows(records, folded)
                     order_publisher.publish(target_os_window_id, rows)
-                    sidebar_windows = embedded_sidebar_windows(os_window)
+                    sidebar_windows = embedded_sidebar_windows(
+                        os_window, orientation
+                    )
                     repository_path = active_window_cwd(os_window)
                     repository_lines = repository_monitor.update(
                         repository_path,

@@ -318,6 +318,60 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(created, [])
         self.assertEqual(remote.calls, [])
 
+    def test_vertical_sidebar_width_is_mirrored_in_cells(self) -> None:
+        remote = RecordingRemote()
+        snapshot = [{
+            "id": 3,
+            "tabs": [
+                {"id": 10, "windows": [
+                    {"id": 100, "user_vars": {}},
+                    {"id": 190, "columns": 65, "user_vars": {
+                        "ktt_sidebar": "1",
+                        "ktt_orientation": "vertical",
+                        "ktt_pane_percent": "20",
+                    }},
+                ]},
+                {"id": 20, "windows": [
+                    {"id": 200, "user_vars": {}},
+                    {"id": 290, "columns": 73, "user_vars": {
+                        "ktt_sidebar": "1",
+                        "ktt_orientation": "vertical",
+                        "ktt_pane_percent": "20",
+                    }},
+                ]},
+            ],
+        }]
+
+        resized = remote.sync_embedded_sidebar_widths(
+            snapshot, 3, sidebar_columns=70, pane_percent=22
+        )
+
+        self.assertEqual(resized, [190, 290])
+        self.assertEqual(remote.calls, [
+            (
+                "resize-window",
+                (
+                    "--match", "id:190", "--axis=horizontal",
+                    "--increment=5",
+                ),
+            ),
+            (
+                "set-user-vars",
+                ("--match", "id:190", "ktt_pane_percent=22"),
+            ),
+            (
+                "resize-window",
+                (
+                    "--match", "id:290", "--axis=horizontal",
+                    "--increment=-3",
+                ),
+            ),
+            (
+                "set-user-vars",
+                ("--match", "id:290", "ktt_pane_percent=22"),
+            ),
+        ])
+
     def test_vertical_sync_splits_the_active_content_window(self) -> None:
         remote = RecordingRemote()
         snapshot = [{

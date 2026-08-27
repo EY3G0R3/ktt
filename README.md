@@ -299,9 +299,11 @@ python3 -m ktt --orientation vertical embed --pane-percent 20
 renderer pane into every current and newly created tab. Horizontal renderers
 use a bottom split and default to ten percent height; vertical renderers use a
 root-level left-edge split and default to twenty percent width. If the content
-windows in a tab all close, the daemon closes that tab's renderer too, allowing
-Kitty to remove the empty tab instead of expanding ktt to fill it. The daemon
-owns Kitty
+side of any vertical tab is resized, that tab's sidebar width becomes the
+shared width for every current tab and the starting width for new tabs. If the
+content windows in a tab all close, the daemon closes that tab's renderer too,
+allowing Kitty to remove the empty tab instead of expanding ktt to fill it. The
+daemon owns Kitty
 snapshots, tree construction, repository identities, folds, visible-order
 publishing, and watcher navigation. Each pane consumes the shared snapshot and
 only performs geometry-dependent rendering. The daemon also owns the single

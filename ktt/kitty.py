@@ -368,6 +368,52 @@ class RemoteControl:
             )
         return created
 
+    def sync_embedded_sidebar_widths(
+        self,
+        snapshot: Sequence[dict[str, Any]],
+        target_os_window_id: int,
+        sidebar_columns: int,
+        pane_percent: int,
+    ) -> list[int]:
+        """Mirror one vertical sidebar width across every embedded tab."""
+        os_window = os_window_by_id(snapshot, target_os_window_id)
+        existing = embedded_sidebar_windows(os_window, "vertical")
+        resized: list[int] = []
+        for tab in os_window.get("tabs") or []:
+            sidebar_window_id = existing.get(int(tab["id"]))
+            if sidebar_window_id is None:
+                continue
+            sidebar = next(
+                (
+                    window
+                    for window in tab.get("windows") or []
+                    if int(window.get("id") or 0) == sidebar_window_id
+                ),
+                None,
+            )
+            if sidebar is None:
+                continue
+            current_columns = int(sidebar.get("columns") or 0)
+            increment = sidebar_columns - current_columns
+            if current_columns > 0 and increment:
+                self.run(
+                    "resize-window",
+                    "--match",
+                    f"id:{sidebar_window_id}",
+                    "--axis=horizontal",
+                    f"--increment={increment}",
+                )
+                resized.append(sidebar_window_id)
+            variables = sidebar.get("user_vars") or {}
+            if str(variables.get(PANE_PERCENT_VAR) or "") != str(pane_percent):
+                self.run(
+                    "set-user-vars",
+                    "--match",
+                    f"id:{sidebar_window_id}",
+                    f"{PANE_PERCENT_VAR}={pane_percent}",
+                )
+        return resized
+
     def close_embedded_panes(
         self,
         snapshot: Sequence[dict[str, Any]],
