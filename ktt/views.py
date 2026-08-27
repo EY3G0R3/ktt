@@ -6,6 +6,7 @@ from typing import Callable, Protocol
 from .model import TreeRow
 from .repository import RepositoryLocation
 from .render import (
+    DEFAULT_CHANGED_FILES_PLACEMENT,
     DEFAULT_ORIENTATION,
     TREE_INDENT_WIDTH,
     adaptive_card_height,
@@ -60,6 +61,7 @@ class View(Protocol):
         mouse_row: int,
         repository_lines: list[str] | None = None,
         repository_location: RepositoryLocation | None = None,
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> HitTarget: ...
 
 
@@ -122,6 +124,7 @@ class VerticalView:
         mouse_row: int,
         repository_lines: list[str] | None = None,
         repository_location: RepositoryLocation | None = None,
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> HitTarget:
         start = visible_start(len(rows), selected_index, height, card_height)
         capacity = vertical_repository_capacity(
@@ -142,6 +145,8 @@ class VerticalView:
             and 0 <= selected_index < len(rows)
             else []
         )
+        if changed_files_placement == "bottom":
+            context = []
         top_padding = vertical_padding(
             len(rows), height, card_height, len(context)
         )
@@ -201,8 +206,14 @@ class HorizontalView:
         mouse_row: int,
         repository_lines: list[str] | None = None,
         repository_location: RepositoryLocation | None = None,
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> HitTarget:
-        del card_height, repository_lines, repository_location
+        del (
+            card_height,
+            repository_lines,
+            repository_location,
+            changed_files_placement,
+        )
         placements = horizontal_layout(rows, width, height, selected_index)
         index = horizontal_index_at_mouse(
             mouse_column, mouse_row, placements

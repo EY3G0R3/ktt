@@ -202,13 +202,15 @@ The selected tab adds cached clean/dirty state on the middle-right. Useful
 branch and nonredundant title share the bottom row. Redundant and default branch labels
 are omitted, as are titles that repeat the worktree. Dirty counts remain on the
 middle row and also become a heading above changed-file rows whenever at least
-one file can remain visible. Changed-file rows attach immediately below the card,
-right-align their actions against a shared path column, and follow the selected
-card's tree indent. Paths start immediately to the right of the action;
+one file can remain visible. In the default `inline` placement, changed-file
+rows attach immediately below the card and follow its tree indent. In `bottom`
+placement, they remain detached from the spatially stable tab stack and center
+inside its lower free space. Both modes right-align actions against a shared
+path column. Paths start immediately to the right of the action;
 only staged entries add the literal `staged`, while unstaged is the default.
 Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
-states. Changed files and their dirty heading use up to six rows left after rendering every tab and
-collapse when the tree needs those rows. Summary polling continues even without
+states. Changed files and their dirty heading use up to six free rows after
+rendering every tab and collapse when the tree needs those rows. Summary polling continues even without
 spare rows because it renders inside the selected card. Inactive cards retain
 their one-time repository and linked-worktree identity without polling state. The selected
 tab's three-second Fancylog snapshot supplies branch, summary, and file state.
@@ -221,6 +223,12 @@ The result is cached for three seconds with a 750 ms subprocess timeout.
 A tab, directory, width, or available-height change refreshes immediately. If
 fancylog is unavailable or the directory has no supported repository, the
 panel stays hidden.
+
+Changed-file details default to `inline`, immediately below the selected card.
+Use `--changed-files-placement bottom` to keep the tab stack spatially stable
+and center the same details horizontally and vertically inside the free space
+below it. `KTT_CHANGED_FILES_PLACEMENT=bottom` sets the same default through the
+environment. Status and branch placement inside the selected card is unchanged.
 
 Fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
 worktree-status, file-row palette, and truncation policy. Ktt parses only the

@@ -35,6 +35,8 @@ EDGE_STYLES = ("tapered", "straight", "rounded", "wedge")
 DEFAULT_EDGE_STYLE = EDGE_STYLES[0]
 ORIENTATIONS = ("vertical", "horizontal")
 DEFAULT_ORIENTATION = ORIENTATIONS[0]
+CHANGED_FILES_PLACEMENTS = ("inline", "bottom")
+DEFAULT_CHANGED_FILES_PLACEMENT = CHANGED_FILES_PLACEMENTS[0]
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
 HORIZONTAL_MIN_CARD_WIDTH = 14
@@ -597,10 +599,11 @@ def render_attached_repository_context(
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
     summary_embedded: bool = False,
+    align_to_row: bool = True,
 ) -> list[str]:
     if not lines or capacity <= 0:
         return []
-    indent = " " * (TREE_INDENT_WIDTH * row.depth)
+    indent = " " * (TREE_INDENT_WIDTH * row.depth) if align_to_row else ""
     context_width = max(1, width - len(indent))
     details = render_repository_detail_lines(lines, context_width, ansi=ansi)
     heading = repository_dirty_heading(lines) if details else None
@@ -1624,6 +1627,7 @@ def render_horizontal_screen(
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
     repository_location: RepositoryLocation | None = None,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     show_controls: bool = False,
     help_pinned: bool = False,
 ) -> str:
@@ -1632,6 +1636,7 @@ def render_horizontal_screen(
         total_tabs,
         repository_lines,
         repository_location,
+        changed_files_placement,
     )
     repository_hues = repository_hue_assignments(tuple(
         row.tab.repository for row in rows if row.tab.repository
@@ -1698,6 +1703,7 @@ def render_screen(
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_lines: list[str] | None = None,
     repository_location: RepositoryLocation | None = None,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     show_controls: bool = False,
     help_pinned: bool = False,
 ) -> str:
@@ -1709,8 +1715,11 @@ def render_screen(
     capacity = card_capacity(available, card_height)
     start = visible_start(len(rows), selected_index, height, card_height)
     visible = rows[start:start + capacity]
-    context_capacity = vertical_repository_capacity(
-        len(rows), height, card_height
+    detached_context = changed_files_placement == "bottom"
+    context_capacity = (
+        vertical_bottom_padding(len(rows), height, card_height)
+        if detached_context
+        else vertical_repository_capacity(len(rows), height, card_height)
     )
     context: list[str] = []
     if (
@@ -1732,6 +1741,7 @@ def render_screen(
             repository_hue=repository_hue,
             repository_location=repository_location,
             summary_embedded=card_height >= 2,
+            align_to_row=not detached_context,
         )
     dirty_state_is_attached = (
         card_height >= 2
@@ -1743,7 +1753,10 @@ def render_screen(
         )
     )
     top_padding = vertical_padding(
-        len(rows), height, card_height, len(context)
+        len(rows),
+        height,
+        card_height,
+        0 if detached_context else len(context),
     )
     cards: list[str] = []
     for offset, row in enumerate(visible):
@@ -1790,13 +1803,19 @@ def render_screen(
                 ),
             )
         )
-        if row_is_selected:
+        if row_is_selected and not detached_context:
             cards.extend(context)
     output = ["" for _ in range(height)]
     for index, line in enumerate(cards, start=top_padding):
         if index >= height:
             break
         output[index] = line
+    if detached_context and context:
+        free_start = min(height, top_padding + len(cards))
+        context_start = free_start + max(
+            0, (height - free_start - len(context)) // 2
+        )
+        output[context_start:context_start + len(context)] = context
     if (show_controls or help_pinned) and top_padding >= len(CONTROL_ROWS):
         controls = list(
             render_control_line(

@@ -262,6 +262,58 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(second, state + 4)
         self.assertIn("/ktt/", lines[second])
 
+    def test_bottom_repository_context_keeps_tab_stack_spatially_stable(self) -> None:
+        rows = [
+            TreeRow(TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None),
+            TreeRow(TabRecord(2, 1, "two", (20,), repository="ktt"), 0, None),
+        ]
+        repository_lines = [
+            " modified one.py ",
+            " untracked two.py ",
+            " (ktt) ~/src/ktt  ◈ 1 unstaged · 1 untracked ",
+            "  main ",
+        ]
+
+        first_selected = render_screen(
+            rows,
+            0,
+            1,
+            60,
+            30,
+            ansi=False,
+            repository_lines=repository_lines,
+            changed_files_placement="bottom",
+        ).split("\n")
+        second_selected = render_screen(
+            rows,
+            1,
+            1,
+            60,
+            30,
+            ansi=False,
+            repository_lines=repository_lines,
+            changed_files_placement="bottom",
+        ).split("\n")
+
+        first_positions = (
+            next(i for i, line in enumerate(first_selected) if "one" in line),
+            next(i for i, line in enumerate(first_selected) if "two" in line),
+        )
+        second_positions = (
+            next(i for i, line in enumerate(second_selected) if "one" in line),
+            next(i for i, line in enumerate(second_selected) if "two" in line),
+        )
+        detail_positions = [
+            i for i, line in enumerate(first_selected)
+            if "modified one.py" in line or "untracked two.py" in line
+        ]
+
+        self.assertEqual(first_positions, second_positions)
+        self.assertEqual(first_positions[1] - first_positions[0], 4)
+        self.assertGreater(detail_positions[0], first_positions[1] + 1)
+        self.assertEqual(detail_positions[1], detail_positions[0] + 1)
+        self.assertGreater(first_selected[detail_positions[0]].index("modified"), 15)
+
     def test_repository_card_compacts_fancylog_into_one_colored_pill(self) -> None:
         rendered = render_repository_card(
             [

@@ -36,6 +36,7 @@ from .model import (
 )
 from .order import VisibleOrderPublisher
 from .render import (
+    DEFAULT_CHANGED_FILES_PLACEMENT,
     DEFAULT_EDGE_STYLE,
     DEFAULT_ORIENTATION,
     SPINNER_INTERVAL,
@@ -286,6 +287,7 @@ def run_tui(
     auto_reload: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     orientation: str = DEFAULT_ORIENTATION,
     embedded: bool = False,
     shared_socket: str | None = None,
@@ -479,6 +481,7 @@ def run_tui(
                 orientation,
                 tuple(repository_lines),
                 repository_location,
+                changed_files_placement,
                 help_pinned,
                 current_animation_frame,
             )
@@ -489,6 +492,7 @@ def run_tui(
                     edge_style=edge_style,
                     repository_lines=repository_lines,
                     repository_location=repository_location,
+                    changed_files_placement=changed_files_placement,
                     show_controls=help_pinned,
                     help_pinned=help_pinned,
                 )
@@ -545,6 +549,7 @@ def run_tui(
                         mouse.column, mouse.row,
                         repository_lines=repository_lines,
                         repository_location=repository_location,
+                        changed_files_placement=changed_files_placement,
                     )
                     clicked_index = hit_target.index
                     if clicked_index is not None:

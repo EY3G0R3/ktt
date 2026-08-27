@@ -269,9 +269,11 @@ worktree name inside the live tab background. The bolder `` is rejected becau
 it resembles a bell at the configured font size; `⎇`, `♣`, `↳`, and `wt:` were
 also tried and rejected.
 
-Changed files attach using otherwise-empty screen rows, with dirty counts
-repeated as that file block's heading when it fits. This adds
-context without consuming tab capacity. A later card-specific expansion can
+Changed files use otherwise-empty screen rows, with dirty counts repeated as
+that file block's heading when it fits. The default `inline` mode attaches the
+block below the selected card. Configurable `bottom` mode instead preserves one
+stable centered tab stack and centers the block in the lower free space. Both
+add context without consuming tab capacity. A later card-specific expansion can
 still show repository/branch for several tabs at once, plus agent phase and the
 latest readiness or blocker reason. fancylog is the bounded metadata and
 rendering provider; repository-type expansion belongs there rather than in

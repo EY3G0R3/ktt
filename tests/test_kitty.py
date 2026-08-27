@@ -236,6 +236,19 @@ class RemoteControlTests(unittest.TestCase):
             ),
         ))
 
+    def test_embedded_launch_passes_bottom_file_placement(self) -> None:
+        remote = RecordingRemote()
+
+        remote.launch_pane(
+            123,
+            3,
+            changed_files_placement="bottom",
+        )
+
+        _, arguments = remote.calls[0]
+        placement = arguments.index("--changed-files-placement")
+        self.assertEqual(arguments[placement + 1], "bottom")
+
     def test_embedded_sync_only_creates_missing_tab_panes(self) -> None:
         remote = RecordingRemote()
         snapshot = [{

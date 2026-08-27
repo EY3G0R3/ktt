@@ -15,6 +15,8 @@ from .kitty import (
 from .daemon import run_daemon, start_daemon, stop_daemon
 from .model import choose_os_window, records_for_os_window, tree_rows
 from .render import (
+    CHANGED_FILES_PLACEMENTS,
+    DEFAULT_CHANGED_FILES_PLACEMENT,
     DEFAULT_EDGE_STYLE,
     DEFAULT_ORIENTATION,
     EDGE_STYLES,
@@ -61,6 +63,18 @@ def _parser() -> argparse.ArgumentParser:
             "KTT_REPOSITORY_PALETTE", DEFAULT_REPOSITORY_PALETTE
         ),
         help="fancylog changed-file palette (default: amber)",
+    )
+    parser.add_argument(
+        "--changed-files-placement",
+        choices=CHANGED_FILES_PLACEMENTS,
+        default=os.environ.get(
+            "KTT_CHANGED_FILES_PLACEMENT",
+            DEFAULT_CHANGED_FILES_PLACEMENT,
+        ),
+        help=(
+            "changed-file details placement: inline after the selected tab "
+            "or centered in the bottom free space (default: inline)"
+        ),
     )
     parser.add_argument(
         "--embedded", action="store_true", help=argparse.SUPPRESS
@@ -233,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.edge_style,
                 args.repository_palette,
                 args.orientation,
+                args.changed_files_placement,
             )
             print(
                 f"opened ktt in Kitty window {new_window_id}, "
@@ -256,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
                 poll_interval=args.poll_interval,
                 edge_style=args.edge_style,
                 repository_palette=args.repository_palette,
+                changed_files_placement=args.changed_files_placement,
                 pane_percent=args.pane_percent,
                 orientation=args.orientation,
             )
@@ -274,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
                 target = location[0]
             new_window_id = remote.launch_sidebar(
                 target, args.edge_style, args.repository_palette,
-                args.orientation,
+                args.orientation, args.changed_files_placement,
             )
             print(f"opened ktt in Kitty window {new_window_id}, targeting OS window {target}")
             return 0
@@ -297,7 +313,9 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("the target OS window must contain the source window")
             new_window_id = remote.launch_pane(
                 source, target, args.edge_style, args.repository_palette,
-                args.pane_percent,
+                args.pane_percent, changed_files_placement=(
+                    args.changed_files_placement
+                ),
             )
             print(
                 f"opened embedded ktt in Kitty window {new_window_id}, "
@@ -322,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
                 poll_interval=args.poll_interval,
                 edge_style=args.edge_style,
                 repository_palette=args.repository_palette,
+                changed_files_placement=args.changed_files_placement,
                 pane_percent=pane_percent,
                 orientation=args.orientation,
             )
@@ -359,6 +378,7 @@ def main(argv: list[str] | None = None) -> int:
                 sidebar_window_id, target, args.edge_style,
                 args.repository_palette,
                 args.orientation,
+                args.changed_files_placement,
             )
             print(
                 f"refreshed ktt as Kitty window {new_window_id}, "
@@ -405,12 +425,13 @@ def main(argv: list[str] | None = None) -> int:
             remote,
             args.target_os_window,
             args.poll_interval,
-            args.auto_reload,
-            args.edge_style,
-            args.repository_palette,
-            args.orientation,
-            args.embedded,
-            args.shared_socket,
+            auto_reload=args.auto_reload,
+            edge_style=args.edge_style,
+            repository_palette=args.repository_palette,
+            changed_files_placement=args.changed_files_placement,
+            orientation=args.orientation,
+            embedded=args.embedded,
+            shared_socket=args.shared_socket,
         )
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)

@@ -27,6 +27,7 @@ from .model import (
     with_repository_names,
 )
 from .order import VisibleOrderPublisher
+from .render import DEFAULT_CHANGED_FILES_PLACEMENT
 from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
     FancylogIdentityCache,
@@ -330,6 +331,7 @@ def daemon_arguments(
     poll_interval: float,
     edge_style: str,
     repository_palette: str,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     pane_percent: int,
     orientation: str,
 ) -> list[str]:
@@ -345,6 +347,8 @@ def daemon_arguments(
         edge_style,
         "--repository-palette",
         repository_palette,
+        "--changed-files-placement",
+        changed_files_placement,
         "--orientation",
         orientation,
         "daemon",
@@ -361,6 +365,7 @@ def start_daemon(
     poll_interval: float,
     edge_style: str,
     repository_palette: str,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     pane_percent: int,
     orientation: str,
     timeout: float = 3.0,
@@ -374,6 +379,7 @@ def start_daemon(
             poll_interval=poll_interval,
             edge_style=edge_style,
             repository_palette=repository_palette,
+            changed_files_placement=changed_files_placement,
             pane_percent=pane_percent,
             orientation=orientation,
         ),
@@ -452,6 +458,7 @@ def run_daemon(
     poll_interval: float,
     edge_style: str,
     repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     pane_percent: int = 10,
     orientation: str = "horizontal",
 ) -> int:
@@ -486,6 +493,7 @@ def run_daemon(
                 "target_os_window_id": target_os_window_id,
                 "pane_percent": pane_percent,
                 "orientation": orientation,
+                "changed_files_placement": changed_files_placement,
             }))
             temporary.chmod(0o600)
             state_inode = temporary.stat().st_ino
@@ -535,6 +543,7 @@ def run_daemon(
                         pane_percent,
                         str(socket_path),
                         orientation,
+                        changed_files_placement,
                     )
                     if created:
                         snapshot = remote.snapshot()

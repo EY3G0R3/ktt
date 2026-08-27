@@ -9,6 +9,7 @@ import sys
 from typing import Any, Sequence
 
 from .model import COCKPIT_ROLE_VAR, PARENT_VAR, SIDEBAR_VAR
+from .render import DEFAULT_CHANGED_FILES_PLACEMENT
 
 
 TARGET_OS_WINDOW_VAR = "ktt_target_os_window_id"
@@ -236,6 +237,7 @@ class RemoteControl:
         orientation: str = "vertical",
         embedded: bool = False,
         shared_socket: str | None = None,
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> tuple[str, list[str]]:
         package_root = str(Path(__file__).resolve().parent.parent)
         process = [
@@ -255,6 +257,9 @@ class RemoteControl:
             process.extend(("--edge-style", edge_style))
         if repository_palette:
             process.extend(("--repository-palette", repository_palette))
+        process.extend((
+            "--changed-files-placement", changed_files_placement,
+        ))
         return package_root, process
 
     def launch_pane(
@@ -266,6 +271,7 @@ class RemoteControl:
         pane_percent: int = 10,
         shared_socket: str | None = None,
         orientation: str = "horizontal",
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> int:
         package_root, process = self._sidebar_process(
             target_os_window_id,
@@ -274,6 +280,7 @@ class RemoteControl:
             orientation,
             embedded=True,
             shared_socket=shared_socket,
+            changed_files_placement=changed_files_placement,
         )
         location = "hsplit" if orientation == "horizontal" else "vsplit"
         output = self.run(
@@ -325,6 +332,7 @@ class RemoteControl:
         pane_percent: int = 10,
         shared_socket: str | None = None,
         orientation: str = "horizontal",
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> list[int]:
         os_window = os_window_by_id(snapshot, target_os_window_id)
         existing = embedded_sidebar_windows(os_window, orientation)
@@ -355,6 +363,7 @@ class RemoteControl:
                     pane_percent,
                     shared_socket,
                     orientation,
+                    changed_files_placement,
                 )
             )
         return created
@@ -376,9 +385,14 @@ class RemoteControl:
         edge_style: str | None = None,
         repository_palette: str | None = None,
         orientation: str = "vertical",
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> int:
         package_root, process = self._sidebar_process(
-            target_os_window_id, edge_style, repository_palette, orientation
+            target_os_window_id,
+            edge_style,
+            repository_palette,
+            orientation,
+            changed_files_placement=changed_files_placement,
         )
         window_class = "ktt" if orientation == "vertical" else "ktt-horizontal"
         window_title = (
@@ -416,9 +430,14 @@ class RemoteControl:
         edge_style: str | None = None,
         repository_palette: str | None = None,
         orientation: str = "vertical",
+        changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     ) -> int:
         package_root, process = self._sidebar_process(
-            target_os_window_id, edge_style, repository_palette, orientation
+            target_os_window_id,
+            edge_style,
+            repository_palette,
+            orientation,
+            changed_files_placement=changed_files_placement,
         )
         output = self.run(
             "launch",

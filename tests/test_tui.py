@@ -232,6 +232,31 @@ class MouseTests(unittest.TestCase):
         self.assertIsNone(view.hit_target(mouse_row=7, **arguments).index)
         self.assertEqual(view.hit_target(mouse_row=9, **arguments).index, 1)
 
+    def test_bottom_repository_context_does_not_shift_mouse_targets(self) -> None:
+        rows = [
+            TreeRow(TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None),
+            TreeRow(TabRecord(2, 1, "two", (20,), repository="ktt"), 0, None),
+        ]
+        view = view_for("vertical")
+        arguments = {
+            "rows": rows,
+            "width": 60,
+            "height": 30,
+            "selected_index": 0,
+            "card_height": 3,
+            "mouse_column": 10,
+            "repository_lines": [
+                " modified one.py ",
+                " (ktt) ~/src/ktt  ◈ 1 unstaged ",
+                "  main ",
+            ],
+            "changed_files_placement": "bottom",
+        }
+
+        self.assertEqual(view.hit_target(mouse_row=13, **arguments).index, 0)
+        self.assertEqual(view.hit_target(mouse_row=17, **arguments).index, 1)
+        self.assertIsNone(view.hit_target(mouse_row=23, **arguments).index)
+
     def test_three_row_cards_poll_summary_even_without_spare_rows(self) -> None:
         rows = [
             TreeRow(TabRecord(index, 1, str(index), (index,)), 0, None)
