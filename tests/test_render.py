@@ -455,6 +455,7 @@ class RenderTests(unittest.TestCase):
             repository_location=RepositoryLocation(
                 worktree="feature", relative_path="deep/build/"
             ),
+            changed_files_placement="inline",
         )
         lines = screen.split("\n")
         state_index = next(

@@ -41,10 +41,8 @@ class LinkValidationTests(unittest.TestCase):
         ])
         self.assertIsNone(args.pane_percent)
 
-    def test_changed_files_can_be_placed_in_bottom_free_space(self) -> None:
-        args = _parser().parse_args([
-            "--changed-files-placement", "bottom", "embed",
-        ])
+    def test_changed_files_default_to_bottom_free_space(self) -> None:
+        args = _parser().parse_args(["embed"])
         self.assertEqual(args.changed_files_placement, "bottom")
 
     def test_tui_start_reapplies_sidebar_configuration(self) -> None:
@@ -78,7 +76,7 @@ class LinkValidationTests(unittest.TestCase):
         with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
             self.assertEqual(main([]), 0)
         remote.launch_sidebar.assert_called_once_with(
-            7, "tapered", "amber", "vertical", "inline"
+            7, "tapered", "amber", "vertical", "bottom"
         )
         run_tui.assert_not_called()
 
@@ -109,7 +107,7 @@ class LinkValidationTests(unittest.TestCase):
             poll_interval=1.0,
             edge_style="tapered",
             repository_palette="amber",
-            changed_files_placement="inline",
+            changed_files_placement="bottom",
             pane_percent=12,
             orientation="horizontal",
         )

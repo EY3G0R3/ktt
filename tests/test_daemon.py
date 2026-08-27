@@ -94,7 +94,7 @@ class SharedSnapshotTests(unittest.TestCase):
         self.assertLess(arguments.index("--changed-files-placement"), daemon_at)
         self.assertEqual(
             arguments[arguments.index("--changed-files-placement") + 1],
-            "inline",
+            "bottom",
         )
         self.assertEqual(
             arguments[arguments.index("--orientation") + 1], "vertical"

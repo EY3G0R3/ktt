@@ -202,10 +202,10 @@ The selected tab adds cached clean/dirty state on the middle-right. Useful
 branch and nonredundant title share the bottom row. Redundant and default branch labels
 are omitted, as are titles that repeat the worktree. Dirty counts remain on the
 middle row and also become a heading above changed-file rows whenever at least
-one file can remain visible. In the default `inline` placement, changed-file
-rows attach immediately below the card and follow its tree indent. In `bottom`
-placement, they remain detached from the spatially stable tab stack and center
-inside its lower free space. Both modes right-align actions against a shared
+one file can remain visible. In the default `bottom` placement, changed-file
+rows remain detached from the spatially stable tab stack and center inside its
+lower free space. In `inline` placement, they attach immediately below the card
+and follow its tree indent. Both modes right-align actions against a shared
 path column. Paths start immediately to the right of the action;
 only staged entries add the literal `staged`, while unstaged is the default.
 Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
@@ -224,11 +224,12 @@ A tab, directory, width, or available-height change refreshes immediately. If
 fancylog is unavailable or the directory has no supported repository, the
 panel stays hidden.
 
-Changed-file details default to `inline`, immediately below the selected card.
-Use `--changed-files-placement bottom` to keep the tab stack spatially stable
-and center the same details horizontally and vertically inside the free space
-below it. `KTT_CHANGED_FILES_PLACEMENT=bottom` sets the same default through the
-environment. Status and branch placement inside the selected card is unchanged.
+Changed-file details default to `bottom`, keeping the tab stack spatially stable
+and centering the details horizontally and vertically inside the free space
+below it. Use `--changed-files-placement inline` to attach them immediately below
+the selected card. `KTT_CHANGED_FILES_PLACEMENT=inline` sets the same override
+through the environment. Status and branch placement inside the selected card
+is unchanged.
 
 Fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
 worktree-status, file-row palette, and truncation policy. Ktt parses only the

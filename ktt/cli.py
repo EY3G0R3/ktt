@@ -75,7 +75,7 @@ def _parser() -> argparse.ArgumentParser:
         ),
         help=(
             "changed-file details placement: inline after the selected tab "
-            "or centered in the bottom free space (default: inline)"
+            "or centered in the bottom free space (default: bottom)"
         ),
     )
     parser.add_argument(

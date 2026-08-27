@@ -487,7 +487,7 @@ class SessionTests(unittest.TestCase):
             poll_interval=1.0,
             edge_style="tapered",
             repository_palette="amber",
-            changed_files_placement="inline",
+            changed_files_placement="bottom",
             pane_percent=20,
             orientation="vertical",
         )
