@@ -380,6 +380,8 @@ class RemoteControl:
         existing = embedded_sidebar_windows(os_window, "vertical")
         resized: list[int] = []
         for tab in os_window.get("tabs") or []:
+            if content_window_for_tab(tab) is None:
+                continue
             sidebar_window_id = existing.get(int(tab["id"]))
             if sidebar_window_id is None:
                 continue

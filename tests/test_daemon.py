@@ -7,6 +7,7 @@ from ktt.daemon import (
     SharedSnapshot,
     SharedSnapshotClient,
     SnapshotServer,
+    _has_orphaned_sidebar,
     _shared_sidebar_width,
     _sidebar_percent,
     daemon_arguments,
@@ -76,6 +77,19 @@ class SharedSnapshotTests(unittest.TestCase):
             _sidebar_percent(os_window, {1: 11, 2: 22, 3: 33}, 70, 20),
             22,
         )
+
+    def test_orphan_sidebar_cannot_become_the_shared_width(self) -> None:
+        live = self._sidebar_tab(1, 11, 65, active=False)
+        orphan = self._sidebar_tab(2, 22, 318, active=True)
+        orphan["windows"] = [orphan["windows"][-1]]
+        os_window = {"tabs": [live, orphan]}
+        sidebars = {1: 11, 2: 22}
+
+        self.assertEqual(
+            _shared_sidebar_width(os_window, sidebars, 65),
+            65,
+        )
+        self.assertTrue(_has_orphaned_sidebar(os_window, sidebars))
 
     def test_socket_path_is_scoped_to_kitty_and_os_window(self) -> None:
         self.assertEqual(

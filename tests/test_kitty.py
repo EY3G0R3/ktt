@@ -372,6 +372,28 @@ class RemoteControlTests(unittest.TestCase):
             ),
         ])
 
+    def test_orphan_sidebar_is_not_resized_before_cleanup(self) -> None:
+        remote = RecordingRemote()
+        snapshot = [{
+            "id": 3,
+            "tabs": [{"id": 10, "windows": [{
+                "id": 190,
+                "columns": 318,
+                "user_vars": {
+                    "ktt_sidebar": "1",
+                    "ktt_orientation": "vertical",
+                    "ktt_pane_percent": "20",
+                },
+            }]}],
+        }]
+
+        resized = remote.sync_embedded_sidebar_widths(
+            snapshot, 3, sidebar_columns=65, pane_percent=20
+        )
+
+        self.assertEqual(resized, [])
+        self.assertEqual(remote.calls, [])
+
     def test_vertical_sync_splits_the_active_content_window(self) -> None:
         remote = RecordingRemote()
         snapshot = [{

@@ -16,6 +16,7 @@ from .events import TabEventListener, navigation_direction
 from .folds import read_folded_tab_ids
 from .kitty import (
     RemoteControl,
+    content_window_for_tab,
     embedded_sidebar_windows,
     os_window_by_id,
 )
@@ -443,7 +444,10 @@ def _embedded_sidebar_widths(
     for tab in os_window.get("tabs") or []:
         tab_id = int(tab.get("id") or 0)
         sidebar_window_id = sidebar_windows.get(tab_id)
-        if sidebar_window_id is None:
+        if (
+            sidebar_window_id is None
+            or content_window_for_tab(tab) is None
+        ):
             continue
         for window in tab.get("windows") or []:
             if int(window.get("id") or 0) != sidebar_window_id:
@@ -453,6 +457,16 @@ def _embedded_sidebar_widths(
                 widths[tab_id] = columns
             break
     return widths
+
+
+def _has_orphaned_sidebar(
+    os_window: dict[str, Any], sidebar_windows: dict[int, int]
+) -> bool:
+    return any(
+        int(tab.get("id") or 0) in sidebar_windows
+        and content_window_for_tab(tab) is None
+        for tab in os_window.get("tabs") or []
+    )
 
 
 def _shared_sidebar_width(
@@ -650,6 +664,9 @@ def run_daemon(
                     sidebar_windows = embedded_sidebar_windows(
                         os_window, orientation
                     )
+                    has_orphaned_sidebar = _has_orphaned_sidebar(
+                        os_window, sidebar_windows
+                    )
                     if orientation == "vertical":
                         next_width = _shared_sidebar_width(
                             os_window,
@@ -683,7 +700,7 @@ def run_daemon(
                         orientation,
                         changed_files_placement,
                     )
-                    if created:
+                    if created or has_orphaned_sidebar:
                         snapshot = remote.snapshot()
                         os_window = os_window_by_id(snapshot, target_os_window_id)
                     if orientation == "vertical":
