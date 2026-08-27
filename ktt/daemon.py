@@ -30,6 +30,10 @@ from .order import VisibleOrderPublisher
 from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
     FancylogIdentityCache,
+    FancylogMonitor,
+    MAX_REPOSITORY_LINES,
+    RepositoryLocation,
+    RepositoryLocationCache,
     active_window_cwd,
     with_repository_worktrees,
 )
@@ -79,6 +83,8 @@ class SharedSnapshot:
     focused_window_ids: tuple[int, ...]
     sidebar_windows: dict[int, int]
     repository_path: str | None = None
+    repository_lines: tuple[str, ...] = ()
+    repository_location: RepositoryLocation | None = None
     error: str | None = None
 
     def to_bytes(self) -> bytes:
@@ -90,6 +96,12 @@ class SharedSnapshot:
             "focused_window_ids": self.focused_window_ids,
             "sidebar_windows": self.sidebar_windows,
             "repository_path": self.repository_path,
+            "repository_lines": self.repository_lines,
+            "repository_location": (
+                asdict(self.repository_location)
+                if self.repository_location is not None
+                else None
+            ),
             "error": self.error,
         }
         return json.dumps(value, separators=(",", ":")).encode()
@@ -124,6 +136,12 @@ class SharedSnapshot:
                 ).items()
             },
             repository_path=value.get("repository_path"),
+            repository_lines=tuple(value.get("repository_lines") or ()),
+            repository_location=(
+                RepositoryLocation(**value["repository_location"])
+                if value.get("repository_location") is not None
+                else None
+            ),
             error=value.get("error"),
         )
 
@@ -412,6 +430,21 @@ def _focused_window_ids(os_window: dict[str, Any]) -> tuple[int, ...]:
     )
 
 
+def _embedded_sidebar_width(
+    os_window: dict[str, Any], sidebar_windows: dict[int, int]
+) -> int:
+    window_ids = set(sidebar_windows.values())
+    return max(
+        (
+            int(window.get("columns") or 0)
+            for tab in os_window.get("tabs") or []
+            for window in tab.get("windows") or []
+            if int(window.get("id") or 0) in window_ids
+        ),
+        default=0,
+    )
+
+
 def run_daemon(
     remote: RemoteControl,
     target_os_window_id: int,
@@ -437,6 +470,8 @@ def run_daemon(
     rows = []
     next_refresh = 0.0
     state_inode: int | None = None
+    repository_monitor = FancylogMonitor(palette=repository_palette)
+    repository_locations = RepositoryLocationCache()
     try:
         with (
             SnapshotServer(socket_path) as server,
@@ -513,10 +548,25 @@ def run_daemon(
                     folded = read_folded_tab_ids(target_os_window_id)
                     rows = tree_rows(records, folded)
                     order_publisher.publish(target_os_window_id, rows)
+                    sidebar_windows = embedded_sidebar_windows(os_window)
+                    repository_path = active_window_cwd(os_window)
+                    repository_lines = repository_monitor.update(
+                        repository_path,
+                        _embedded_sidebar_width(os_window, sidebar_windows),
+                        MAX_REPOSITORY_LINES,
+                        now,
+                    )
+                    repository_location = repository_locations.update(
+                        repository_path
+                    )
                     error = None
                 except (OSError, RuntimeError, ValueError) as caught:
                     folded = read_folded_tab_ids(target_os_window_id)
                     os_window = {"tabs": []}
+                    sidebar_windows = {}
+                    repository_path = None
+                    repository_lines = []
+                    repository_location = None
                     error = str(caught)
 
                 sequence += 1
@@ -526,8 +576,10 @@ def run_daemon(
                     records=tuple(records),
                     folded_tab_ids=tuple(sorted(folded)),
                     focused_window_ids=_focused_window_ids(os_window),
-                    sidebar_windows=embedded_sidebar_windows(os_window),
-                    repository_path=active_window_cwd(os_window),
+                    sidebar_windows=sidebar_windows,
+                    repository_path=repository_path,
+                    repository_lines=tuple(repository_lines),
+                    repository_location=repository_location,
                     error=error,
                 ))
     finally:

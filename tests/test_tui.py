@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 
 from ktt.events import navigation_event, tab_state_event
 from ktt.model import TabRecord, TreeRow
@@ -12,15 +13,43 @@ from ktt.tui import (
     parse_mouse_event,
     optimistic_tab_records,
     reload_candidate,
+    repository_context,
     restart_arguments,
     take_navigation_step,
     window_is_focused,
 )
 from ktt.repository import active_window_cwd
+from ktt.daemon import SharedSnapshot
+from ktt.repository import RepositoryLocation
 from ktt.views import disclosure_column, row_index_at_mouse, view_for
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_shared_repository_context_does_not_poll_in_renderer(self) -> None:
+        location = RepositoryLocation(worktree="feature")
+        snapshot = SharedSnapshot(
+            sequence=1,
+            os_window_id=7,
+            records=(),
+            folded_tab_ids=(),
+            focused_window_ids=(),
+            sidebar_windows={},
+            repository_path="/repo",
+            repository_lines=("header", "branch"),
+            repository_location=location,
+        )
+        monitor = Mock()
+        locations = Mock()
+
+        lines, actual_location = repository_context(
+            snapshot, monitor, locations, "/repo", 80, 8, 10.0
+        )
+
+        self.assertEqual(lines, ["header", "branch"])
+        self.assertEqual(actual_location, location)
+        monitor.update.assert_not_called()
+        locations.update.assert_not_called()
+
     def test_navigation_burst_consumes_one_step_per_repaint(self) -> None:
         pending = [1, 1, -1]
         self.assertEqual(take_navigation_step(pending), 1)

@@ -11,6 +11,7 @@ from ktt.daemon import (
     daemon_socket_path,
 )
 from ktt.model import TabRecord
+from ktt.repository import RepositoryLocation
 
 
 class SharedSnapshotTests(unittest.TestCase):
@@ -29,6 +30,10 @@ class SharedSnapshotTests(unittest.TestCase):
             focused_window_ids=(90,),
             sidebar_windows={1: 90},
             repository_path="/repo",
+            repository_lines=("header", "branch"),
+            repository_location=RepositoryLocation(
+                worktree="feature", relative_path="src"
+            ),
         )
         self.assertEqual(SharedSnapshot.from_bytes(snapshot.to_bytes()), snapshot)
 

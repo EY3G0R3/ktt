@@ -295,11 +295,13 @@ Kitty to remove the empty tab instead of expanding ktt to fill it. The daemon
 owns Kitty
 snapshots, tree construction, repository identities, folds, visible-order
 publishing, and watcher navigation. Each pane consumes the shared snapshot and
-only performs geometry-dependent rendering and its local detailed fancylog
-panel. Keyboard navigation follows focus into the renderer in the destination
+only performs geometry-dependent rendering. The daemon also owns the single
+selected-repository Fancylog refresh and broadcasts its summary, branch, and
+changed-file rows; inactive renderer panes never launch duplicate Fancylog
+polls. Keyboard navigation follows focus into the renderer in the destination
 tab; Enter or a left click transfers focus back to that tab's content window.
-Embedded renderer windows are excluded from tab identity and repository-context
-selection.
+Embedded renderer windows are excluded from tab identity and
+repository-context selection.
 
 Stop the daemon and close only its horizontal renderer panes with:
 

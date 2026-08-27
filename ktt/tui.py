@@ -47,6 +47,7 @@ from .repository import (
     FancylogIdentityCache,
     FancylogMonitor,
     MAX_REPOSITORY_LINES,
+    RepositoryLocation,
     RepositoryLocationCache,
     active_window_cwd,
     with_repository_worktrees,
@@ -58,6 +59,26 @@ MOUSE_PATTERN = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 SOURCE_CHECK_INTERVAL = 1.0
 NAVIGATION_STEP_INTERVAL = 0.05
 OPTIMISTIC_RECONCILE_INTERVAL = 0.1
+
+
+def repository_context(
+    shared_snapshot: SharedSnapshot | None,
+    monitor: FancylogMonitor,
+    locations: RepositoryLocationCache,
+    path: str | None,
+    width: int,
+    capacity: int,
+    now: float,
+) -> tuple[list[str], RepositoryLocation | None]:
+    if shared_snapshot is not None:
+        return (
+            list(shared_snapshot.repository_lines),
+            shared_snapshot.repository_location,
+        )
+    return (
+        monitor.update(path, width, capacity, now),
+        locations.update(path),
+    )
 
 
 @dataclass(frozen=True)
@@ -436,13 +457,15 @@ def run_tui(
                     rows, width, height, selected_index, card_height
                 ),
             )
-            repository_lines = repository_monitor.update(
+            repository_lines, repository_location = repository_context(
+                shared_snapshot if snapshot_client is not None else None,
+                repository_monitor,
+                repository_locations,
                 repository_path,
                 width,
                 repository_capacity,
                 now,
             )
-            repository_location = repository_locations.update(repository_path)
             render_now = time.monotonic()
             current_animation_frame = animation_frame(rows, render_now)
             render_signature: tuple[object, ...] = (

@@ -196,10 +196,26 @@ client. A failed direct request permanently selects the subprocess fallback for
 that ktt process, preserving compatibility with unsupported or encrypted
 listeners without retrying both paths on every poll.
 
-The active-repository panel adds one bounded `fancylog --status-only`
-subprocess every three seconds, only for the active tab. Include it in idle
-measurements. If it is material, add a long-lived fancylog protocol or refresh
-from filesystem/Kitty events rather than duplicating its Git logic in ktt.
+The active-repository panel logically polls only the selected repository.
+Embedded mode previously gave every renderer pane its own `FancylogMonitor`, so
+inactive embedded sidebars launched duplicate `fancylog --status-only`
+subprocesses for that same selected repository every three seconds. They did
+not poll their own inactive repositories, but the total subprocess rate still
+scaled with the number of embedded tabs.
+
+Selected-repository polling now lives in the shared daemon. The daemon owns one
+bounded Fancylog snapshot, refreshes it once per interval or immediately when
+the selected repository changes, and broadcasts the raw summary, branch, and
+changed-file rows with the existing shared tab snapshot. Renderer panes only
+slice and position that cached data for their local geometry; inactive
+renderers do not launch Fancylog. The UI still shows status only on the selected
+tab. Adding embedded tabs therefore does not increase the Fancylog polling
+rate, and a tab switch causes at most one immediate selected-repository refresh
+across the whole Kitty OS window.
+
+If the remaining single poll is material, add a long-lived Fancylog protocol
+or refresh from filesystem/Kitty events rather than duplicating its Git logic
+in ktt.
 
 Target: below 0.3% of one CPU core while idle, measured with short-lived child
 processes included. Use `pidstat -u -T ALL -p PID 1 15`: the TASK report covers
@@ -218,10 +234,11 @@ wall/0.045 seconds CPU through the direct socket, versus 3.152 seconds
 wall/2.824 seconds child-inclusive CPU through `kitten @ ls`. Direct snapshots
 remove roughly 98% of the client CPU attributable to this request.
 
-The remaining inclusive idle cost is the selected tab's three-second Fancylog
-refresh. Inactive tabs keep one-time repository and linked-worktree identity and do not
-poll state. Fancylog's existing watch mode still recomputes repository state on
-an interval and emits terminal redraw frames, so adopting it directly would
+The remaining inclusive idle cost includes one selected-repository Fancylog
+refresh every three seconds for the whole Kitty OS window. Inactive tabs keep
+one-time repository and linked-worktree identity and do not poll their own
+state. Fancylog's existing watch mode still recomputes repository state on an
+interval and emits terminal redraw frames, so adopting it directly would
 complicate parsing without eliminating the underlying work. Do not duplicate
 Fancylog's Git/yadm logic inside ktt merely to meet the CPU target.
 
