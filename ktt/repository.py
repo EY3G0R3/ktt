@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 from pathlib import Path
 import re
@@ -9,7 +9,7 @@ import subprocess
 import time
 from typing import Any, Iterable
 
-from .model import SIDEBAR_VAR, content_window_cwd
+from .model import SIDEBAR_VAR, TabRecord, content_window_cwd
 
 
 REPOSITORY_PALETTES = (
@@ -20,12 +20,35 @@ MAX_REPOSITORY_LINES = 8
 IDENTITY_WIDTH = 256
 MINIMUM_STATUS_SOURCE_WIDTH = 256
 REPOSITORY_IDENTITY = re.compile(r"^\s*\(([^)]+)\)")
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @dataclass(frozen=True)
 class RepositoryLocation:
     worktree: str | None = None
     relative_path: str | None = None
+
+
+def repository_summary_parts(
+    lines: Iterable[str],
+) -> tuple[str, str, str]:
+    values = list(lines)
+    if not values:
+        return "", "", ""
+    header = ANSI_ESCAPE.sub(
+        "", values[-2] if len(values) > 1 else values[-1]
+    ).strip()
+    branch = (
+        ANSI_ESCAPE.sub("", values[-1]).strip()
+        if len(values) > 1
+        else ""
+    )
+    header_parts = re.split(r"\s{2,}", header, maxsplit=1)
+    identity = header_parts[0]
+    state = header_parts[1].strip() if len(header_parts) > 1 else ""
+    if state == "✓ working tree clean":
+        state = "✓ clean"
+    return identity, branch, state
 
 
 def resolve_repository_location(
@@ -56,14 +79,12 @@ def resolve_repository_location(
     if result.returncode != 0 or len(values) != 2:
         return None
     root = Path(values[0]).resolve()
-    common_directory = Path(values[1]).resolve()
     try:
         relative = Path(path).resolve().relative_to(root)
     except ValueError:
         return None
-    linked_worktree = common_directory != (root / ".git").resolve()
     return RepositoryLocation(
-        worktree=root.name if linked_worktree else None,
+        worktree=root.name,
         relative_path=None if str(relative) == "." else f"{relative}/",
     )
 
@@ -224,14 +245,19 @@ class FancylogIdentityCache:
         self.palette = palette
         self.retry_interval = retry_interval
         self.names: dict[str, str | None] = {}
+        self.locations: dict[str, RepositoryLocation | None] = {}
         self.retry_after: dict[str, float] = {}
-        self.pending: dict[str, Future[str | None]] = {}
+        self.pending: dict[
+            str, Future[tuple[str | None, RepositoryLocation | None]]
+        ] = {}
         self.executor = ThreadPoolExecutor(
             max_workers=workers,
             thread_name_prefix="ktt-repository",
         )
 
-    def _resolve(self, path: str) -> str | None:
+    def _resolve(
+        self, path: str
+    ) -> tuple[str | None, RepositoryLocation | None]:
         lines = fancylog_status_lines(
             self.executable,
             path,
@@ -241,7 +267,10 @@ class FancylogIdentityCache:
             self.timeout,
             color="never",
         )
-        return repository_name_from_status(lines)
+        return (
+            repository_name_from_status(lines),
+            resolve_repository_location(path, min(0.25, self.timeout)),
+        )
 
     def update(
         self,
@@ -253,9 +282,11 @@ class FancylogIdentityCache:
             if not future.done():
                 continue
             try:
-                self.names[path] = future.result()
+                name, location = future.result()
             except Exception:
-                self.names[path] = None
+                name, location = None, None
+            self.names[path] = name
+            self.locations[path] = location
             if self.names[path] is None:
                 self.retry_after[path] = current + self.retry_interval
             else:
@@ -268,6 +299,13 @@ class FancylogIdentityCache:
                 self.pending[path] = self.executor.submit(self._resolve, path)
         return {path: name for path, name in self.names.items() if name is not None}
 
+    def worktrees(self) -> dict[str, str]:
+        return {
+            path: location.worktree
+            for path, location in self.locations.items()
+            if location is not None and location.worktree
+        }
+
     def close(self) -> None:
         self.executor.shutdown(wait=False, cancel_futures=True)
 
@@ -276,3 +314,16 @@ class FancylogIdentityCache:
 
     def __exit__(self, *_: object) -> None:
         self.close()
+
+
+def with_repository_worktrees(
+    records: Iterable[TabRecord],
+    worktrees_by_cwd: dict[str, str],
+) -> list[TabRecord]:
+    return [
+        replace(
+            record,
+            repository_worktree=worktrees_by_cwd.get(record.cwd or ""),
+        )
+        for record in records
+    ]

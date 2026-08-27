@@ -31,6 +31,7 @@ from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
     FancylogIdentityCache,
     active_window_cwd,
+    with_repository_worktrees,
 )
 
 
@@ -506,6 +507,9 @@ def run_daemon(
                     records = records_for_os_window(os_window)
                     names = identities.update(record.cwd for record in records)
                     records = with_repository_names(records, names)
+                    records = with_repository_worktrees(
+                        records, identities.worktrees()
+                    )
                     folded = read_folded_tab_ids(target_os_window_id)
                     rows = tree_rows(records, folded)
                     order_publisher.publish(target_os_window_id, rows)

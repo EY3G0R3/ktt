@@ -123,13 +123,14 @@ back to the default Powerline caps.
 Added August 23, 2026 (PDT).
 Revised August 26, 2026 (PDT).
 
-Left-align repository or yadm identity, linked worktree, useful branch, and
-title as one sequence on the selected card's middle row. Omit default branches
-and any branch represented by the title or worktree. Center clean/dirty state
-on the bottom. Attach
+Left-align repository or yadm identity and worktree on every card's middle row.
+Show cached clean/dirty state on the selected card's right. Group useful
+branch and nonredundant title on the bottom row. Omit default branches and any
+branch represented by the title or worktree; omit the title when it repeats the
+worktree. Attach
 changed-file rows below the card. When space permits a dirty heading plus at
-least one file, move dirty counts into that attachment and leave the card bottom
-empty; keep clean and space-constrained dirty state in the card.
+least one file, repeat dirty counts as the attachment heading while retaining
+them in the card.
 Those rows may
 consume only space left after rendering every
 tab and must not reduce tab-card height or capacity. They compact before they
@@ -137,11 +138,12 @@ disappear as the tree grows. Lower cards shift as part of the centered group,
 and mouse hit testing follows their rendered positions. Keyboard help remains
 centered separately in the spare space above the group.
 
-Kitty's active-window `cwd` is the path authority. ktt passes it, the available
-row count, and the sidebar width to `fancylog --status-only`, then caches the
-rendered rows for three seconds. fancylog owns repository discovery—including
-yadm—status semantics, palette, and truncation. ktt treats command failure as
-an absent panel and carries no fallback Git parser.
+Each tab's content-window `cwd` is the path authority. A two-worker cache
+resolves repository and worktree-root identity once per unique directory.
+Only the selected tab polls branch and state, caching detailed Fancylog rows for
+three seconds. fancylog owns repository discovery—including yadm—status
+semantics, palette, and truncation. Failed selected-tab refreshes retain the
+last good snapshot.
 
 ## 8. Orientations share one branch behind a view boundary
 

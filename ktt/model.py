@@ -31,6 +31,7 @@ class TabRecord:
     source_index: int = 0
     cwd: str | None = None
     repository: str | None = None
+    repository_worktree: str | None = None
 
 
 @dataclass(frozen=True)

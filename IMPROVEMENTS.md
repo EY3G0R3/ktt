@@ -218,13 +218,12 @@ wall/0.045 seconds CPU through the direct socket, versus 3.152 seconds
 wall/2.824 seconds child-inclusive CPU through `kitten @ ls`. Direct snapshots
 remove roughly 98% of the client CPU attributable to this request.
 
-The remaining inclusive idle cost is the three-second Fancylog refresh. Its
-existing watch mode still recomputes repository state on an interval and emits
-terminal redraw frames, so adopting it directly would complicate parsing
-without eliminating the underlying work. Prefer a long-lived, width-bounded
-Fancylog request/response protocol or a change-notification interface before
-replacing the current bounded subprocess. Do not duplicate its Git/yadm logic
-inside ktt merely to meet the CPU target.
+The remaining inclusive idle cost is the selected tab's three-second Fancylog
+refresh. Inactive tabs keep one-time repository/worktree identity and do not
+poll state. Fancylog's existing watch mode still recomputes repository state on
+an interval and emits terminal redraw frames, so adopting it directly would
+complicate parsing without eliminating the underlying work. Do not duplicate
+Fancylog's Git/yadm logic inside ktt merely to meet the CPU target.
 
 ## 5. Enrich adaptive multi-line tab cards
 
@@ -234,13 +233,13 @@ fallback. Every colored card row maps to the same mouse target. One black row
 separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
-Every vertical card left-aligns status, repository, and title as one stable
-group, with repository first; selection does not change that alignment. Linked
-worktree and nonredundant branch context follow the repository and precede the
-title on the selected card's middle row; clean/dirty state is centered on the
-bottom. Changed files attach using
-otherwise-empty screen rows, with dirty counts lifted into that file block when
-it fits. This adds
+Every vertical card left-aligns status and repository as one stable group;
+selection does not change that alignment. Worktree follows the repository on
+every card, the selected card's cached clean/dirty state is right-aligned on the
+middle row, and useful branch plus nonredundant title share the bottom row. A title
+equivalent to the worktree is omitted.
+Changed files attach using otherwise-empty screen rows, with dirty counts
+repeated as that file block's heading when it fits. This adds
 context without consuming tab capacity. A later card-specific expansion can
 still show repository/branch for several tabs at once, plus agent phase and the
 latest readiness or blocker reason. fancylog is the bounded metadata and

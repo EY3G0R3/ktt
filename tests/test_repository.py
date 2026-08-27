@@ -2,6 +2,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
+from ktt.model import TabRecord
 from ktt.repository import (
     FancylogIdentityCache,
     FancylogMonitor,
@@ -10,6 +11,7 @@ from ktt.repository import (
     active_window_cwd,
     repository_name_from_status,
     resolve_repository_location,
+    with_repository_worktrees,
 )
 
 
@@ -77,7 +79,7 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertEqual(
             resolve_repository_location("/home/me/src/ktt/build"),
-            RepositoryLocation(relative_path="build/"),
+            RepositoryLocation(worktree="ktt", relative_path="build/"),
         )
 
     @patch("ktt.repository.subprocess.run")
@@ -122,7 +124,12 @@ class RepositoryTests(unittest.TestCase):
             with patch.object(
                 cache,
                 "_resolve",
-                side_effect=lambda path: path.rsplit("/", 1)[-1],
+                side_effect=lambda path: (
+                    path.rsplit("/", 1)[-1],
+                    RepositoryLocation(
+                        worktree=path.rsplit("/", 1)[-1]
+                    ),
+                ),
             ) as resolve:
                 self.assertEqual(cache.update(["/work/quiver", "/home/yadm"]), {})
                 for future in list(cache.pending.values()):
@@ -133,6 +140,10 @@ class RepositoryTests(unittest.TestCase):
                 )
                 cache.update(["/work/quiver", "/home/yadm"])
                 self.assertEqual(resolve.call_count, 2)
+                self.assertEqual(cache.worktrees(), {
+                    "/work/quiver": "quiver",
+                    "/home/yadm": "yadm",
+                })
         finally:
             cache.close()
 
@@ -142,7 +153,13 @@ class RepositoryTests(unittest.TestCase):
             with patch.object(
                 cache,
                 "_resolve",
-                side_effect=[None, "convex-backend"],
+                side_effect=[
+                    (None, None),
+                    (
+                        "convex-backend",
+                        RepositoryLocation(worktree="push-context"),
+                    ),
+                ],
             ) as resolve:
                 self.assertEqual(cache.update(["/work/convex"], now=10.0), {})
                 cache.pending["/work/convex"].result(timeout=1.0)
@@ -157,8 +174,23 @@ class RepositoryTests(unittest.TestCase):
                     {"/work/convex": "convex-backend"},
                 )
                 self.assertEqual(resolve.call_count, 2)
+                self.assertEqual(
+                    cache.worktrees(), {"/work/convex": "push-context"}
+                )
         finally:
             cache.close()
+
+    def test_cached_worktrees_enrich_every_record(self) -> None:
+        records = [
+            TabRecord(1, 1, "one", (10,), cwd="/work/one"),
+            TabRecord(2, 1, "two", (20,), cwd="/work/two"),
+        ]
+        enriched = with_repository_worktrees(
+            records, {"/work/one": "feature"}
+        )
+
+        self.assertEqual(enriched[0].repository_worktree, "feature")
+        self.assertIsNone(enriched[1].repository_worktree)
 
     @patch("ktt.repository.subprocess.run")
     def test_monitor_requests_bounded_status_only_output(self, run) -> None:

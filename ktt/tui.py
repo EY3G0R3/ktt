@@ -49,6 +49,7 @@ from .repository import (
     MAX_REPOSITORY_LINES,
     RepositoryLocationCache,
     active_window_cwd,
+    with_repository_worktrees,
 )
 from .views import view_for
 
@@ -283,7 +284,9 @@ def run_tui(
     pending_navigation: list[int] = []
     repository_monitor = FancylogMonitor(palette=repository_palette)
     repository_locations = RepositoryLocationCache()
-    repository_identities = FancylogIdentityCache(palette=repository_palette)
+    repository_identities = FancylogIdentityCache(
+        palette=repository_palette
+    )
     next_poll = 0.0
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
@@ -391,6 +394,9 @@ def run_tui(
                         )
                         records = with_repository_names(
                             records, repository_names
+                        )
+                        records = with_repository_worktrees(
+                            records, active_repository_identities.worktrees()
                         )
                         repository_path = active_window_cwd(os_window)
                         error = None
