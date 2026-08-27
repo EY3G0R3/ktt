@@ -1439,10 +1439,6 @@ def render_card(
         if worktree or repository_location is not None
         else None
     )
-    secondary_context_is_separate = (
-        card_height >= 2 and bool(repository_lines or worktree or branch)
-    )
-    secondary_segments: list[tuple[str, str, bool]] = []
     useful_branch = (
         branch
         if branch
@@ -1451,6 +1447,10 @@ def render_card(
         )
         else ""
     )
+    secondary_context_is_separate = (
+        card_height >= 2 and bool(worktree or useful_branch)
+    )
+    secondary_segments: list[tuple[str, str, bool]] = []
     if secondary_context_is_separate and useful_branch:
         secondary_segments.append((
             useful_branch, REPOSITORY_BRANCH_FOREGROUND, False

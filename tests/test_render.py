@@ -208,9 +208,13 @@ class RenderTests(unittest.TestCase):
             index for index, line in enumerate(lines)
             if "✓ clean" in line
         )
-        self.assertEqual(title_index, status_index + 1)
+        self.assertEqual(title_index, status_index)
         self.assertNotIn(" main", screen)
         self.assertIn("/ktt/", lines[status_index])
+        self.assertGreater(
+            lines[status_index].index("✓ clean"),
+            lines[status_index].index("one"),
+        )
 
     def test_repository_status_uses_middle_right_in_compact_width(self) -> None:
         rows = [TreeRow(
@@ -231,7 +235,7 @@ class RenderTests(unittest.TestCase):
             index for index, line in enumerate(lines)
             if "✓ clean" in line
         )
-        self.assertEqual(title_index, status_index + 1)
+        self.assertEqual(title_index, status_index)
         self.assertGreater(lines[status_index].index("✓ clean"), 20)
 
     def test_embedded_repository_context_keeps_lower_tabs_in_the_group(self) -> None:
@@ -254,7 +258,7 @@ class RenderTests(unittest.TestCase):
         state = next(index for index, line in enumerate(lines) if "✓ clean" in line)
         second = next(index for index, line in enumerate(lines) if "two" in line)
 
-        self.assertEqual(first, state + 1)
+        self.assertEqual(first, state)
         self.assertEqual(second, state + 4)
         self.assertIn("/ktt/", lines[second])
 
@@ -564,11 +568,48 @@ class RenderTests(unittest.TestCase):
 
         self.assertNotIn(" topic/branch", screen)
         middle = next(line for line in screen.split("\n") if "/quiver/" in line)
-        secondary = next(
-            line for line in screen.split("\n") if "push topic" in line
+        self.assertIn("push topic branch", middle)
+
+    def test_selected_status_does_not_move_main_checkout_title(self) -> None:
+        row = TreeRow(
+            TabRecord(
+                1,
+                1,
+                "igorandr rework",
+                (10,),
+                repository="yadm",
+            ),
+            0,
+            None,
         )
-        self.assertNotIn("push topic branch", middle)
-        self.assertIn("push topic branch", secondary)
+        inactive = render_card(
+            row,
+            selected=False,
+            width=72,
+            card_height=3,
+            ansi=False,
+        )
+        selected = render_card(
+            row,
+            selected=True,
+            width=72,
+            card_height=3,
+            ansi=False,
+            repository_lines=[
+                " (yadm) ~  ◈ 2 unstaged ",
+                "  master ",
+            ],
+            repository_location=RepositoryLocation(),
+        )
+
+        self.assertIn("/yadm/ · igorandr rework", inactive[1])
+        self.assertIn("/yadm/ · igorandr rework", selected[1])
+        self.assertEqual(
+            inactive[1].index("igorandr rework"),
+            selected[1].index("igorandr rework"),
+        )
+        self.assertIn("2 unstaged", selected[1])
+        self.assertNotIn("igorandr rework", selected[2])
 
     def test_narrow_tab_keeps_worktree_and_middle_right_state(self) -> None:
         screen = render_screen(
@@ -1304,7 +1345,7 @@ class RenderTests(unittest.TestCase):
         child_column = display_width(child.split("fixed-title", 1)[0])
         self.assertEqual(child_column - root_column, 8)
 
-    def test_repository_context_moves_title_to_secondary_row(self) -> None:
+    def test_status_only_context_keeps_title_on_middle_row(self) -> None:
         row = TreeRow(
             TabRecord(1, 1, "fixed-title", (10,), repository="ktt"), 0, None
         )
@@ -1320,8 +1361,9 @@ class RenderTests(unittest.TestCase):
             ],
         )
 
-        self.assertNotIn("fixed-title", contextual[1])
-        self.assertIn("fixed-title", contextual[2])
+        self.assertIn("/ktt/ · fixed-title", contextual[1])
+        self.assertIn("✓ clean", contextual[1])
+        self.assertNotIn("fixed-title", contextual[2])
 
     def test_leaf_row_has_no_tree_dash(self) -> None:
         leaf = render_row(
