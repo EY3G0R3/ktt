@@ -952,7 +952,7 @@ def render_row(
                 display_width(inline_context_segments[0][0]),
             )
             repository_width = display_width(repository)
-            repository_separator_width = 3 if repository else 0
+            repository_separator_width = 0
             if (
                 repository
                 and remaining
@@ -1017,10 +1017,10 @@ def render_row(
     metadata_width = display_width(repository)
     if inline_context_segments:
         metadata_width += (
-            (3 if repository else 0) + inline_context_width
+            inline_context_width
         )
     elif worktree:
-        metadata_width += 3 + display_width(worktree)
+        metadata_width += display_width(worktree)
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     background = card_background(row)
@@ -1073,7 +1073,6 @@ def render_row(
     )
     metadata = (
         f"{repository_label}"
-        f"{' · ' if repository and (worktree or inline_context_label) else ''}"
         f"{inline_context_label or worktree_label}"
     )
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"

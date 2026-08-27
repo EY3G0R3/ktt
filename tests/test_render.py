@@ -465,7 +465,7 @@ class RenderTests(unittest.TestCase):
         middle = next(line for line in lines if "🌲feature" in line)
         summary = next(line for line in lines if "✓ clean" in line)
 
-        self.assertIn("/quiver/ · 🌲feature", middle)
+        self.assertIn("/quiver/🌲feature", middle)
         self.assertIn(" topic/branch · runner", secondary)
         self.assertEqual(summary, middle)
         self.assertGreater(
@@ -494,7 +494,7 @@ class RenderTests(unittest.TestCase):
         middle = next(line for line in screen.split("\n") if "🌲" in line)
 
         secondary = next(line for line in screen.split("\n") if "runner" in line)
-        self.assertIn("/quiver/ · 🌲topic-branch", middle)
+        self.assertIn("/quiver/🌲topic-branch", middle)
         self.assertIn("runner", secondary)
         self.assertNotIn(" topic/branch", middle)
 
@@ -524,7 +524,7 @@ class RenderTests(unittest.TestCase):
             line for line in screen.split("\n") if " release/next" in line
         )
 
-        self.assertIn("/quiver/ · 🌲topic-branch", middle)
+        self.assertIn("/quiver/🌲topic-branch", middle)
         self.assertIn(" release/next", secondary)
         self.assertNotIn("topic branch", secondary)
 
@@ -629,7 +629,7 @@ class RenderTests(unittest.TestCase):
             line for line in lines if line.strip().endswith("two")
         )
 
-        self.assertIn("/quiver/ · 🌲feature-two", inactive_middle)
+        self.assertIn("/quiver/🌲feature-two", inactive_middle)
         self.assertNotIn("clean", inactive_middle)
         self.assertNotIn("unstaged", inactive_middle)
         self.assertIn("two", inactive_secondary)
@@ -1004,7 +1004,7 @@ class RenderTests(unittest.TestCase):
 
                 self.assertNotIn("🌲feature", card[0])
                 self.assertNotIn(" main", card[0])
-                self.assertIn("/quiver/ · 🌲feature", card[1])
+                self.assertIn("/quiver/🌲feature", card[1])
                 self.assertIn("✓ clean", card[1])
                 self.assertNotIn(" main", card[1])
                 self.assertGreater(
