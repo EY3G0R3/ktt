@@ -137,22 +137,32 @@ class SessionTests(unittest.TestCase):
         self.assertNotIn("1002", serialized)
         self.assertNotIn("1901", serialized)
 
-    def test_capture_normalizes_a_focused_tab_as_the_only_active_tab(self) -> None:
+    def test_capture_uses_tab_focus_instead_of_each_tabs_focused_pane(self) -> None:
         snapshot = [
             {
                 "id": 91,
                 "wm_name": "work",
+                "is_focused": True,
                 "tabs": [
                     {
                         "id": 101,
-                        "title": "stale-active",
-                        "is_active": True,
-                        "windows": [content_window(1001, "/work/one", ["zsh"])],
+                        "title": "inactive",
+                        "is_active": False,
+                        "is_focused": False,
+                        "windows": [
+                            content_window(
+                                1001,
+                                "/work/one",
+                                ["zsh"],
+                                focused=True,
+                            )
+                        ],
                     },
                     {
                         "id": 102,
                         "title": "focused",
-                        "is_active": False,
+                        "is_active": True,
+                        "is_focused": True,
                         "windows": [
                             content_window(
                                 1002,
@@ -172,8 +182,9 @@ class SessionTests(unittest.TestCase):
             created_at="2026-08-27T12:00:00-07:00",
         )
 
-        stale, focused = manifest.os_windows[0].tabs
-        self.assertFalse(stale.active)
+        inactive, focused = manifest.os_windows[0].tabs
+        self.assertFalse(inactive.active)
+        self.assertFalse(inactive.focused)
         self.assertTrue(focused.active)
         self.assertTrue(focused.focused)
 
