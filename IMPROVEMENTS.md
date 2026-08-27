@@ -219,7 +219,7 @@ wall/2.824 seconds child-inclusive CPU through `kitten @ ls`. Direct snapshots
 remove roughly 98% of the client CPU attributable to this request.
 
 The remaining inclusive idle cost is the selected tab's three-second Fancylog
-refresh. Inactive tabs keep one-time repository/worktree identity and do not
+refresh. Inactive tabs keep one-time repository and linked-worktree identity and do not
 poll state. Fancylog's existing watch mode still recomputes repository state on
 an interval and emits terminal redraw frames, so adopting it directly would
 complicate parsing without eliminating the underlying work. Do not duplicate
@@ -234,8 +234,8 @@ separates tall cards and disappears in compact mode, while verdict glyphs
 repeat vertically to form a continuous flame or exhaust edge.
 
 Every vertical card left-aligns status and repository as one stable group;
-selection does not change that alignment. Worktree follows the repository on
-every card, the selected card's cached clean/dirty state is right-aligned on the
+selection does not change that alignment. Linked worktree follows the repository
+when present, the selected card's cached clean/dirty state is right-aligned on the
 middle row, and useful branch plus nonredundant title share the bottom row. A title
 equivalent to the worktree is omitted.
 Changed files attach using otherwise-empty screen rows, with dirty counts

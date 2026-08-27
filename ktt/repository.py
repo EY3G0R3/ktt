@@ -79,12 +79,14 @@ def resolve_repository_location(
     if result.returncode != 0 or len(values) != 2:
         return None
     root = Path(values[0]).resolve()
+    common_directory = Path(values[1]).resolve()
     try:
         relative = Path(path).resolve().relative_to(root)
     except ValueError:
         return None
+    linked_worktree = common_directory != (root / ".git").resolve()
     return RepositoryLocation(
-        worktree=root.name,
+        worktree=root.name if linked_worktree else None,
         relative_path=None if str(relative) == "." else f"{relative}/",
     )
 

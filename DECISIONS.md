@@ -123,7 +123,8 @@ back to the default Powerline caps.
 Added August 23, 2026 (PDT).
 Revised August 26, 2026 (PDT).
 
-Left-align repository or yadm identity and worktree on every card's middle row.
+Left-align repository or yadm identity on every card's middle row, followed by
+worktree identity only for linked worktrees.
 Show cached clean/dirty state on the selected card's right. Group useful
 branch and nonredundant title on the bottom row. Omit default branches and any
 branch represented by the title or worktree; omit the title when it repeats the
@@ -139,7 +140,7 @@ and mouse hit testing follows their rendered positions. Keyboard help remains
 centered separately in the spare space above the group.
 
 Each tab's content-window `cwd` is the path authority. A two-worker cache
-resolves repository and worktree-root identity once per unique directory.
+resolves repository and linked-worktree identity once per unique directory.
 Only the selected tab polls branch and state, caching detailed Fancylog rows for
 three seconds. fancylog owns repository discovery—including yadm—status
 semantics, palette, and truncation. Failed selected-tab refreshes retain the

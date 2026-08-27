@@ -180,8 +180,8 @@ ktt shifts any near-collisions around the color wheel so the repositories in the
 current tree remain visibly distinct. The same repository set keeps the same
 colors across launches; adding or removing a repository can move a colliding
 label. The renderer also adjusts brightness when a card background needs more
-contrast. In the normal three-row vertical view, `/repository/` and worktree
-form a left-aligned middle-row sequence on every tab, while the selected tab's
+contrast. In the normal three-row vertical view, `/repository/` and any linked
+worktree form a left-aligned middle-row sequence on every tab, while the selected tab's
 cached clean/dirty state is right-aligned on that row. Useful branch and nonredundant title form one
 centered group on the bottom. Ordinary `main` and
 `master` branches, branches represented by the title, and branches equivalent
@@ -190,13 +190,14 @@ are omitted too.
 
 Repository names come from Fancylog rather than a second set of Git or yadm
 rules. Ktt submits each unique tab `cwd` to a two-worker background cache and
-resolves worktree-root identity in the same one-time task. Tabs sharing a
+resolves linked-worktree identity in the same one-time task. Tabs sharing a
 directory are deduplicated. Only the selected tab polls status and branch,
 using its existing three-second detailed refresh.
 
 ## Active repository context
 
-Every three-row tab card places `/repository/worktree` on the middle-left.
+Every three-row tab card places `/repository/` on the middle-left and appends
+`🌲worktree` only for a linked worktree.
 The selected tab adds cached clean/dirty state on the middle-right. Useful
 branch and nonredundant title share the bottom row. Redundant and default branch labels
 are omitted, as are titles that repeat the worktree. Dirty counts remain on the
@@ -209,7 +210,7 @@ Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
 states. Changed files and their dirty heading use up to six rows left after rendering every tab and
 collapse when the tree needs those rows. Summary polling continues even without
 spare rows because it renders inside the selected card. Inactive cards retain
-their one-time repository/worktree identity without polling state. The selected
+their one-time repository and linked-worktree identity without polling state. The selected
 tab's three-second Fancylog snapshot supplies branch, summary, and file state.
 
 ktt reads the active terminal's `cwd` from the existing Kitty snapshot and

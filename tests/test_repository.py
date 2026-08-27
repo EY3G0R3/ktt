@@ -79,7 +79,7 @@ class RepositoryTests(unittest.TestCase):
 
         self.assertEqual(
             resolve_repository_location("/home/me/src/ktt/build"),
-            RepositoryLocation(worktree="ktt", relative_path="build/"),
+            RepositoryLocation(relative_path="build/"),
         )
 
     @patch("ktt.repository.subprocess.run")
