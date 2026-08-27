@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import shutil
 import sys
+from pathlib import Path
 
+from .daemon import run_daemon, start_daemon, stop_daemon
 from .kitty import (
     KittyError,
     RemoteControl,
     find_sidebar_window,
     find_tab_for_window,
 )
-from .daemon import run_daemon, start_daemon, stop_daemon
 from .model import choose_os_window, records_for_os_window, tree_rows
 from .render import (
     CHANGED_FILES_PLACEMENTS,
@@ -245,7 +245,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "save-session":
             return save_current_session(remote, args.path)
         if args.command == "restore-session":
-            return restore_saved_session(remote, args.path, dry_run=args.dry_run)
+            return restore_saved_session(
+                remote,
+                args.path,
+                dry_run=args.dry_run,
+                poll_interval=args.poll_interval,
+                edge_style=args.edge_style,
+                repository_palette=args.repository_palette,
+                changed_files_placement=args.changed_files_placement,
+                orientation=args.orientation,
+            )
         if (
             args.command is None
             and args.target_os_window is None

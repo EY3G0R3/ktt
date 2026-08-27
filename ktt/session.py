@@ -448,7 +448,13 @@ def execute_restore(
         ]
         if operation.source is not None:
             source_id = runtime_ids[operation.source]
-            arguments.extend(("--source-window", f"id:{source_id}", "--location=after"))
+            arguments.extend((
+                "--match",
+                f"window_id:{source_id}",
+                "--source-window",
+                f"id:{source_id}",
+                "--location=after",
+            ))
         elif operation.os_window_title:
             arguments.extend(("--os-window-title", operation.os_window_title))
         if operation.cwd:
@@ -458,6 +464,8 @@ def execute_restore(
         if operation.parent:
             parent_id = runtime_ids[operation.parent]
             arguments.extend(("--var", f"{PARENT_VAR}={parent_id}"))
+        if operation.command:
+            arguments.append("--hold")
         arguments.extend(operation.command)
         raw_id = remote.run("launch", *arguments)
         try:

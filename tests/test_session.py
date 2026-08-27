@@ -275,9 +275,12 @@ class SessionTests(unittest.TestCase):
         self.assertIn("--os-window-title", first)
         self.assertEqual(first[-3:], ("codex", "resume", "codex-id"))
         self.assertIn("--type=tab", second)
+        self.assertIn("--match", second)
+        self.assertIn("window_id:7001", second)
         self.assertIn("id:7001", second)
         self.assertIn(f"{PARENT_VAR}=7001", second)
         self.assertEqual(second[-3:], ("claude", "--resume", "claude-id"))
+        self.assertIn("--hold", second)
         self.assertEqual(remote.focused, [7002])
 
     def test_tmux_reattaches_only_while_the_session_survives(self) -> None:
@@ -439,6 +442,55 @@ class SessionTests(unittest.TestCase):
             self.assertEqual(result, 0)
             remote.run.assert_not_called()
             remote.focus_window.assert_not_called()
+
+    @mock.patch("ktt.session_cli.start_daemon", return_value=1234)
+    def test_restore_embeds_ktt_in_each_recreated_os_window(
+        self, start_daemon: mock.Mock
+    ) -> None:
+        manifest = SessionManifest(
+            "2026-08-27T12:00:00-07:00",
+            "host",
+            (
+                SessionOsWindow(
+                    "os-1",
+                    "work",
+                    (
+                        SessionTab(
+                            "tab-1",
+                            "shell",
+                            "/work",
+                            None,
+                            True,
+                            True,
+                            AgentState("shell", "zsh"),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "session.json"
+            write_manifest(path, manifest)
+            remote = FakeRemote([7001])
+            remote.to = "unix:/tmp/kitty"
+            remote.snapshot = mock.Mock(return_value=[{
+                "id": 91,
+                "tabs": [{"id": 101, "windows": [{"id": 7001}]}],
+            }])
+
+            result = restore_saved_session(remote, path, dry_run=False)
+
+        self.assertEqual(result, 0)
+        start_daemon.assert_called_once_with(
+            91,
+            to="unix:/tmp/kitty",
+            poll_interval=1.0,
+            edge_style="tapered",
+            repository_palette="amber",
+            changed_files_placement="inline",
+            pane_percent=20,
+            orientation="vertical",
+        )
 
 
 if __name__ == "__main__":

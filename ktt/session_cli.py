@@ -7,7 +7,14 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from .kitty import KittyError, RemoteControl
+from .daemon import start_daemon
+from .kitty import KittyError, RemoteControl, find_tab_for_window
+from .render import (
+    DEFAULT_CHANGED_FILES_PLACEMENT,
+    DEFAULT_EDGE_STYLE,
+    DEFAULT_ORIENTATION,
+)
+from .repository import DEFAULT_REPOSITORY_PALETTE
 from .session import (
     SessionManifestError,
     capture_session,
@@ -34,7 +41,18 @@ def save_current_session(remote: RemoteControl, path: Path) -> int:
     return 0
 
 
-def restore_saved_session(remote: RemoteControl, path: Path, *, dry_run: bool) -> int:
+def restore_saved_session(
+    remote: RemoteControl,
+    path: Path,
+    *,
+    dry_run: bool,
+    poll_interval: float = 1.0,
+    edge_style: str = DEFAULT_EDGE_STYLE,
+    repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
+    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
+    orientation: str = DEFAULT_ORIENTATION,
+    pane_percent: int | None = None,
+) -> int:
     manifest = read_manifest(path)
     for warning in manifest.warnings:
         print(f"ktt: saved warning: {warning}", file=sys.stderr)
@@ -42,10 +60,42 @@ def restore_saved_session(remote: RemoteControl, path: Path, *, dry_run: bool) -
     for operation in operations:
         print(operation.describe())
     if dry_run:
-        print(f"would restore {len(operations)} tabs from {path}")
+        print(
+            f"would restore {len(operations)} tabs from {path} and embed ktt in "
+            f"{len(manifest.os_windows)} OS windows"
+        )
         return 0
-    execute_restore(remote, operations)
-    print(f"restored {len(operations)} tabs from {path}")
+    runtime_ids = execute_restore(remote, operations)
+    snapshot = remote.snapshot()
+    restored_os_window_ids: list[int] = []
+    for operation in operations:
+        if operation.source is not None:
+            continue
+        location = find_tab_for_window(snapshot, runtime_ids[operation.logical_id])
+        if location is None:
+            raise RuntimeError(
+                f"restored Kitty window {runtime_ids[operation.logical_id]} disappeared"
+            )
+        restored_os_window_ids.append(location[0])
+
+    resolved_pane_percent = pane_percent
+    if resolved_pane_percent is None:
+        resolved_pane_percent = 10 if orientation == "horizontal" else 20
+    for os_window_id in restored_os_window_ids:
+        start_daemon(
+            os_window_id,
+            to=remote.to,
+            poll_interval=poll_interval,
+            edge_style=edge_style,
+            repository_palette=repository_palette,
+            changed_files_placement=changed_files_placement,
+            pane_percent=resolved_pane_percent,
+            orientation=orientation,
+        )
+    print(
+        f"restored {len(operations)} tabs from {path}; embedded ktt in "
+        f"{len(restored_os_window_ids)} OS windows"
+    )
     return 0
 
 
