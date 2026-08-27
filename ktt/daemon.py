@@ -28,11 +28,12 @@ from .model import (
     with_repository_names,
 )
 from .order import VisibleOrderPublisher
-from .render import DEFAULT_CHANGED_FILES_PLACEMENT
+from .render import DEFAULT_CHANGED_FILES_PLACEMENT, vertical_bottom_padding
 from .repository import (
     DEFAULT_REPOSITORY_PALETTE,
     FancylogIdentityCache,
     FancylogMonitor,
+    MAX_BOTTOM_REPOSITORY_LINES,
     MAX_REPOSITORY_LINES,
     RepositoryLocation,
     RepositoryLocationCache,
@@ -556,6 +557,30 @@ def _embedded_sidebar_width(
     )
 
 
+def _repository_line_limit(
+    row_count: int,
+    os_window: dict[str, Any],
+    sidebar_windows: dict[int, int],
+    changed_files_placement: str,
+) -> int:
+    if changed_files_placement != "bottom":
+        return MAX_REPOSITORY_LINES
+    sidebar_height = max(
+        (
+            int(window.get("lines") or 0)
+            for tab in os_window.get("tabs") or []
+            for window in tab.get("windows") or []
+            if int(window.get("id") or 0) in set(sidebar_windows.values())
+        ),
+        default=0,
+    )
+    context_capacity = vertical_bottom_padding(row_count, sidebar_height)
+    return min(
+        MAX_BOTTOM_REPOSITORY_LINES,
+        max(MAX_REPOSITORY_LINES, context_capacity + 2),
+    )
+
+
 def _write_daemon_state(
     state_path: Path,
     target_os_window_id: int,
@@ -754,7 +779,12 @@ def run_daemon(
                     repository_lines = repository_monitor.update(
                         repository_path,
                         _embedded_sidebar_width(os_window, sidebar_windows),
-                        MAX_REPOSITORY_LINES,
+                        _repository_line_limit(
+                            len(rows),
+                            os_window,
+                            sidebar_windows,
+                            changed_files_placement,
+                        ),
                         now,
                     )
                     repository_location = repository_locations.update(

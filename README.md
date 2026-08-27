@@ -209,9 +209,9 @@ and follow its tree indent. Both modes right-align actions against a shared
 path column. Paths start immediately to the right of the action;
 only staged entries add the literal `staged`, while unstaged is the default.
 Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
-states. Changed files and their dirty heading use up to six free rows after
-rendering every tab and collapse when the tree needs those rows. Summary polling continues even without
-spare rows because it renders inside the selected card. Inactive cards retain
+states. The bottom placement shows up to ten changed files when space permits;
+both placements collapse details when the tree needs those rows. Summary polling
+continues even without spare rows because it renders inside the selected card. Inactive cards retain
 their one-time repository and linked-worktree identity without polling state. The selected
 tab's three-second Fancylog snapshot supplies branch, summary, and file state.
 

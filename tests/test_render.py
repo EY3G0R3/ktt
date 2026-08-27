@@ -314,6 +314,29 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(detail_positions[1], detail_positions[0] + 1)
         self.assertGreater(first_selected[detail_positions[0]].index("modified"), 15)
 
+    def test_bottom_repository_context_uses_space_for_more_than_five_files(
+        self,
+    ) -> None:
+        repository_lines = [
+            f" modified file-{index}.py " for index in range(10)
+        ] + [
+            " (ktt) ~/src/ktt  ◈ 10 unstaged ",
+            "  main ",
+        ]
+
+        screen = render_screen(
+            [TreeRow(TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None)],
+            0,
+            1,
+            60,
+            40,
+            ansi=False,
+            repository_lines=repository_lines,
+            changed_files_placement="bottom",
+        )
+
+        self.assertEqual(screen.count("modified file-"), 10)
+
     def test_repository_card_compacts_fancylog_into_one_colored_pill(self) -> None:
         rendered = render_repository_card(
             [

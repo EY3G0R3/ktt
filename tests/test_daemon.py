@@ -8,6 +8,7 @@ from ktt.daemon import (
     SharedSnapshotClient,
     SnapshotServer,
     _has_orphaned_sidebar,
+    _repository_line_limit,
     _shared_sidebar_width,
     _sidebar_percent,
     daemon_arguments,
@@ -90,6 +91,22 @@ class SharedSnapshotTests(unittest.TestCase):
             65,
         )
         self.assertTrue(_has_orphaned_sidebar(os_window, sidebars))
+
+    def test_bottom_repository_limit_uses_available_sidebar_height(self) -> None:
+        tab = self._sidebar_tab(1, 11, 65, active=True)
+        tab["windows"][-1]["lines"] = 40
+        os_window = {"tabs": [tab]}
+
+        bottom_limit = _repository_line_limit(
+            1, os_window, {1: 11}, "bottom"
+        )
+        inline_limit = _repository_line_limit(
+            1, os_window, {1: 11}, "inline"
+        )
+
+        self.assertGreater(bottom_limit, 8)
+        self.assertLessEqual(bottom_limit, 13)
+        self.assertEqual(inline_limit, 8)
 
     def test_socket_path_is_scoped_to_kitty_and_os_window(self) -> None:
         self.assertEqual(
