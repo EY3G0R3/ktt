@@ -137,6 +137,46 @@ class SessionTests(unittest.TestCase):
         self.assertNotIn("1002", serialized)
         self.assertNotIn("1901", serialized)
 
+    def test_capture_normalizes_a_focused_tab_as_the_only_active_tab(self) -> None:
+        snapshot = [
+            {
+                "id": 91,
+                "wm_name": "work",
+                "tabs": [
+                    {
+                        "id": 101,
+                        "title": "stale-active",
+                        "is_active": True,
+                        "windows": [content_window(1001, "/work/one", ["zsh"])],
+                    },
+                    {
+                        "id": 102,
+                        "title": "focused",
+                        "is_active": False,
+                        "windows": [
+                            content_window(
+                                1002,
+                                "/work/two",
+                                ["zsh"],
+                                focused=True,
+                            )
+                        ],
+                    },
+                ],
+            }
+        ]
+
+        manifest = capture_session(
+            snapshot,
+            hostname="host",
+            created_at="2026-08-27T12:00:00-07:00",
+        )
+
+        stale, focused = manifest.os_windows[0].tabs
+        self.assertFalse(stale.active)
+        self.assertTrue(focused.active)
+        self.assertTrue(focused.focused)
+
     def test_restore_remaps_relationships_to_new_kitty_ids(self) -> None:
         manifest = SessionManifest(
             created_at="2026-08-27T12:00:00-07:00",

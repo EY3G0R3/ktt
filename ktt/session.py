@@ -7,7 +7,7 @@ import sqlite3
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -282,6 +282,10 @@ def capture_session(
                     agent=agent,
                 )
             )
+
+        focused = next((tab.logical_id for tab in tabs if tab.focused), None)
+        if focused is not None:
+            tabs = [replace(tab, active=tab.logical_id == focused) for tab in tabs]
 
         if tabs:
             windows.append(
