@@ -25,6 +25,8 @@ from .render import (
     render_screen,
 )
 from .repository import DEFAULT_REPOSITORY_PALETTE, REPOSITORY_PALETTES
+from .session import default_manifest_path
+from .session_cli import restore_saved_session, save_current_session
 from .tui import run_tui
 
 
@@ -81,6 +83,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--shared-socket", help=argparse.SUPPRESS)
     subparsers = parser.add_subparsers(dest="command")
+    save_session = subparsers.add_parser(
+        "save-session", help="save Kitty tabs, ktt relationships, and resumable agents"
+    )
+    save_session.add_argument(
+        "path", nargs="?", type=Path, default=default_manifest_path()
+    )
+    restore_session = subparsers.add_parser(
+        "restore-session", help="restore a saved Kitty and ktt session"
+    )
+    restore_session.add_argument("--dry-run", action="store_true")
+    restore_session.add_argument(
+        "path", nargs="?", type=Path, default=default_manifest_path()
+    )
     subparsers.add_parser("list", help="print the current tree once")
     subparsers.add_parser("launch", help="open ktt in a separate Kitty OS window")
     launch_pane = subparsers.add_parser(
@@ -227,6 +242,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     remote = RemoteControl(args.to)
     try:
+        if args.command == "save-session":
+            return save_current_session(remote, args.path)
+        if args.command == "restore-session":
+            return restore_saved_session(remote, args.path, dry_run=args.dry_run)
         if (
             args.command is None
             and args.target_os_window is None

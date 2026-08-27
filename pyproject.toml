@@ -12,6 +12,8 @@ authors = [{name = "ktt contributors"}]
 
 [project.scripts]
 ktt = "ktt.cli:main"
+ktt-save = "ktt.session_cli:save_main"
+ktt-restore = "ktt.session_cli:restore_main"
 
 [tool.setuptools]
 packages = ["ktt"]
