@@ -1028,7 +1028,7 @@ class RenderTests(unittest.TestCase):
             TreeRow(blocked, 0, None), selected=False, width=80
         ))
 
-    def test_waiting_row_uses_a_muted_attention_card_with_light_text(self) -> None:
+    def test_waiting_row_uses_an_amber_attention_card(self) -> None:
         waiting = TreeRow(
             TabRecord(2, 1, "question", (20,), status="💬"), 0, None
         )
@@ -1084,7 +1084,7 @@ class RenderTests(unittest.TestCase):
             REPOSITORY_WORKTREE_FOREGROUND,
         )
 
-    def test_active_waiting_row_is_brighter_than_inactive_waiting(self) -> None:
+    def test_active_waiting_row_uses_brighter_attention_background(self) -> None:
         inactive = card_background(TreeRow(
             TabRecord(1, 1, "question", (10,), status="💬"), 0, None
         ))
@@ -1094,9 +1094,8 @@ class RenderTests(unittest.TestCase):
             None,
         ))
         self.assertEqual((inactive, active), WAITING_BACKGROUNDS)
-        self.assertEqual(active, ACTIVE_BACKGROUND)
 
-    def test_horizontal_cards_use_the_same_active_and_waiting_hierarchy(self) -> None:
+    def test_horizontal_cards_separate_active_brightness_from_attention_hue(self) -> None:
         waiting = render_horizontal_card(
             TreeRow(TabRecord(1, 1, "question", (10,), status="💬"), 0, None),
             width=30,
@@ -1106,7 +1105,7 @@ class RenderTests(unittest.TestCase):
             width=30,
         )
 
-        self.assertIn("\x1b[48;2;76;86;106m", waiting)
+        self.assertIn("\x1b[48;2;107;82;0m", waiting)
         self.assertIn("\x1b[38;2;241;250;140m", waiting)
         self.assertIn("\x1b[48;2;100;113;139m", active)
         self.assertIn("\x1b[38;2;248;248;242m", active)
@@ -1341,13 +1340,44 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(vertical_padding(1, 12, 3), 4)
         self.assertEqual(vertical_bottom_padding(1, 12, 3), 5)
 
-    def test_active_tab_has_persistent_background(self) -> None:
+    def test_active_tab_uses_moving_highlight_and_bold_text(self) -> None:
         active = TabRecord(1, 1, "active", (10,), is_active=True)
         rendered = render_row(
             TreeRow(active, 0, None), selected=False, width=80
         )
         self.assertIn("\x1b[48;2;100;113;139m", rendered)
         self.assertIn("\x1b[38;2;248;248;242m", rendered)
+        self.assertIn("\x1b[1m", rendered)
+
+    def test_active_highlight_brightens_status_without_changing_its_hue(self) -> None:
+        for status, inactive_background, active_background in (
+            (
+                "ready_to_merge",
+                "\x1b[48;2;27;94;54m",
+                "\x1b[48;2;47;156;92m",
+            ),
+            (
+                "blocked",
+                "\x1b[48;2;122;32;41m",
+                "\x1b[48;2;192;57;74m",
+            ),
+            (
+                "💬",
+                "\x1b[48;2;107;82;0m",
+                "\x1b[48;2;167;125;0m",
+            ),
+        ):
+            with self.subTest(status=status):
+                inactive = render_row(TreeRow(
+                    TabRecord(1, 1, "status", (10,), status=status), 0, None
+                ), selected=False, width=80)
+                active = render_row(TreeRow(
+                    TabRecord(
+                        1, 1, "status", (10,), status=status, is_active=True
+                    ), 0, None
+                ), selected=False, width=80)
+                self.assertIn(inactive_background, inactive)
+                self.assertIn(active_background, active)
 
     def test_folded_active_descendant_uses_dimmer_active_background(self) -> None:
         parent = TabRecord(1, 1, "parent", (10,))

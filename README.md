@@ -118,9 +118,11 @@ without becoming cross-session configuration; closed tab IDs are pruned on the
 next snapshot.
 
 The current main-window tab is the single highlighted/selected state and uses
-a higher-contrast background without a separate marker gutter. Folding does
-not create another selection. When the active tab is hidden inside a folded
-subtree, the visible ancestor uses a dimmer active background. Every tab has a
+bold text plus a brighter card. Agent state keeps its hue, so selecting a ready,
+blocked, or waiting tab brightens its green, red, or amber instead of replacing
+it with the neutral active color. Folding does not create another selection.
+When the active tab is hidden inside a folded subtree, the visible ancestor
+uses a dimmer active background. Every tab has a
 background card; child cards start
 four columns farther right per level against the black panel, so card position
 alone shows the tree. Leaf rows have no decorative dash. Every vertical card
@@ -160,11 +162,11 @@ rounded-outline theme keeps its corner glyphs and shows the verdict cap on the
 content row.
 
 Waiting agents—the Workmux `waiting` state currently projected as `💬`—use an
-off-white attention card with dark text. An active waiting tab becomes slightly
-brighter, while the speech bubble and rounded cap remain unchanged.
+amber attention card and yellow speech bubble. Selecting that tab adds the
+brighter amber treatment without replacing the attention hue.
 When that user variable transiently says `💬` while the live Kitty title still
 starts with an animated working spinner, ktt treats the tab as working. This is
-a direct precedence rule rather than a timer: the white card appears as soon as
+a direct precedence rule rather than a timer: the amber card appears as soon as
 the working signal is absent.
 
 The status area is a fixed two terminal cells wide. Wide emoji, narrow
