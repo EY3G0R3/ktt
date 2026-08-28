@@ -92,6 +92,21 @@ class SharedSnapshotTests(unittest.TestCase):
         )
         self.assertTrue(_has_orphaned_sidebar(os_window, sidebars))
 
+    def test_misplaced_sidebar_cannot_become_the_shared_width(self) -> None:
+        live = self._sidebar_tab(1, 11, 65, active=False)
+        misplaced = self._sidebar_tab(2, 22, 318, active=True, bias=0.5)
+        misplaced["layout_state"]["pairs"]["horizontal"] = False
+        os_window = {"tabs": [live, misplaced]}
+
+        self.assertEqual(
+            _shared_sidebar_width(os_window, {1: 11, 2: 22}, 65),
+            65,
+        )
+        self.assertEqual(
+            _sidebar_percent(os_window, {1: 11, 2: 22}, 318, 20),
+            20,
+        )
+
     def test_bottom_repository_limit_uses_available_sidebar_height(self) -> None:
         tab = self._sidebar_tab(1, 11, 65, active=True)
         tab["windows"][-1]["lines"] = 40

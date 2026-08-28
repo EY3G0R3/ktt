@@ -394,6 +394,56 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(resized, [])
         self.assertEqual(remote.calls, [])
 
+    def test_misplaced_vertical_sidebar_is_repaired_before_width_sync(self) -> None:
+        remote = RecordingRemote()
+        snapshot = [{
+            "id": 3,
+            "tabs": [{
+                "id": 10,
+                "layout": "splits",
+                "layout_state": {"pairs": {
+                    "horizontal": False,
+                    "one": 190,
+                    "two": 100,
+                }},
+                "groups": [
+                    {"id": 100, "windows": [100]},
+                    {"id": 190, "windows": [190]},
+                ],
+                "windows": [
+                    {"id": 100, "is_active": True, "user_vars": {}},
+                    {"id": 190, "columns": 318, "user_vars": {
+                        "ktt_sidebar": "1",
+                        "ktt_orientation": "vertical",
+                    }},
+                ],
+            }],
+        }]
+
+        resized = remote.sync_embedded_sidebar_widths(
+            snapshot, 3, sidebar_columns=65, pane_percent=20
+        )
+        placed = remote.sync_embedded_sidebar_placements(
+            snapshot, 3, pane_percent=20
+        )
+
+        self.assertEqual(resized, [])
+        self.assertEqual(placed, [190])
+        self.assertEqual(remote.calls, [(
+            "action",
+            (
+                "--match",
+                "id:100",
+                "kitten",
+                str(Path(kitty_module.__file__).with_name(
+                    "embedded_pane_layout_kitten.py"
+                )),
+                "100",
+                "190",
+                "20",
+            ),
+        )])
+
     def test_vertical_sync_splits_the_active_content_window(self) -> None:
         remote = RecordingRemote()
         snapshot = [{

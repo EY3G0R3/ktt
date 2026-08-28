@@ -17,6 +17,7 @@ from .folds import read_folded_tab_ids
 from .kitty import (
     RemoteControl,
     content_window_for_tab,
+    embedded_sidebar_is_left_edge,
     embedded_sidebar_windows,
     os_window_by_id,
 )
@@ -448,6 +449,7 @@ def _embedded_sidebar_widths(
         if (
             sidebar_window_id is None
             or content_window_for_tab(tab) is None
+            or embedded_sidebar_is_left_edge(tab, sidebar_window_id) is False
         ):
             continue
         for window in tab.get("windows") or []:
@@ -509,6 +511,8 @@ def _sidebar_percent(
         tab_id = int(tab.get("id") or 0)
         sidebar_window_id = sidebar_windows.get(tab_id)
         if sidebar_window_id is None:
+            continue
+        if embedded_sidebar_is_left_edge(tab, sidebar_window_id) is False:
             continue
         sidebar = next(
             (
@@ -729,6 +733,16 @@ def run_daemon(
                         snapshot = remote.snapshot()
                         os_window = os_window_by_id(snapshot, target_os_window_id)
                     if orientation == "vertical":
+                        placed = remote.sync_embedded_sidebar_placements(
+                            snapshot,
+                            target_os_window_id,
+                            pane_percent,
+                        )
+                        if placed:
+                            snapshot = remote.snapshot()
+                            os_window = os_window_by_id(
+                                snapshot, target_os_window_id
+                            )
                         sidebar_windows = embedded_sidebar_windows(
                             os_window, orientation
                         )

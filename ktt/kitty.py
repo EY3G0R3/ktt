@@ -398,6 +398,8 @@ class RemoteControl:
             )
             if sidebar is None:
                 continue
+            if embedded_sidebar_is_left_edge(tab, sidebar_window_id) is False:
+                continue
             current_columns = int(sidebar.get("columns") or 0)
             increment = sidebar_columns - current_columns
             if current_columns > 0 and increment:
@@ -418,6 +420,31 @@ class RemoteControl:
                     f"{PANE_PERCENT_VAR}={pane_percent}",
                 )
         return resized
+
+    def sync_embedded_sidebar_placements(
+        self,
+        snapshot: Sequence[dict[str, Any]],
+        target_os_window_id: int,
+        pane_percent: int,
+    ) -> list[int]:
+        """Restore vertical sidebars that no longer occupy the left edge."""
+        os_window = os_window_by_id(snapshot, target_os_window_id)
+        existing = embedded_sidebar_windows(os_window, "vertical")
+        placed: list[int] = []
+        for tab in os_window.get("tabs") or []:
+            sidebar_window_id = existing.get(int(tab["id"]))
+            if sidebar_window_id is None:
+                continue
+            if embedded_sidebar_is_left_edge(tab, sidebar_window_id) is not False:
+                continue
+            source_window_id = content_window_for_tab(tab, prefer_active=True)
+            if source_window_id is None:
+                continue
+            self.place_sidebar_left(
+                source_window_id, sidebar_window_id, pane_percent
+            )
+            placed.append(sidebar_window_id)
+        return placed
 
     def close_embedded_panes(
         self,
@@ -628,6 +655,30 @@ def content_window_for_tab(
         )
     )
     return int(windows[0]["id"])
+
+
+def embedded_sidebar_is_left_edge(
+    tab: dict[str, Any], sidebar_window_id: int
+) -> bool | None:
+    """Report whether a vertical sidebar is the root splits-layout left pane."""
+    pairs = (tab.get("layout_state") or {}).get("pairs")
+    if not isinstance(pairs, dict):
+        return None
+    if str(tab.get("layout") or "splits") != "splits":
+        return False
+    group_id = next(
+        (
+            int(group.get("id") or 0)
+            for group in tab.get("groups") or []
+            if sidebar_window_id in {
+                int(window_id) for window_id in group.get("windows") or []
+            }
+        ),
+        None,
+    )
+    if group_id is None:
+        return None
+    return bool(pairs.get("horizontal", True)) and pairs.get("one") == group_id
 
 
 def find_sidebar_window(
