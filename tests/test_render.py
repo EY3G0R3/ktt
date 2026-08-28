@@ -4,6 +4,7 @@ import re
 from ktt.model import TabRecord, TreeRow
 from ktt.repository import RepositoryLocation
 from ktt.render import (
+    ACTIVE_BACKGROUND,
     CONTROL_ACTION_FOREGROUND,
     CONTROL_LINES,
     CONTROL_SHORTCUT_FOREGROUND,
@@ -1027,7 +1028,7 @@ class RenderTests(unittest.TestCase):
             TreeRow(blocked, 0, None), selected=False, width=80
         ))
 
-    def test_waiting_row_uses_a_white_attention_card_with_dark_text(self) -> None:
+    def test_waiting_row_uses_a_muted_attention_card_with_light_text(self) -> None:
         waiting = TreeRow(
             TabRecord(2, 1, "question", (20,), status="💬"), 0, None
         )
@@ -1039,7 +1040,8 @@ class RenderTests(unittest.TestCase):
         self.assertIn(
             f"\x1b[48;2;{';'.join(map(str, background))}m", rendered
         )
-        self.assertIn("\x1b[38;2;32;35;42m", rendered)
+        self.assertIn("\x1b[38;2;248;248;242m", rendered)
+        self.assertIn("\x1b[38;2;241;250;140m", rendered)
         self.assertIn(RIGHT_CAP, rendered)
 
     def test_waiting_row_darkens_worktree_orange_for_contrast(self) -> None:
@@ -1092,6 +1094,22 @@ class RenderTests(unittest.TestCase):
             None,
         ))
         self.assertEqual((inactive, active), WAITING_BACKGROUNDS)
+        self.assertEqual(active, ACTIVE_BACKGROUND)
+
+    def test_horizontal_cards_use_the_same_active_and_waiting_hierarchy(self) -> None:
+        waiting = render_horizontal_card(
+            TreeRow(TabRecord(1, 1, "question", (10,), status="💬"), 0, None),
+            width=30,
+        )
+        active = render_horizontal_card(
+            TreeRow(TabRecord(2, 1, "active", (20,), is_active=True), 0, None),
+            width=30,
+        )
+
+        self.assertIn("\x1b[48;2;76;86;106m", waiting)
+        self.assertIn("\x1b[38;2;241;250;140m", waiting)
+        self.assertIn("\x1b[48;2;100;113;139m", active)
+        self.assertIn("\x1b[38;2;248;248;242m", active)
 
     def test_help_is_centered_in_the_free_space_above_tabs(self) -> None:
         rows = [
@@ -1328,7 +1346,8 @@ class RenderTests(unittest.TestCase):
         rendered = render_row(
             TreeRow(active, 0, None), selected=False, width=80
         )
-        self.assertIn("\x1b[48;2;76;86;106m", rendered)
+        self.assertIn("\x1b[48;2;100;113;139m", rendered)
+        self.assertIn("\x1b[38;2;248;248;242m", rendered)
 
     def test_folded_active_descendant_uses_dimmer_active_background(self) -> None:
         parent = TabRecord(1, 1, "parent", (10,))

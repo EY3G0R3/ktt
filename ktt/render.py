@@ -18,9 +18,9 @@ VERDICT_BACKGROUNDS = {
     "ready_to_merge": ("1b5e36", "2f9c5c"),
     "blocked": ("7a2029", "c0394a"),
 }
-WAITING_BACKGROUNDS = ("d8dee9", "f8f8f2")
+WAITING_BACKGROUNDS = ("4c566a", "64718b")
 PANEL_BACKGROUND = "000000"
-ACTIVE_BACKGROUND = "4c566a"
+ACTIVE_BACKGROUND = "64718b"
 ACTIVE_DESCENDANT_BACKGROUND = "343b49"
 INACTIVE_BACKGROUND = "20232a"
 LEFT_CAP = ""
@@ -738,6 +738,20 @@ def card_background(row: TreeRow) -> str:
     )
 
 
+def card_foreground(row: TreeRow) -> str:
+    tab = row.tab
+    verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
+    if verdict or tab.status == "💬" or tab.is_active:
+        return "f8f8f2"
+    return "d8dee9"
+
+
+def status_foreground(row: TreeRow, default: str | None) -> str | None:
+    if row.tab.status == "💬":
+        return "ffffa5" if row.tab.is_active else "f1fa8c"
+    return default
+
+
 @dataclass(frozen=True)
 class HorizontalPlacement:
     index: int
@@ -938,6 +952,7 @@ def render_row(
     indent = " " * (TREE_INDENT_WIDTH * row.depth)
     orphan = "?" if row.orphaned else " "
     icon, status_color = status_icon(tab.status, now)
+    status_color = status_foreground(row, status_color)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
     left = indent
     card_prefix_width = (
@@ -1082,13 +1097,7 @@ def render_row(
     base = ""
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     if ansi:
-        foreground = (
-            "20232a"
-            if tab.status == "💬"
-            else "f8f8f2"
-            if verdict or tab.is_active
-            else "d8dee9"
-        )
+        foreground = card_foreground(row)
         base = _bg(background, True) + _fg(
             foreground, True
         )
@@ -1526,6 +1535,7 @@ def render_horizontal_card(
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
     orphan = "?" if row.orphaned else " "
     icon, status_color = status_icon(tab.status, now)
+    status_color = status_foreground(row, status_color)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
     show_caps = width >= 3
     body_width = width - 2 if show_caps else width
@@ -1543,13 +1553,7 @@ def render_horizontal_card(
 
     background = card_background(row)
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
-    foreground = (
-        "20232a"
-        if tab.status == "💬"
-        else "f8f8f2"
-        if verdict or tab.is_active
-        else "d8dee9"
-    )
+    foreground = card_foreground(row)
     base = _bg(background, ansi) + _fg(foreground, ansi)
     if ansi and tab.is_active:
         base += "\x1b[1m"
