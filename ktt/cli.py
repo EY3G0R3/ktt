@@ -94,6 +94,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     restore_session.add_argument("--dry-run", action="store_true")
     restore_session.add_argument(
+        "--new-window",
+        action="store_true",
+        help="restore into newly created Kitty OS windows instead of replacing this tab",
+    )
+    restore_session.add_argument(
         "path", nargs="?", type=Path, default=default_manifest_path()
     )
     subparsers.add_parser("list", help="print the current tree once")
@@ -254,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
                 repository_palette=args.repository_palette,
                 changed_files_placement=args.changed_files_placement,
                 orientation=args.orientation,
+                current_window_id=None if args.new_window else _self_window_id(),
             )
         if (
             args.command is None

@@ -437,21 +437,41 @@ def plan_restore(
 def execute_restore(
     remote: RemoteControl,
     operations: Sequence[PlannedTab],
+    *,
+    first_os_window_source_id: int | None = None,
 ) -> dict[str, int]:
     runtime_ids: dict[str, int] = {}
     active_tabs: list[int] = []
     focused: int | None = None
+    first_os_window_id = operations[0].os_window_id if operations else None
     for operation in operations:
+        reuse_source = (
+            first_os_window_source_id
+            if operation.source is None
+            and operation.os_window_id == first_os_window_id
+            else None
+        )
         arguments: list[str] = [
-            "--type=os-window" if operation.source is None else "--type=tab",
+            (
+                "--type=os-window"
+                if operation.source is None and reuse_source is None
+                else "--type=tab"
+            ),
             "--dont-take-focus",
         ]
-        if operation.source is not None:
-            source_id = runtime_ids[operation.source]
+        if operation.source is not None or reuse_source is not None:
+            source_id = (
+                runtime_ids[operation.source]
+                if operation.source is not None
+                else reuse_source
+            )
+            assert source_id is not None
             arguments.extend((
                 "--match",
                 f"window_id:{source_id}",
                 "--source-window",
+                f"id:{source_id}",
+                "--next-to",
                 f"id:{source_id}",
                 "--location=after",
             ))

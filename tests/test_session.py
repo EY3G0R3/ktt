@@ -29,6 +29,7 @@ class FakeRemote:
         self.ids = iter(ids)
         self.calls: list[tuple[str, tuple[str, ...]]] = []
         self.focused: list[int] = []
+        self.closed: list[int] = []
 
     def run(self, subcommand: str, *arguments: str) -> str:
         self.calls.append((subcommand, arguments))
@@ -36,6 +37,9 @@ class FakeRemote:
 
     def focus_window(self, window_id: int) -> None:
         self.focused.append(window_id)
+
+    def close_window(self, window_id: int) -> None:
+        self.closed.append(window_id)
 
 
 def content_window(
@@ -80,6 +84,11 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(save.command, "save-session")
         self.assertEqual(restore.command, "restore-session")
         self.assertTrue(restore.dry_run)
+
+    def test_cli_can_force_restore_into_new_os_windows(self) -> None:
+        restore = _parser().parse_args(["restore-session", "--new-window"])
+
+        self.assertTrue(restore.new_window)
 
     def test_capture_replaces_runtime_ids_with_logical_relationships(self) -> None:
         snapshot = [
@@ -491,6 +500,58 @@ class SessionTests(unittest.TestCase):
             pane_percent=20,
             orientation="vertical",
         )
+
+    @mock.patch("ktt.session_cli.start_daemon", return_value=1234)
+    def test_restore_replaces_invoking_tab_instead_of_creating_an_os_window(
+        self, start_daemon: mock.Mock
+    ) -> None:
+        manifest = SessionManifest(
+            "2026-08-27T12:00:00-07:00",
+            "host",
+            (
+                SessionOsWindow(
+                    "os-1",
+                    "work",
+                    (
+                        SessionTab(
+                            "tab-1",
+                            "shell",
+                            "/work",
+                            None,
+                            True,
+                            True,
+                            AgentState("shell", "zsh"),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "session.json"
+            write_manifest(path, manifest)
+            remote = FakeRemote([7001])
+            remote.to = "unix:/tmp/kitty"
+            remote.snapshot = mock.Mock(return_value=[{
+                "id": 91,
+                "tabs": [{"id": 101, "windows": [{"id": 7001}]}],
+            }])
+
+            result = restore_saved_session(
+                remote,
+                path,
+                dry_run=False,
+                current_window_id=55,
+            )
+
+        self.assertEqual(result, 0)
+        launch = remote.calls[0]
+        self.assertEqual(launch[0], "launch")
+        self.assertIn("--type=tab", launch[1])
+        self.assertIn("window_id:55", launch[1])
+        self.assertIn("id:55", launch[1])
+        self.assertNotIn("--type=os-window", launch[1])
+        self.assertEqual(remote.closed, [55])
+        start_daemon.assert_called_once()
 
 
 if __name__ == "__main__":

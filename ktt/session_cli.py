@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import socket
 import sys
 from collections.abc import Callable
@@ -52,6 +53,7 @@ def restore_saved_session(
     changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
     orientation: str = DEFAULT_ORIENTATION,
     pane_percent: int | None = None,
+    current_window_id: int | None = None,
 ) -> int:
     manifest = read_manifest(path)
     for warning in manifest.warnings:
@@ -65,7 +67,11 @@ def restore_saved_session(
             f"{len(manifest.os_windows)} OS windows"
         )
         return 0
-    runtime_ids = execute_restore(remote, operations)
+    runtime_ids = execute_restore(
+        remote,
+        operations,
+        first_os_window_source_id=current_window_id,
+    )
     snapshot = remote.snapshot()
     restored_os_window_ids: list[int] = []
     for operation in operations:
@@ -96,7 +102,15 @@ def restore_saved_session(
         f"restored {len(operations)} tabs from {path}; embedded ktt in "
         f"{len(restored_os_window_ids)} OS windows"
     )
+    if current_window_id is not None:
+        sys.stdout.flush()
+        remote.close_window(current_window_id)
     return 0
+
+
+def _current_window_id() -> int | None:
+    value = os.environ.get("KITTY_WINDOW_ID", "")
+    return int(value) if value.isdigit() else None
 
 
 def save_main(argv: list[str] | None = None) -> int:
@@ -111,11 +125,19 @@ def restore_main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ktt-restore")
     parser.add_argument("--to", help="Kitty remote-control socket address")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--new-window",
+        action="store_true",
+        help="restore into newly created Kitty OS windows instead of replacing this tab",
+    )
     parser.add_argument("path", nargs="?", type=Path, default=default_manifest_path())
     args = parser.parse_args(argv)
     return _run(
         lambda: restore_saved_session(
-            RemoteControl(args.to), args.path, dry_run=args.dry_run
+            RemoteControl(args.to),
+            args.path,
+            dry_run=args.dry_run,
+            current_window_id=None if args.new_window else _current_window_id(),
         )
     )
 

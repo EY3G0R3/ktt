@@ -148,6 +148,9 @@ class RemoteControl:
     def focus_window(self, window_id: int) -> None:
         self.run("focus-window", "--match", f"id:{window_id}")
 
+    def close_window(self, window_id: int) -> None:
+        self.run("close-window", "--match", f"id:{window_id}")
+
     def preview_tab(self, tab_id: int, sidebar_window_id: int) -> None:
         # focus-tab necessarily switches OS focus. Restore it only after Kitty
         # acknowledges the tab change, allowing repeated navigation in ktt.
