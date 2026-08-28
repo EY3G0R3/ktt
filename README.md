@@ -161,9 +161,9 @@ repeats on every physical row to form one continuous serrated status edge. The
 rounded-outline theme keeps its corner glyphs and shows the verdict cap on the
 content row.
 
-Waiting agents—the Workmux `waiting` state currently projected as `💬`—use an
-amber attention card and yellow speech bubble. Selecting that tab adds the
-brighter amber treatment without replacing the attention hue.
+Waiting agents—the Workmux `waiting` state currently projected as `💬`—use a
+muted golden attention card and yellow speech bubble. Selecting that tab adds
+the brighter gold treatment without replacing the attention hue.
 When that user variable transiently says `💬` while the live Kitty title still
 starts with an animated working spinner, ktt treats the tab as working. This is
 a direct precedence rule rather than a timer: the amber card appears as soon as

@@ -1105,7 +1105,7 @@ class RenderTests(unittest.TestCase):
             width=30,
         )
 
-        self.assertIn("\x1b[48;2;107;82;0m", waiting)
+        self.assertIn("\x1b[48;2;85;80;46m", waiting)
         self.assertIn("\x1b[38;2;241;250;140m", waiting)
         self.assertIn("\x1b[48;2;100;113;139m", active)
         self.assertIn("\x1b[38;2;248;248;242m", active)
@@ -1363,8 +1363,8 @@ class RenderTests(unittest.TestCase):
             ),
             (
                 "💬",
-                "\x1b[48;2;107;82;0m",
-                "\x1b[48;2;167;125;0m",
+                "\x1b[48;2;85;80;46m",
+                "\x1b[48;2;133;128;75m",
             ),
         ):
             with self.subTest(status=status):
