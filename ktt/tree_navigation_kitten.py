@@ -79,7 +79,8 @@ def handle_result(
         if action in ("previous", "move-previous")
         else 0
     )
-    if direction == 0:
+    attention = action == "attention"
+    if direction == 0 and not attention:
         return
     reorder = action.startswith("move-")
 
@@ -93,6 +94,31 @@ def handle_result(
     )
     target_manager = boss.os_window_map.get(target_os_window_id)
     if target_manager is None:
+        return
+    if attention:
+        os_window = next(
+            (
+                value
+                for value in boss.list_os_windows(self_window=source)
+                if int(value["id"]) == target_os_window_id
+            ),
+            None,
+        )
+        if os_window is None:
+            return
+        target_tab_id = model.next_attention_tab_id(
+            model.tree_rows(model.records_for_os_window(os_window))
+        )
+        target = next(
+            (
+                candidate
+                for candidate in target_manager
+                if candidate.id == target_tab_id
+            ),
+            None,
+        )
+        if target is not None:
+            target_manager.set_active_tab(target)
         return
     if reorder:
         from ktt.order import read_visible_order

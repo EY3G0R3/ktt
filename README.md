@@ -81,6 +81,7 @@ run `ktt navigation-kitten-path`, then map the printed absolute path:
 ```conf
 map alt+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py next
 map alt+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py previous
+map alt+n kitten /absolute/path/to/ktt/tree_navigation_kitten.py attention
 map alt+shift+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py move-next
 map alt+shift+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py move-previous
 ```
@@ -99,6 +100,11 @@ change idle polling. `Alt+Shift+j` and `Alt+Shift+k` move the active node among
 its siblings without wrapping. Parent nodes move together with their complete
 subtrees, and Kitty's native tab order is normalized to the same preorder shown
 by ktt. Reordering never changes a tab's parent.
+
+`Alt+n` activates the next tab that needs attention: ready to merge, blocked,
+waiting, or complete. It follows tree order, wraps at the end, skips the current
+tab, and includes attention-seeking descendants hidden inside folded subtrees.
+If no other tab needs attention, it leaves the active tab unchanged.
 
 Inside the tree:
 

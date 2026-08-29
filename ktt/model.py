@@ -14,6 +14,15 @@ AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
 WAITING_STATUS = "💬"
 WORKING_STATUS = "🤖"
+ATTENTION_STATUSES = frozenset({
+    "ready_to_merge",
+    "blocked",
+    WAITING_STATUS,
+    "waiting",
+    "✅",
+    "done",
+    "complete",
+})
 
 CLAUDE_SPINNER_CHARS = frozenset(
     "✳✻✽✢✶✷◐◓◑◒◴◵◶◷◜◝◞◟"
@@ -296,6 +305,31 @@ def adjacent_tree_tab_id(rows: list[TreeRow], direction: int) -> int | None:
     if not 0 <= target_index < len(rows):
         return None
     return rows[target_index].tab.id
+
+
+def next_attention_tab_id(rows: list[TreeRow]) -> int | None:
+    """Return the next attention-seeking tab in tree order, wrapping once."""
+    if not rows:
+        return None
+    active_index = next(
+        (index for index, row in enumerate(rows) if row.tab.is_active),
+        None,
+    )
+    if active_index is None:
+        candidate_indexes = range(len(rows))
+    else:
+        candidate_indexes = (
+            (active_index + offset) % len(rows)
+            for offset in range(1, len(rows))
+        )
+    return next(
+        (
+            rows[index].tab.id
+            for index in candidate_indexes
+            if rows[index].tab.status in ATTENTION_STATUSES
+        ),
+        None,
+    )
 
 
 def reordered_tree_tab_ids(

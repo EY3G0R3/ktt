@@ -5,6 +5,7 @@ from ktt.model import (
     adjacent_tree_tab_id,
     choose_os_window,
     clean_title,
+    next_attention_tab_id,
     records_for_os_window,
     reordered_tree_tab_ids,
     tree_rows,
@@ -285,6 +286,76 @@ class ModelTests(unittest.TestCase):
         self.assertEqual([row.tab.id for row in rows], [1, 3])
         self.assertEqual(adjacent_tree_tab_id(rows, 1), 3)
         self.assertIsNone(adjacent_tree_tab_id(rows, -1))
+
+    def test_attention_navigation_wraps_in_tree_order(self) -> None:
+        records = [
+            TabRecord(4, 1, "complete", (40,), status="✅", source_index=0),
+            TabRecord(1, 1, "parent", (10,), source_index=1),
+            TabRecord(
+                2,
+                1,
+                "waiting child",
+                (20,),
+                is_active=True,
+                parent_window_id=10,
+                status="💬",
+                source_index=2,
+            ),
+            TabRecord(
+                3,
+                1,
+                "blocked child",
+                (30,),
+                parent_window_id=10,
+                status="blocked",
+                source_index=3,
+            ),
+        ]
+
+        rows = tree_rows(records)
+
+        self.assertEqual([row.tab.id for row in rows], [4, 1, 2, 3])
+        self.assertEqual(next_attention_tab_id(rows), 3)
+        self.assertEqual(
+            next_attention_tab_id(tree_rows(with_active_tab(records, 3))),
+            4,
+        )
+
+    def test_attention_navigation_accepts_semantic_lifecycle_statuses(self) -> None:
+        for status in ("waiting", "done", "complete"):
+            with self.subTest(status=status):
+                rows = tree_rows([
+                    TabRecord(1, 1, "active", (10,), is_active=True),
+                    TabRecord(2, 1, status, (20,), status=status),
+                ])
+                self.assertEqual(next_attention_tab_id(rows), 2)
+
+    def test_attention_navigation_ignores_working_and_current_tab(self) -> None:
+        rows = tree_rows([
+            TabRecord(
+                1, 1, "active complete", (10,), is_active=True, status="✅"
+            ),
+            TabRecord(2, 1, "working", (20,), status="🤖"),
+            TabRecord(3, 1, "idle", (30,)),
+        ])
+
+        self.assertIsNone(next_attention_tab_id(rows))
+
+    def test_attention_navigation_includes_folded_descendants(self) -> None:
+        records = [
+            TabRecord(1, 1, "parent", (10,), is_active=True),
+            TabRecord(
+                2,
+                1,
+                "ready child",
+                (20,),
+                parent_window_id=10,
+                status="ready_to_merge",
+            ),
+        ]
+
+        self.assertIsNone(next_attention_tab_id(tree_rows(records, {1})))
+        self.assertEqual(next_attention_tab_id(tree_rows(records)), 2)
 
     def test_reorder_swaps_complete_root_subtrees(self) -> None:
         records = [
