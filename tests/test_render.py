@@ -1044,6 +1044,28 @@ class RenderTests(unittest.TestCase):
         self.assertIn("\x1b[38;2;241;250;140m", rendered)
         self.assertIn(RIGHT_CAP, rendered)
 
+    def test_suppressed_waiting_attention_keeps_chat_icon_without_amber_card(
+        self,
+    ) -> None:
+        waiting = TreeRow(
+            TabRecord(
+                2,
+                1,
+                "automatic approval review",
+                (20,),
+                status="💬",
+                attention_suppressed=True,
+            ),
+            0,
+            None,
+        )
+
+        rendered = render_row(waiting, selected=False, width=50)
+
+        self.assertIn("💬", rendered)
+        self.assertIn("\x1b[48;2;32;35;42m", rendered)
+        self.assertNotIn("\x1b[48;2;85;80;46m", rendered)
+
     def test_waiting_row_darkens_worktree_orange_for_contrast(self) -> None:
         waiting = TreeRow(
             TabRecord(

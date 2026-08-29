@@ -22,11 +22,11 @@ from .kitty import (
     os_window_by_id,
 )
 from .model import (
-    ATTENTION_STATUSES,
     TabRecord,
     WaitingStatusDebouncer,
     adjacent_tree_tab_id,
     records_for_os_window,
+    seeks_attention,
     tree_rows,
     with_repository_names,
 )
@@ -796,7 +796,7 @@ def run_daemon(
                         tuple(
                             record.id
                             for record in records
-                            if record.status in ATTENTION_STATUSES
+                            if seeks_attention(record)
                         ),
                     )
                     sidebar_windows = embedded_sidebar_windows(

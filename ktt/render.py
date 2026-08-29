@@ -8,7 +8,7 @@ import re
 import time
 import unicodedata
 
-from .model import TabRecord, TreeRow
+from .model import TabRecord, TreeRow, seeks_attention
 from .repository import RepositoryLocation, repository_summary_parts
 
 
@@ -724,7 +724,7 @@ def status_icon(status: str | None, now: float | None = None) -> tuple[str, str 
 
 def card_background(row: TreeRow) -> str:
     tab = row.tab
-    if tab.status == "💬":
+    if tab.status == "💬" and seeks_attention(tab):
         return WAITING_BACKGROUNDS[1 if tab.is_active else 0]
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     if verdict:
@@ -741,7 +741,7 @@ def card_background(row: TreeRow) -> str:
 def card_foreground(row: TreeRow) -> str:
     tab = row.tab
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
-    if verdict or tab.status == "💬" or tab.is_active:
+    if verdict or (tab.status == "💬" and seeks_attention(tab)) or tab.is_active:
         return "f8f8f2"
     return "d8dee9"
 

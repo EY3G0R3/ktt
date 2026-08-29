@@ -14,7 +14,7 @@ AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
 WAITING_STATUS = "💬"
 WORKING_STATUS = "🤖"
-WAITING_DEBOUNCE_SECONDS = 3.0
+WAITING_DEBOUNCE_SECONDS = 7.0
 WAITING_STATUSES = frozenset({WAITING_STATUS, "waiting"})
 WORKING_STATUSES = frozenset({WORKING_STATUS, "working"})
 ATTENTION_STATUSES = frozenset({
@@ -45,6 +45,7 @@ class TabRecord:
     cwd: str | None = None
     repository: str | None = None
     repository_worktree: str | None = None
+    attention_suppressed: bool = False
 
 
 @dataclass(frozen=True)
@@ -59,13 +60,13 @@ class TreeRow:
 
 
 class WaitingStatusDebouncer:
-    """Delay a working-to-waiting edge until it remains stable."""
+    """Delay waiting attention without hiding the waiting status icon."""
 
     def __init__(self, delay: float = WAITING_DEBOUNCE_SECONDS) -> None:
         if delay < 0:
             raise ValueError("waiting debounce delay must not be negative")
         self.delay = delay
-        self._visible: dict[int, str | None] = {}
+        self._was_working: dict[int, bool] = {}
         self._pending_since: dict[int, float] = {}
 
     @property
@@ -82,28 +83,49 @@ class WaitingStatusDebouncer:
         for record in records:
             tab_id = record.id
             live_tab_ids.add(tab_id)
-            previous = self._visible.get(tab_id)
-            visible = record.status
-            if (
-                record.status in WAITING_STATUSES
-                and previous in WORKING_STATUSES
-            ):
-                started = self._pending_since.setdefault(tab_id, now)
-                if now < started + self.delay:
-                    visible = previous
+            was_working = self._was_working.get(tab_id, False)
+            attention_suppressed = (
+                record.attention_suppressed
+                if record.status in WAITING_STATUSES
+                else False
+            )
+            if record.status in WAITING_STATUSES:
+                if attention_suppressed:
+                    self._pending_since.pop(tab_id, None)
+                elif tab_id in self._pending_since or was_working:
+                    started = self._pending_since.setdefault(tab_id, now)
+                    if now < started + self.delay:
+                        attention_suppressed = True
+                    else:
+                        self._pending_since.pop(tab_id, None)
                 else:
                     self._pending_since.pop(tab_id, None)
             else:
                 self._pending_since.pop(tab_id, None)
-            self._visible[tab_id] = visible
+            self._was_working[tab_id] = (
+                record.status in WORKING_STATUSES
+                or (
+                    record.status in WAITING_STATUSES
+                    and record.attention_suppressed
+                )
+            )
             updated.append(
-                record if visible == record.status else replace(record, status=visible)
+                record
+                if attention_suppressed == record.attention_suppressed
+                else replace(record, attention_suppressed=attention_suppressed)
             )
 
-        for tab_id in self._visible.keys() - live_tab_ids:
-            self._visible.pop(tab_id, None)
+        for tab_id in self._was_working.keys() - live_tab_ids:
+            self._was_working.pop(tab_id, None)
             self._pending_since.pop(tab_id, None)
         return updated
+
+
+def seeks_attention(record: TabRecord) -> bool:
+    return (
+        not record.attention_suppressed
+        and record.status in ATTENTION_STATUSES
+    )
 
 
 def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
@@ -226,8 +248,6 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 title,
             )
         status = _first_user_var(windows, STATUS_VAR)
-        if status == WAITING_STATUS and title_is_working(title):
-            status = WORKING_STATUS
         cwd = _first_cwd(windows)
         records.append(
             TabRecord(
@@ -242,6 +262,9 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 status=status,
                 source_index=index,
                 cwd=cwd,
+                attention_suppressed=(
+                    status in WAITING_STATUSES and title_is_working(title)
+                ),
             )
         )
     return records
@@ -383,7 +406,7 @@ def next_attention_tab_id(
             if (
                 rows[index].tab.id in eligible_tab_ids
                 if eligible_tab_ids is not None
-                else rows[index].tab.status in ATTENTION_STATUSES
+                else seeks_attention(rows[index].tab)
             )
         ),
         None,

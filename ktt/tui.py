@@ -23,7 +23,6 @@ from .events import (
 from .folds import read_folded_tab_ids, write_folded_tab_ids
 from .kitty import KittyError, RemoteControl
 from .model import (
-    ATTENTION_STATUSES,
     TabRecord,
     TreeRow,
     WaitingStatusDebouncer,
@@ -32,6 +31,7 @@ from .model import (
     adjacent_tree_tab_id,
     choose_os_window,
     records_for_os_window,
+    seeks_attention,
     tree_rows,
     with_active_tab,
     with_repository_names,
@@ -468,7 +468,7 @@ def run_tui(
                     tuple(
                         record.id
                         for record in records
-                        if record.status in ATTENTION_STATUSES
+                        if seeks_attention(record)
                     ),
                 )
             width, height = shutil.get_terminal_size((40, 24))

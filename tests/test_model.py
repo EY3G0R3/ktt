@@ -16,32 +16,63 @@ from ktt.model import (
 
 
 class ModelTests(unittest.TestCase):
-    def test_waiting_edge_is_delayed_until_stable(self) -> None:
-        debouncer = WaitingStatusDebouncer(delay=3.0)
+    def test_waiting_attention_is_delayed_without_hiding_icon(self) -> None:
+        debouncer = WaitingStatusDebouncer(delay=7.0)
         working = TabRecord(1, 1, "agent", (10,), status="🤖")
         waiting = TabRecord(1, 1, "agent", (10,), status="💬")
 
         self.assertEqual(debouncer.update([working], 0.0)[0].status, "🤖")
-        self.assertEqual(debouncer.update([waiting], 1.0)[0].status, "🤖")
-        self.assertEqual(debouncer.next_deadline, 4.0)
-        self.assertEqual(debouncer.update([waiting], 3.9)[0].status, "🤖")
-        self.assertEqual(debouncer.update([waiting], 4.0)[0].status, "💬")
+        pending = debouncer.update([waiting], 1.0)[0]
+        self.assertEqual(pending.status, "💬")
+        self.assertTrue(pending.attention_suppressed)
+        self.assertEqual(debouncer.next_deadline, 8.0)
+        self.assertTrue(
+            debouncer.update([waiting], 7.9)[0].attention_suppressed
+        )
+        self.assertFalse(
+            debouncer.update([waiting], 8.0)[0].attention_suppressed
+        )
         self.assertIsNone(debouncer.next_deadline)
 
     def test_working_update_cancels_pending_waiting_edge(self) -> None:
-        debouncer = WaitingStatusDebouncer(delay=3.0)
+        debouncer = WaitingStatusDebouncer(delay=7.0)
         working = TabRecord(1, 1, "agent", (10,), status="🤖")
         waiting = TabRecord(1, 1, "agent", (10,), status="💬")
 
         debouncer.update([working], 0.0)
         debouncer.update([waiting], 1.0)
-        self.assertEqual(debouncer.update([working], 2.0)[0].status, "🤖")
+        self.assertFalse(
+            debouncer.update([working], 2.0)[0].attention_suppressed
+        )
         self.assertIsNone(debouncer.next_deadline)
-        self.assertEqual(debouncer.update([waiting], 10.0)[0].status, "🤖")
-        self.assertEqual(debouncer.next_deadline, 13.0)
+        self.assertTrue(
+            debouncer.update([waiting], 10.0)[0].attention_suppressed
+        )
+        self.assertEqual(debouncer.next_deadline, 17.0)
+
+    def test_working_title_starts_delay_when_spinner_disappears(self) -> None:
+        debouncer = WaitingStatusDebouncer(delay=7.0)
+        title_working = TabRecord(
+            1,
+            1,
+            "agent",
+            (10,),
+            status="💬",
+            attention_suppressed=True,
+        )
+        waiting = TabRecord(1, 1, "agent", (10,), status="💬")
+
+        self.assertTrue(
+            debouncer.update([title_working], 0.0)[0].attention_suppressed
+        )
+        self.assertIsNone(debouncer.next_deadline)
+        self.assertTrue(
+            debouncer.update([waiting], 1.0)[0].attention_suppressed
+        )
+        self.assertEqual(debouncer.next_deadline, 8.0)
 
     def test_debouncer_does_not_delay_other_attention_states(self) -> None:
-        debouncer = WaitingStatusDebouncer(delay=3.0)
+        debouncer = WaitingStatusDebouncer(delay=7.0)
         working = TabRecord(1, 1, "agent", (10,), status="🤖")
         blocked = TabRecord(1, 1, "agent", (10,), status="blocked")
 
@@ -50,7 +81,7 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(debouncer.update([blocked], 1.0)[0].status, "blocked")
 
     def test_debouncer_forgets_closed_tabs(self) -> None:
-        debouncer = WaitingStatusDebouncer(delay=3.0)
+        debouncer = WaitingStatusDebouncer(delay=7.0)
         working = TabRecord(1, 1, "agent", (10,), status="🤖")
         waiting = TabRecord(1, 1, "agent", (10,), status="💬")
 
@@ -222,7 +253,8 @@ class ModelTests(unittest.TestCase):
         record = records_for_os_window(os_window)[0]
 
         self.assertEqual(record.title, "feature-name")
-        self.assertEqual(record.status, "🤖")
+        self.assertEqual(record.status, "💬")
+        self.assertTrue(record.attention_suppressed)
 
     def test_active_embedded_sidebar_preserves_explicit_tab_title(self) -> None:
         os_window = {
@@ -394,6 +426,21 @@ class ModelTests(unittest.TestCase):
 
         self.assertEqual(next_attention_tab_id(rows, {3}), 3)
 
+    def test_attention_navigation_ignores_suppressed_waiting(self) -> None:
+        rows = tree_rows([
+            TabRecord(1, 1, "active", (10,), is_active=True),
+            TabRecord(
+                2,
+                1,
+                "transient waiting",
+                (20,),
+                status="💬",
+                attention_suppressed=True,
+            ),
+        ])
+
+        self.assertIsNone(next_attention_tab_id(rows))
+
     def test_attention_navigation_includes_folded_descendants(self) -> None:
         records = [
             TabRecord(1, 1, "parent", (10,), is_active=True),
@@ -485,7 +532,7 @@ class ModelTests(unittest.TestCase):
             "igorg",
         )
 
-    def test_working_title_overrides_transient_waiting_user_var(self) -> None:
+    def test_working_title_suppresses_attention_without_hiding_waiting(self) -> None:
         os_window = {
             "id": 7,
             "tabs": [{
@@ -502,7 +549,8 @@ class ModelTests(unittest.TestCase):
         record = records_for_os_window(os_window)[0]
 
         self.assertEqual(record.title, "ktt")
-        self.assertEqual(record.status, "🤖")
+        self.assertEqual(record.status, "💬")
+        self.assertTrue(record.attention_suppressed)
 
     def test_waiting_remains_when_title_has_no_working_spinner(self) -> None:
         os_window = {
@@ -518,7 +566,9 @@ class ModelTests(unittest.TestCase):
             }],
         }
 
-        self.assertEqual(records_for_os_window(os_window)[0].status, "💬")
+        record = records_for_os_window(os_window)[0]
+        self.assertEqual(record.status, "💬")
+        self.assertFalse(record.attention_suppressed)
 
 
 if __name__ == "__main__":
