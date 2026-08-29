@@ -24,12 +24,22 @@ class VisibleOrderTests(unittest.TestCase):
             path = Path(directory) / "visible.order"
             with patch("ktt.order.order_path", return_value=path):
                 publisher = VisibleOrderPublisher()
-                publisher.publish(1, rows)
+                publisher.publish(1, rows, (20,))
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
                 self.assertEqual(read_visible_order(1).anchor_tab_id, 10)
                 self.assertEqual(read_visible_order(1).tab_ids, (10, 30))
+                self.assertEqual(read_visible_order(1).attention_tab_ids, (20,))
                 publisher.close()
                 self.assertFalse(path.exists())
+
+    def test_reads_legacy_snapshot_without_debounced_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "visible.order"
+            path.write_text("10\n10,20\n")
+            with patch("ktt.order.order_path", return_value=path):
+                visible = read_visible_order(1)
+
+        self.assertIsNone(visible.attention_tab_ids)
 
     def test_old_publisher_does_not_remove_newer_snapshot(self) -> None:
         first_rows = [TreeRow(

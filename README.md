@@ -172,8 +172,12 @@ muted golden attention card and yellow speech bubble. Selecting that tab adds
 the brighter gold treatment without replacing the attention hue.
 When that user variable transiently says `💬` while the live Kitty title still
 starts with an animated working spinner, ktt treats the tab as working. This is
-a direct precedence rule rather than a timer: the amber card appears as soon as
-the working signal is absent.
+a direct precedence rule. When a previously working tab loses that spinner and
+changes to `💬`, ktt also waits three seconds before showing the amber card. A
+working update or resumed spinner cancels the pending card; a stable manual
+approval prompt appears after the delay. Other attention states remain
+immediate. The shared daemon owns this decision so every embedded view and
+`Alt+n` use the same debounced attention set.
 
 The status area is a fixed two terminal cells wide. Wide emoji, narrow
 Powerline/braille glyphs, and an empty status therefore leave every root title

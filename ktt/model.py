@@ -14,6 +14,9 @@ AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
 WAITING_STATUS = "💬"
 WORKING_STATUS = "🤖"
+WAITING_DEBOUNCE_SECONDS = 3.0
+WAITING_STATUSES = frozenset({WAITING_STATUS, "waiting"})
+WORKING_STATUSES = frozenset({WORKING_STATUS, "working"})
 ATTENTION_STATUSES = frozenset({
     "ready_to_merge",
     "blocked",
@@ -53,6 +56,54 @@ class TreeRow:
     has_children: bool = False
     is_collapsed: bool = False
     has_active_descendant: bool = False
+
+
+class WaitingStatusDebouncer:
+    """Delay a working-to-waiting edge until it remains stable."""
+
+    def __init__(self, delay: float = WAITING_DEBOUNCE_SECONDS) -> None:
+        if delay < 0:
+            raise ValueError("waiting debounce delay must not be negative")
+        self.delay = delay
+        self._visible: dict[int, str | None] = {}
+        self._pending_since: dict[int, float] = {}
+
+    @property
+    def next_deadline(self) -> float | None:
+        if not self._pending_since:
+            return None
+        return min(
+            started + self.delay for started in self._pending_since.values()
+        )
+
+    def update(self, records: Iterable[TabRecord], now: float) -> list[TabRecord]:
+        updated: list[TabRecord] = []
+        live_tab_ids: set[int] = set()
+        for record in records:
+            tab_id = record.id
+            live_tab_ids.add(tab_id)
+            previous = self._visible.get(tab_id)
+            visible = record.status
+            if (
+                record.status in WAITING_STATUSES
+                and previous in WORKING_STATUSES
+            ):
+                started = self._pending_since.setdefault(tab_id, now)
+                if now < started + self.delay:
+                    visible = previous
+                else:
+                    self._pending_since.pop(tab_id, None)
+            else:
+                self._pending_since.pop(tab_id, None)
+            self._visible[tab_id] = visible
+            updated.append(
+                record if visible == record.status else replace(record, status=visible)
+            )
+
+        for tab_id in self._visible.keys() - live_tab_ids:
+            self._visible.pop(tab_id, None)
+            self._pending_since.pop(tab_id, None)
+        return updated
 
 
 def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
@@ -307,7 +358,10 @@ def adjacent_tree_tab_id(rows: list[TreeRow], direction: int) -> int | None:
     return rows[target_index].tab.id
 
 
-def next_attention_tab_id(rows: list[TreeRow]) -> int | None:
+def next_attention_tab_id(
+    rows: list[TreeRow],
+    eligible_tab_ids: set[int] | frozenset[int] | None = None,
+) -> int | None:
     """Return the next attention-seeking tab in tree order, wrapping once."""
     if not rows:
         return None
@@ -326,7 +380,11 @@ def next_attention_tab_id(rows: list[TreeRow]) -> int | None:
         (
             rows[index].tab.id
             for index in candidate_indexes
-            if rows[index].tab.status in ATTENTION_STATUSES
+            if (
+                rows[index].tab.id in eligible_tab_ids
+                if eligible_tab_ids is not None
+                else rows[index].tab.status in ATTENTION_STATUSES
+            )
         ),
         None,
     )

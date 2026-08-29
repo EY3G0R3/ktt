@@ -2,6 +2,7 @@ import unittest
 
 from ktt.model import (
     TabRecord,
+    WaitingStatusDebouncer,
     adjacent_tree_tab_id,
     choose_os_window,
     clean_title,
@@ -15,6 +16,49 @@ from ktt.model import (
 
 
 class ModelTests(unittest.TestCase):
+    def test_waiting_edge_is_delayed_until_stable(self) -> None:
+        debouncer = WaitingStatusDebouncer(delay=3.0)
+        working = TabRecord(1, 1, "agent", (10,), status="🤖")
+        waiting = TabRecord(1, 1, "agent", (10,), status="💬")
+
+        self.assertEqual(debouncer.update([working], 0.0)[0].status, "🤖")
+        self.assertEqual(debouncer.update([waiting], 1.0)[0].status, "🤖")
+        self.assertEqual(debouncer.next_deadline, 4.0)
+        self.assertEqual(debouncer.update([waiting], 3.9)[0].status, "🤖")
+        self.assertEqual(debouncer.update([waiting], 4.0)[0].status, "💬")
+        self.assertIsNone(debouncer.next_deadline)
+
+    def test_working_update_cancels_pending_waiting_edge(self) -> None:
+        debouncer = WaitingStatusDebouncer(delay=3.0)
+        working = TabRecord(1, 1, "agent", (10,), status="🤖")
+        waiting = TabRecord(1, 1, "agent", (10,), status="💬")
+
+        debouncer.update([working], 0.0)
+        debouncer.update([waiting], 1.0)
+        self.assertEqual(debouncer.update([working], 2.0)[0].status, "🤖")
+        self.assertIsNone(debouncer.next_deadline)
+        self.assertEqual(debouncer.update([waiting], 10.0)[0].status, "🤖")
+        self.assertEqual(debouncer.next_deadline, 13.0)
+
+    def test_debouncer_does_not_delay_other_attention_states(self) -> None:
+        debouncer = WaitingStatusDebouncer(delay=3.0)
+        working = TabRecord(1, 1, "agent", (10,), status="🤖")
+        blocked = TabRecord(1, 1, "agent", (10,), status="blocked")
+
+        debouncer.update([working], 0.0)
+
+        self.assertEqual(debouncer.update([blocked], 1.0)[0].status, "blocked")
+
+    def test_debouncer_forgets_closed_tabs(self) -> None:
+        debouncer = WaitingStatusDebouncer(delay=3.0)
+        working = TabRecord(1, 1, "agent", (10,), status="🤖")
+        waiting = TabRecord(1, 1, "agent", (10,), status="💬")
+
+        debouncer.update([working], 0.0)
+        debouncer.update([], 1.0)
+
+        self.assertEqual(debouncer.update([waiting], 2.0)[0].status, "💬")
+
     def test_records_read_active_window_metadata(self) -> None:
         os_window = {
             "id": 7,
@@ -340,6 +384,15 @@ class ModelTests(unittest.TestCase):
         ])
 
         self.assertIsNone(next_attention_tab_id(rows))
+
+    def test_attention_navigation_accepts_debounced_eligible_tabs(self) -> None:
+        rows = tree_rows([
+            TabRecord(1, 1, "active", (10,), is_active=True),
+            TabRecord(2, 1, "raw waiting", (20,), status="💬"),
+            TabRecord(3, 1, "ready", (30,), status="ready_to_merge"),
+        ])
+
+        self.assertEqual(next_attention_tab_id(rows, {3}), 3)
 
     def test_attention_navigation_includes_folded_descendants(self) -> None:
         records = [

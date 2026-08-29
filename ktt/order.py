@@ -12,6 +12,7 @@ from .model import TreeRow, active_tree_row_index
 class VisibleOrder:
     anchor_tab_id: int
     tab_ids: tuple[int, ...]
+    attention_tab_ids: tuple[int, ...] | None = None
 
 
 def order_path(os_window_id: int, *, kitty_pid: int | None = None) -> Path:
@@ -22,14 +23,20 @@ def read_visible_order(
     os_window_id: int, *, kitty_pid: int | None = None
 ) -> VisibleOrder | None:
     try:
-        anchor, values = order_path(os_window_id, kitty_pid=kitty_pid).read_text().splitlines()
+        lines = order_path(os_window_id, kitty_pid=kitty_pid).read_text().splitlines()
+        anchor, values = lines[:2]
         tab_ids = tuple(int(value) for value in values.split(",") if value)
         anchor_tab_id = int(anchor)
-    except (OSError, ValueError):
+        attention_tab_ids = (
+            tuple(int(value) for value in lines[2].split(",") if value)
+            if len(lines) >= 3
+            else None
+        )
+    except (OSError, ValueError, IndexError):
         return None
     if anchor_tab_id not in tab_ids:
         return None
-    return VisibleOrder(anchor_tab_id, tab_ids)
+    return VisibleOrder(anchor_tab_id, tab_ids, attention_tab_ids)
 
 
 class VisibleOrderPublisher:
@@ -38,12 +45,18 @@ class VisibleOrderPublisher:
         self.inode: int | None = None
         self.value: VisibleOrder | None = None
 
-    def publish(self, os_window_id: int, rows: list[TreeRow]) -> None:
+    def publish(
+        self,
+        os_window_id: int,
+        rows: list[TreeRow],
+        attention_tab_ids: tuple[int, ...] = (),
+    ) -> None:
         if not rows:
             return
         value = VisibleOrder(
             rows[active_tree_row_index(rows)].tab.id,
             tuple(row.tab.id for row in rows),
+            attention_tab_ids,
         )
         path = order_path(os_window_id)
         if self.path == path and self.value == value:
@@ -54,7 +67,9 @@ class VisibleOrderPublisher:
         temporary = path.with_suffix(f".{os.getpid()}.tmp")
         try:
             temporary.write_text(
-                f"{value.anchor_tab_id}\n{','.join(map(str, value.tab_ids))}\n"
+                f"{value.anchor_tab_id}\n"
+                f"{','.join(map(str, value.tab_ids))}\n"
+                f"{','.join(map(str, value.attention_tab_ids or ()))}\n"
             )
             temporary.chmod(0o600)
             inode = temporary.stat().st_ino

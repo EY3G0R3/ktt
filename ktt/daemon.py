@@ -22,7 +22,9 @@ from .kitty import (
     os_window_by_id,
 )
 from .model import (
+    ATTENTION_STATUSES,
     TabRecord,
+    WaitingStatusDebouncer,
     adjacent_tree_tab_id,
     records_for_os_window,
     tree_rows,
@@ -631,6 +633,7 @@ def run_daemon(
     previous_int = signal.signal(signal.SIGINT, request_stop)
     sequence = 0
     records: list[TabRecord] = []
+    waiting_statuses = WaitingStatusDebouncer()
     rows = []
     next_refresh = 0.0
     state_inode: int | None = None
@@ -777,7 +780,9 @@ def run_daemon(
                                 os_window = os_window_by_id(
                                     snapshot, target_os_window_id
                                 )
-                    records = records_for_os_window(os_window)
+                    records = waiting_statuses.update(
+                        records_for_os_window(os_window), now
+                    )
                     names = identities.update(record.cwd for record in records)
                     records = with_repository_names(records, names)
                     records = with_repository_worktrees(
@@ -785,7 +790,15 @@ def run_daemon(
                     )
                     folded = read_folded_tab_ids(target_os_window_id)
                     rows = tree_rows(records, folded)
-                    order_publisher.publish(target_os_window_id, rows)
+                    order_publisher.publish(
+                        target_os_window_id,
+                        rows,
+                        tuple(
+                            record.id
+                            for record in records
+                            if record.status in ATTENTION_STATUSES
+                        ),
+                    )
                     sidebar_windows = embedded_sidebar_windows(
                         os_window, orientation
                     )
@@ -827,6 +840,10 @@ def run_daemon(
                     repository_location=repository_location,
                     error=error,
                 ))
+                if waiting_statuses.next_deadline is not None:
+                    next_refresh = min(
+                        next_refresh, waiting_statuses.next_deadline
+                    )
     finally:
         signal.signal(signal.SIGTERM, previous_term)
         signal.signal(signal.SIGINT, previous_int)

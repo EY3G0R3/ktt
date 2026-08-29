@@ -23,8 +23,10 @@ from .events import (
 from .folds import read_folded_tab_ids, write_folded_tab_ids
 from .kitty import KittyError, RemoteControl
 from .model import (
+    ATTENTION_STATUSES,
     TabRecord,
     TreeRow,
+    WaitingStatusDebouncer,
     WORKING_STATUS,
     active_tree_row_index,
     adjacent_tree_tab_id,
@@ -310,6 +312,7 @@ def run_tui(
     repository_identities = FancylogIdentityCache(
         palette=repository_palette
     )
+    waiting_statuses = WaitingStatusDebouncer()
     next_poll = 0.0
     next_source_check = 0.0
     initial_source_stamp = source_stamp() if auto_reload else ()
@@ -410,7 +413,9 @@ def run_tui(
                             fold_state_os_window_id = os_window_id
                         if tab_events is not None:
                             tab_events.bind(os_window_id)
-                        records = records_for_os_window(os_window)
+                        records = waiting_statuses.update(
+                            records_for_os_window(os_window), now
+                        )
                         assert active_repository_identities is not None
                         repository_names = active_repository_identities.update(
                             record.cwd for record in records
@@ -448,9 +453,24 @@ def run_tui(
                         now, poll_interval, pending_navigation
                     )
                 )
+                if (
+                    snapshot_client is None
+                    and waiting_statuses.next_deadline is not None
+                ):
+                    next_poll = min(
+                        next_poll, waiting_statuses.next_deadline
+                    )
 
             if order_publisher is not None:
-                order_publisher.publish(os_window_id, rows)
+                order_publisher.publish(
+                    os_window_id,
+                    rows,
+                    tuple(
+                        record.id
+                        for record in records
+                        if record.status in ATTENTION_STATUSES
+                    ),
+                )
             width, height = shutil.get_terminal_size((40, 24))
             card_height = view.card_height(len(rows), height)
             repository_capacity = min(

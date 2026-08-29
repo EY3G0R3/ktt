@@ -65,11 +65,14 @@ def handle_result(
     sys.path.insert(0, str(package_root))
     import ktt.events as events
     import ktt.model as model
+    import ktt.order as order
     from ktt.kitty import SIDEBAR_VAR, TARGET_OS_WINDOW_VAR
 
     # Kitty caches imported package modules between kitten invocations. Reload
-    # the pure tree model so source updates work without restarting Kitty.
+    # the pure tree model and runtime snapshot reader so source updates work
+    # without restarting Kitty.
     model = importlib.reload(model)
+    order = importlib.reload(order)
 
     action = args[1]
     direction = (
@@ -106,8 +109,18 @@ def handle_result(
         )
         if os_window is None:
             return
+        visible = order.read_visible_order(
+            target_os_window_id, kitty_pid=os.getpid()
+        )
+        attention_tab_ids = getattr(visible, "attention_tab_ids", None)
+        eligible_tab_ids = (
+            set(attention_tab_ids)
+            if attention_tab_ids is not None
+            else None
+        )
         target_tab_id = model.next_attention_tab_id(
-            model.tree_rows(model.records_for_os_window(os_window))
+            model.tree_rows(model.records_for_os_window(os_window)),
+            eligible_tab_ids,
         )
         target = next(
             (
@@ -121,9 +134,7 @@ def handle_result(
             target_manager.set_active_tab(target)
         return
     if reorder:
-        from ktt.order import read_visible_order
-
-        visible = read_visible_order(
+        visible = order.read_visible_order(
             target_os_window_id, kitty_pid=os.getpid()
         )
         anchor_tab_id = (
@@ -152,9 +163,7 @@ def handle_result(
             _apply_tab_order(target_manager, desired_tab_ids)
         return
     if from_sidebar:
-        from ktt.order import read_visible_order
-
-        visible = read_visible_order(
+        visible = order.read_visible_order(
             target_os_window_id, kitty_pid=os.getpid()
         )
         if visible is not None:
