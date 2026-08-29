@@ -170,14 +170,14 @@ content row.
 Waiting agents—the Workmux `waiting` state currently projected as `💬`—use a
 muted golden attention card and yellow speech bubble. Selecting that tab adds
 the brighter gold treatment without replacing the attention hue.
-When that user variable transiently says `💬` while the live Kitty title still
-starts with an animated working spinner, ktt treats the tab as working. This is
-a direct precedence rule. When a previously working tab loses that spinner and
-changes to `💬`, ktt also waits three seconds before showing the amber card. A
+The `💬` icon appears immediately when that user variable changes. If the live
+Kitty title still starts with an animated working spinner, ktt suppresses only
+the amber attention treatment. When a previously working tab loses that spinner
+and changes to `💬`, ktt waits seven seconds before showing the amber card. A
 working update or resumed spinner cancels the pending card; a stable manual
-approval prompt appears after the delay. Other attention states remain
-immediate. The shared daemon owns this decision so every embedded view and
-`Alt+n` use the same debounced attention set.
+approval prompt gets the attention treatment after the delay. Other attention
+states remain immediate. The shared daemon owns this decision so every embedded
+view and `Alt+n` use the same debounced attention set.
 
 The status area is a fixed two terminal cells wide. Wide emoji, narrow
 Powerline/braille glyphs, and an empty status therefore leave every root title

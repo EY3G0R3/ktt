@@ -24,11 +24,12 @@ agent records ready_to_merge|blocked
 With the current configuration, workmux's lifecycle icons are `🤖` for working,
 `💬` for waiting, and `✅` for done. `ready_to_merge` and `blocked` remain semantic
 strings. ktt reads `workmux_status` from the `user_vars` in `kitten @ ls`; title
-cleanup normally only removes decoration. An animated working title overrides
-a simultaneous `💬`. When a previously working tab loses that title signal and
-changes to `💬`, ktt delays the rising attention edge for three seconds and
-cancels it if working resumes. This presentation-layer heuristic filters short
-automatic approval reviews while leaving Workmux's lifecycle state untouched.
+cleanup normally only removes decoration. The `💬` icon appears immediately. An
+animated working title suppresses its attention treatment, and when a previously
+working tab loses that title signal, ktt delays the rising attention edge for
+seven seconds. Working resuming cancels the delay. This presentation-layer
+heuristic filters short automatic approval reviews while leaving Workmux's
+lifecycle state and visible status icon untouched.
 
 There is no general prompt/output inference inside ktt. There is duplicated
 presentation policy and some duplicated runtime writing:
