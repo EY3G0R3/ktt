@@ -20,7 +20,9 @@ MAX_REPOSITORY_LINES = 8
 MAX_BOTTOM_REPOSITORY_LINES = 13
 IDENTITY_WIDTH = 256
 MINIMUM_STATUS_SOURCE_WIDTH = 256
-REPOSITORY_IDENTITY = re.compile(r"^\s*\(([^)]+)\)")
+REPOSITORY_IDENTITY = re.compile(
+    r"^\s*(?:\((?P<parenthesized>[^)]+)\)|/(?P<slashed>[^/]+)/)"
+)
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
@@ -151,7 +153,9 @@ def repository_name_from_status(lines: list[str] | None) -> str | None:
     if not lines:
         return None
     match = REPOSITORY_IDENTITY.match(lines[-1])
-    return match.group(1) if match else None
+    if match is None:
+        return None
+    return match.group("parenthesized") or match.group("slashed")
 
 
 def active_window_cwd(os_window: dict[str, Any]) -> str | None:

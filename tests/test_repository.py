@@ -70,6 +70,12 @@ class RepositoryTests(unittest.TestCase):
             ),
             "quiver",
         )
+        self.assertEqual(
+            repository_name_from_status(
+                [" /quiver/ ~/work/quiver__worktrees/feature  ◈ 2 unstaged "]
+            ),
+            "quiver",
+        )
 
     @patch("ktt.repository.subprocess.run")
     def test_location_compacts_a_main_checkout_subdirectory(self, run) -> None:
