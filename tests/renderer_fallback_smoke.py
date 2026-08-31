@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import namedtuple
 from contextlib import contextmanager
 from contextlib import redirect_stdout
 import io
@@ -23,7 +24,7 @@ class Screen:
 
 
 @contextmanager
-def mocked_kitty():
+def mocked_kitty(*, vertical_api: bool = True):
     boss = SimpleNamespace(os_window_map={})
     boss.tab_for_id = lambda _tab_id: None
     modules = {}
@@ -39,11 +40,20 @@ def mocked_kitty():
     fast.truncate_point_for_length = lambda text, limit: min(len(text), limit)
     fast.wcswidth = len
     tab_bar = ModuleType("kitty.tab_bar")
+    if vertical_api:
+        tab_bar.CellRange = namedtuple("CellRange", "start end")
+        tab_bar.ExtraData = type("ExtraData", (), {})
+        tab_bar.TabBar = type(
+            "TabBar", (), {"update_vertical": lambda _self, _data: False}
+        )
+        tab_bar.TabExtent = namedtuple("TabExtent", "tab_id x y")
     tab_bar.as_rgb = lambda value: value
     tab_bar.draw_title = (
         lambda _data, screen, _tab, _index, _limit: screen.draw("title")
     )
     utils = ModuleType("kitty.utils")
+    if vertical_api:
+        utils.color_as_int = int
     utils.log_error = lambda _message: None
     utils.sanitize_title = lambda value: " ".join(str(value).split())
     utils.sgr_sanitizer_pat = lambda: re.compile(r"\x1b\[[0-9;]*m")
@@ -90,6 +100,22 @@ def load_without_ktt(tab_bar_path: Path, home: Path) -> dict:
             os.environ["HOME"] = old_home
 
 
+def verify_with_ktt(tab_bar_path: Path) -> None:
+    with mocked_kitty():
+        module = runpy.run_path(str(tab_bar_path), run_name="kitty_tab_bar")
+    assert module["KTT_RENDERER_HELPERS_AVAILABLE"]
+    assert getattr(
+        module["TabBar"].update_vertical, "_ktt_vertical_layout", False
+    )
+
+
+def verify_pre_vertical_kitty(tab_bar_path: Path) -> None:
+    with mocked_kitty(vertical_api=False):
+        module = runpy.run_path(str(tab_bar_path), run_name="kitty_tab_bar")
+    assert module["KTT_RENDERER_HELPERS_AVAILABLE"]
+    assert module["TabBar"] is None
+
+
 def verify(module: dict) -> None:
     assert not module["KTT_RENDERER_HELPERS_AVAILABLE"]
     assert "tab_bar_edge bottom" in module["render_config"](
@@ -124,6 +150,8 @@ def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: renderer_fallback_smoke.py /path/to/tab_bar.py")
     source = Path(sys.argv[1]).resolve()
+    verify_with_ktt(source)
+    verify_pre_vertical_kitty(source)
     with tempfile.TemporaryDirectory() as directory:
         home = Path(directory)
         verify(load_without_ktt(source, home))

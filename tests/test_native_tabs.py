@@ -9,7 +9,7 @@ from ktt.native_tabs import (
 
 
 class NativeTabsTests(unittest.TestCase):
-    def test_explicit_native_enable_preserves_preset_style_and_alignment(self) -> None:
+    def test_explicit_native_enable_owns_ktt_style_and_alignment(self) -> None:
         plan = plan_native_tabs_action(
             "enable",
             running_version=(0, 48, 2),
@@ -20,7 +20,9 @@ class NativeTabsTests(unittest.TestCase):
 
         self.assertEqual(plan.overrides, (
             "tab_bar_edge left",
+            "tab_bar_align center",
             "tab_bar_min_tabs 1",
+            "tab_bar_style custom",
             "tab_title_max_length 40",
         ))
         self.assertTrue(plan.normalize_tree_order)
@@ -37,7 +39,7 @@ class NativeTabsTests(unittest.TestCase):
         self.assertIn("tab_bar_edge right", plan.overrides)
         self.assertNotIn("tab_bar_edge left", plan.overrides)
 
-    def test_hidden_native_toggle_restores_native_without_preset_overrides(
+    def test_hidden_native_toggle_retains_native_card_overrides(
         self,
     ) -> None:
         shown = plan_native_tabs_action(
@@ -59,12 +61,17 @@ class NativeTabsTests(unittest.TestCase):
 
         self.assertEqual(shown.overrides, (
             "tab_bar_edge right",
+            "tab_bar_align center",
             "tab_bar_min_tabs 1",
+            "tab_bar_style custom",
             "tab_title_max_length 40",
         ))
         self.assertEqual(disabled.overrides, (
             "tab_bar_edge right",
+            "tab_bar_align center",
             "tab_bar_min_tabs 1000000",
+            "tab_bar_style custom",
+            "tab_title_max_length 40",
         ))
 
     def test_native_toggle_round_trip_retains_native_identity(self) -> None:
@@ -94,13 +101,13 @@ class NativeTabsTests(unittest.TestCase):
 
         self.assertIn("tab_bar_edge left", enabled.overrides)
         self.assertIn("tab_bar_edge left", disabled.overrides)
-        self.assertNotIn("tab_title_max_length 40", disabled.overrides)
+        self.assertIn("tab_title_max_length 40", disabled.overrides)
         self.assertTrue(enabled.native_visible)
         self.assertFalse(disabled.native_visible)
         self.assertTrue(reenabled.native_visible)
         self.assertEqual(reenabled, enabled)
 
-    def test_managed_hide_removes_temporary_fade_recovery(self) -> None:
+    def test_managed_hide_keeps_custom_card_style(self) -> None:
         hidden_recovery = merge_config_overrides(
             ("font_size 14",),
             plan_native_tabs_action(
@@ -125,6 +132,7 @@ class NativeTabsTests(unittest.TestCase):
         )
 
         self.assertNotIn("tab_bar_style fade", hidden)
+        self.assertIn("tab_bar_style custom", hidden)
 
     def test_explicit_enable_recovers_persistent_hidden_style(self) -> None:
         plan = plan_native_tabs_action(
@@ -137,11 +145,12 @@ class NativeTabsTests(unittest.TestCase):
 
         self.assertEqual(plan.overrides, (
             "tab_bar_edge left",
+            "tab_bar_align center",
             "tab_bar_min_tabs 1",
+            "tab_bar_style custom",
             "tab_title_max_length 40",
-            "tab_bar_style fade",
         ))
-        self.assertNotIn("tab_bar_align", "\n".join(plan.overrides))
+        self.assertIn("tab_bar_align center", plan.overrides)
 
     def test_persistent_hidden_style_toggle_becomes_visible(self) -> None:
         plan = plan_native_tabs_action(
@@ -206,7 +215,7 @@ class NativeTabsTests(unittest.TestCase):
         )
 
         self.assertEqual(merge_config_overrides(first, second_plan), first)
-        self.assertEqual(first.count("tab_bar_style fade"), 1)
+        self.assertEqual(first.count("tab_bar_style custom"), 1)
         self.assertIn("tab_bar_align center", first)
 
     def test_merged_native_toggle_cycle_is_stable(self) -> None:

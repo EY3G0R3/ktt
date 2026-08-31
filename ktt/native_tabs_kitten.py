@@ -33,13 +33,13 @@ def handle_result(
         import ktt.kitty_tabs as kitty_tabs
         import ktt.model as model
         import ktt.native_tabs as native_tabs
+        native_tabs = importlib.reload(native_tabs)
         import ktt.native_tabs_runtime as native_tabs_runtime
         import ktt.tab_bar_geometry as tab_bar_geometry
+        tab_bar_geometry = importlib.reload(tab_bar_geometry)
         import ktt.tab_bar_renderer as tab_bar_renderer
 
-        tab_bar_geometry = importlib.reload(tab_bar_geometry)
         tab_bar_renderer = importlib.reload(tab_bar_renderer)
-        native_tabs = importlib.reload(native_tabs)
         model = importlib.reload(model)
         kitty_tabs = importlib.reload(kitty_tabs)
         kitty_layout = importlib.reload(kitty_layout)

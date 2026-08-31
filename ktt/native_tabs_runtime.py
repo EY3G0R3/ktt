@@ -96,6 +96,22 @@ def _verify_postcondition(
         raise NativeTabsRuntimeError(
             f"Kitty tab bar edge is {edge}, expected {plan.expected_edge}"
         )
+    if (
+        plan.expected_style is not None
+        and options.tab_bar_style != plan.expected_style
+    ):
+        raise NativeTabsRuntimeError(
+            "Kitty tab bar style is "
+            f"{options.tab_bar_style}, expected {plan.expected_style}"
+        )
+    if (
+        plan.expected_alignment is not None
+        and options.tab_bar_align != plan.expected_alignment
+    ):
+        raise NativeTabsRuntimeError(
+            "Kitty tab bar alignment is "
+            f"{options.tab_bar_align}, expected {plan.expected_alignment}"
+        )
 
 
 def _attribute_snapshot(value: Any, name: str) -> tuple[bool, Any]:
@@ -147,6 +163,7 @@ def run_native_tabs_action(
     previous_hidden = options_hidden(options)
     previous_edge = current_edge
     previous_style = options.tab_bar_style
+    previous_alignment = options.tab_bar_align
     previous_min_tabs = options.tab_bar_min_tabs
     previous_marker = _attribute_snapshot(boss, NATIVE_MARKER_ATTRIBUTE)
     previous_managed = _attribute_snapshot(boss, NATIVE_MANAGED_ATTRIBUTE)
@@ -242,6 +259,7 @@ def run_native_tabs_action(
                     restored, running_version, left_edge, right_edge
                 ) != previous_edge
                 or restored.tab_bar_style != previous_style
+                or restored.tab_bar_align != previous_alignment
                 or restored.tab_bar_min_tabs != previous_min_tabs
                 or _attribute_snapshot(boss, NATIVE_MARKER_ATTRIBUTE)
                 != previous_marker

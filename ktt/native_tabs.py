@@ -19,7 +19,9 @@ NATIVE_MANAGED_ATTRIBUTE = "_ktt_native_vertical_tabs_managed"
 NATIVE_STYLE_RECOVERY_ATTRIBUTE = "_ktt_native_tabs_style_recovery"
 KTT_OVERRIDE_KEYS = frozenset({
     "tab_bar_edge",
+    "tab_bar_align",
     "tab_bar_min_tabs",
+    "tab_bar_style",
     "tab_title_max_length",
 })
 
@@ -64,6 +66,8 @@ class NativeTabsActionPlan:
     native_managed: bool = False
     expected_hidden: bool = False
     expected_edge: TabBarEdge = "horizontal"
+    expected_style: str | None = None
+    expected_alignment: str | None = None
     style_recovery: bool = False
 
 
@@ -117,11 +121,11 @@ def plan_native_tabs_action(
         native_edge = "right" if current_edge == "right" else "left"
         overrides = [
             f"tab_bar_edge {native_edge}",
+            "tab_bar_align center",
             "tab_bar_min_tabs 1",
+            "tab_bar_style custom",
             "tab_title_max_length 40",
         ]
-        if current_style == "hidden":
-            overrides.append(f"tab_bar_style {VISIBLE_FALLBACK_STYLE}")
         return NativeTabsActionPlan(
             tuple(overrides),
             owned_keys=KTT_OVERRIDE_KEYS,
@@ -129,7 +133,8 @@ def plan_native_tabs_action(
             native_visible=True,
             native_managed=True,
             expected_edge=native_edge,
-            style_recovery=current_style == "hidden",
+            expected_style="custom",
+            expected_alignment="center",
         )
     if action != "toggle":
         raise ValueError(f"unknown native tab action: {action}")
@@ -143,32 +148,21 @@ def plan_native_tabs_action(
     ):
         overrides = [
             f"tab_bar_edge {current_edge}",
+            "tab_bar_align center",
             f"tab_bar_min_tabs {tab_bar_min_tabs}",
+            "tab_bar_style custom",
+            "tab_title_max_length 40",
         ]
-        if currently_hidden:
-            overrides.append("tab_title_max_length 40")
-        if currently_hidden and current_style == "hidden":
-            overrides.append(f"tab_bar_style {VISIBLE_FALLBACK_STYLE}")
         return NativeTabsActionPlan(
             tuple(overrides),
-            # A fade override is injected only to recover a persistently hidden
-            # bar. Strip that temporary recovery style when hiding again.
-            owned_keys=(
-                KTT_OVERRIDE_KEYS
-                | (
-                    {"tab_bar_style"}
-                    if result_hidden and style_recovery_managed
-                    else set()
-                )
-            ),
+            owned_keys=KTT_OVERRIDE_KEYS,
             normalize_tree_order=currently_hidden,
             native_visible=currently_hidden,
             native_managed=True,
             expected_hidden=result_hidden,
             expected_edge=current_edge,
-            style_recovery=(
-                currently_hidden and current_style == "hidden"
-            ),
+            expected_style="custom",
+            expected_alignment="center",
         )
     overrides = [f"tab_bar_min_tabs {tab_bar_min_tabs}"]
     if currently_hidden and current_style == "hidden":

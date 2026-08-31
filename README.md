@@ -9,9 +9,11 @@ supported Kitty version.
 
 The legacy sidebar watches the tabs in a main Kitty OS window and uses Kitty
 remote control to focus the active tab.
-Vertical cards use three terminal rows
+Both native and legacy vertical cards use three terminal rows
 when the whole tree fits, squeeze to two rows when necessary, and fall back to
-one row under pressure. The normal TUI has no diagnostic
+one row under pressure. Expanded native cards use the same tapered silhouette,
+four-cell tree indentation, centered content row, one-row card gap, and centered
+stack as the KTT sidebar. The normal TUI has no diagnostic
 header; target-window details remain available through commands and errors
 without permanently consuming a row. The help block is a centered two-column
 legend with a visible separator between shortcuts and their actions. It stays
@@ -50,12 +52,12 @@ otherwise opens the legacy tree in a separate sidebar OS window. Use
 `ktt native` to require the native backend; it reports the running version and
 points to `ktt launch` when Kitty is too old.
 Native enablement is a process-local Kitty override: it does not rewrite the
-persistent tab-bar preset or alignment. It remains in effect for that Kitty
-process, including while `t` hides and shows the bar, and a Kitty restart
-returns to the persistent configuration until bare `ktt` or `ktt native`
-enables it again. Ktt replaces only its edge, visibility, and native-width
-keys, retaining unrelated Kitty `-o` overrides; an existing right-side native
-bar stays on the right.
+persistent tab-bar preset. While managed, KTT owns the effective custom style,
+center alignment, edge, visibility, and native width so Kitty invokes the KTT
+card renderer. Those values remain in effect while `t` hides and shows the bar,
+and a Kitty restart returns to the persistent configuration until bare `ktt`
+or `ktt native` enables it again. KTT retains unrelated Kitty `-o` overrides;
+an existing right-side native bar stays on the right.
 The native backend ignores TUI-only presentation and lifecycle flags such as
 `--edge-style`, `--repository-palette`, `--changed-files-placement`,
 `--poll-interval`, and `--no-auto-reload`. If native setup fails, bare `ktt`
@@ -64,11 +66,9 @@ settings.
 Bare auto-selection logs noncritical ordering/layout maintenance failures and
 reports success only after reading back a visible native edge. Explicit
 `ktt native` and the `t` toggle treat those maintenance failures as errors.
-Normal tab-bar styles and alignment remain untouched. If the effective style
-is exactly `hidden`, native enable or toggle uses a process-local `fade` style
-override so the requested visible bar can recover without rewriting the
-persistent preset. Ktt removes that recovery override when it hides the managed
-bar again; an ordinary configured fade preset is left untouched.
+Unmanaged visibility toggles retain Kitty's configured style. If that style is
+exactly `hidden`, the toggle uses a process-local `fade` recovery override so a
+requested visible bar can recover without rewriting the persistent preset.
 The launched legacy TUI receives its target explicitly, so the sidebar never
 treats its own OS window as the tab source.
 

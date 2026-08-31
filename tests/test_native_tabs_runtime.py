@@ -44,6 +44,7 @@ class FakeBoss:
         self.persistent = (
             options.tab_bar_edge,
             options.tab_bar_style,
+            options.tab_bar_align,
             options.tab_bar_min_tabs,
         )
         self.all_tab_managers = [FakeManager(events)]
@@ -55,6 +56,7 @@ class FakeBoss:
         (
             self.options.tab_bar_edge,
             self.options.tab_bar_style,
+            self.options.tab_bar_align,
             self.options.tab_bar_min_tabs,
         ) = self.persistent
         self.options.config_overrides = tuple(overrides)
@@ -70,6 +72,8 @@ class FakeBoss:
                 self.options.tab_bar_min_tabs = int(value)
             elif key == "tab_bar_style":
                 self.options.tab_bar_style = value
+            elif key == "tab_bar_align":
+                self.options.tab_bar_align = value
 
 
 class BadFirstPostconditionBoss(FakeBoss):
@@ -134,6 +138,7 @@ def options(**overrides):
     values = {
         "tab_bar_edge": BOTTOM_EDGE,
         "tab_bar_style": "custom",
+        "tab_bar_align": "start",
         "tab_bar_min_tabs": 2,
         "config_overrides": ("font_size 14",),
     }
@@ -307,7 +312,9 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             "font_size 14",
             "tab_bar_align center",
         )
-        current_options = options(config_overrides=previous_overrides)
+        current_options = options(
+            tab_bar_align="center", config_overrides=previous_overrides
+        )
         boss = BadFirstPostconditionBoss(current_options, events)
         logs = []
 
@@ -339,7 +346,9 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             "font_size 14",
             "tab_bar_align center",
         )
-        current_options = options(config_overrides=previous_overrides)
+        current_options = options(
+            tab_bar_align="center", config_overrides=previous_overrides
+        )
         boss = BadFirstPostconditionBoss(current_options, events)
         boss.all_tab_managers = [FailSecondResizeManager(events)]
         logs = []
@@ -417,7 +426,7 @@ class NativeTabsRuntimeTests(unittest.TestCase):
 
         self.assertTrue(getattr(boss, NATIVE_MARKER_ATTRIBUTE))
 
-    def test_hidden_style_recovery_is_removed_while_managed_bar_is_hidden(
+    def test_managed_bar_keeps_custom_card_style_across_toggle(
         self,
     ) -> None:
         events = []
@@ -437,12 +446,12 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         }
 
         run_native_tabs_action(action="enable", **common)
-        self.assertIn("tab_bar_style fade", current_options.config_overrides)
+        self.assertIn("tab_bar_style custom", current_options.config_overrides)
         run_native_tabs_action(action="toggle", **common)
-        self.assertNotIn("tab_bar_style fade", current_options.config_overrides)
-        self.assertEqual(current_options.tab_bar_style, "hidden")
+        self.assertIn("tab_bar_style custom", current_options.config_overrides)
+        self.assertEqual(current_options.tab_bar_style, "custom")
         run_native_tabs_action(action="toggle", **common)
-        self.assertIn("tab_bar_style fade", current_options.config_overrides)
+        self.assertIn("tab_bar_style custom", current_options.config_overrides)
 
 
 if __name__ == "__main__":

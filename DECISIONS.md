@@ -13,6 +13,12 @@ separate-window sidebar otherwise. `ktt native` requires the new backend, while
 Native selection is a runtime override for the current Kitty process, not a
 persistent config rewrite. Hiding the bar retains that native identity so the
 same toggle can show it again; restarting Kitty restores the configured edge.
+While that native identity is managed, KTT also owns a process-local custom
+style and center alignment. Its renderer raises Kitty's two-row native cap to
+the same adaptive three-, two-, and one-row tapered cards used by the sidebar,
+including card gaps, tree indentation, active-tab visibility, and vertical
+centering. Hiding retains these overrides so a show/hide cycle is stable;
+restarting Kitty restores the persistent preset.
 
 The legacy backend remains tested but frozen: compatibility fixes are in scope;
 new vertical presentation features are not. Remove it after the supported

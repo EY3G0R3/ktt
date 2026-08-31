@@ -3,12 +3,98 @@
 from __future__ import annotations
 
 from collections.abc import Callable, MutableMapping, Sequence
-from typing import TypeAlias
+from dataclasses import dataclass
+from typing import Literal, TypeAlias
 
 
 DEFAULT_MAX_CELLS = 40
 TopologyEntry: TypeAlias = tuple[int, tuple[int, ...], int | None]
 TopologySignature: TypeAlias = tuple[TopologyEntry, ...]
+VerticalAlignment: TypeAlias = Literal["start", "center", "end"]
+
+
+@dataclass(frozen=True)
+class VerticalTabPlacement:
+    data_index: int
+    start_row: int
+    card_height: int
+
+    @property
+    def content_row(self) -> int:
+        return self.start_row + max(0, (self.card_height - 1) // 2)
+
+
+@dataclass(frozen=True)
+class VerticalTabLayout:
+    placements: tuple[VerticalTabPlacement, ...]
+    ellipsis_row: int | None = None
+
+
+def _vertical_cards_height(card_count: int, card_height: int) -> int:
+    if card_count <= 0:
+        return 0
+    gap = int(card_height > 1)
+    return card_count * card_height + (card_count - 1) * gap
+
+
+def vertical_tab_layout(
+    tab_count: int,
+    available_lines: int,
+    *,
+    active_index: int = 0,
+    alignment: VerticalAlignment = "center",
+) -> VerticalTabLayout:
+    """Lay out adaptive KTT cards inside Kitty's native vertical surface."""
+    tab_count = max(0, int(tab_count))
+    available_lines = max(0, int(available_lines))
+    if not tab_count or not available_lines:
+        return VerticalTabLayout(())
+
+    card_height = next(
+        (
+            height
+            for height in (3, 2)
+            if _vertical_cards_height(tab_count, height) <= available_lines
+        ),
+        1,
+    )
+    gap = int(card_height > 1)
+    capacity = min(
+        tab_count,
+        max(1, (available_lines + gap) // (card_height + gap)),
+    )
+    ellipsis = tab_count > capacity and available_lines > 1
+    if ellipsis:
+        card_height = 1
+        gap = 0
+        capacity = min(tab_count, available_lines - 1)
+
+    active_index = min(max(0, int(active_index)), tab_count - 1)
+    first_index = min(
+        max(0, active_index - capacity // 2),
+        max(0, tab_count - capacity),
+    )
+    used_lines = _vertical_cards_height(capacity, card_height) + int(ellipsis)
+    if alignment == "end":
+        first_row = max(0, available_lines - used_lines)
+    elif alignment == "start":
+        first_row = 0
+    else:
+        first_row = max(0, (available_lines - used_lines) // 2)
+    placements = tuple(
+        VerticalTabPlacement(
+            data_index=first_index + offset,
+            start_row=first_row + offset * (card_height + gap),
+            card_height=card_height,
+        )
+        for offset in range(capacity)
+    )
+    ellipsis_row = (
+        first_row + capacity * (card_height + gap) - gap
+        if ellipsis
+        else None
+    )
+    return VerticalTabLayout(placements, ellipsis_row)
 
 
 def select_content_windows(
@@ -51,6 +137,12 @@ def tree_indent(depth: int, max_cells: int) -> str:
     max_depth = max(0, (max_cells - 5) // 4)
     depth = min(depth, max_depth)
     return f"{' ' * (4 * depth)}└─ " if depth else ""
+
+
+def tree_leading_cells(depth: int, max_cells: int) -> int:
+    """Return the clamped card shift while keeping the branch marker inside."""
+    indent = tree_indent(depth, max_cells)
+    return max(0, len(indent) - len("└─ "))
 
 
 def _shorter_indent(indent: str) -> str:

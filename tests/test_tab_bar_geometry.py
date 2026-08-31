@@ -9,8 +9,10 @@ from ktt.tab_bar_geometry import (
     is_vertical_edge,
     select_content_windows,
     tree_indent,
+    tree_leading_cells,
     valid_parent_tab_ids,
     vertical_cursor_plan,
+    vertical_tab_layout,
 )
 
 
@@ -77,11 +79,45 @@ class TabBarGeometryTests(unittest.TestCase):
         self.assertEqual(vertical_cursor_plan(5, 5, 0), (0, 0))
         self.assertEqual(vertical_cursor_plan(5, 6, 1), (0, 0))
 
+    def test_vertical_layout_uses_three_row_cards_with_centered_gaps(self) -> None:
+        layout = vertical_tab_layout(3, 15, active_index=1)
+
+        self.assertEqual(
+            [
+                (placement.data_index, placement.start_row, placement.card_height)
+                for placement in layout.placements
+            ],
+            [(0, 2, 3), (1, 6, 3), (2, 10, 3)],
+        )
+        self.assertEqual(
+            [placement.content_row for placement in layout.placements],
+            [3, 7, 11],
+        )
+        self.assertIsNone(layout.ellipsis_row)
+
+    def test_vertical_layout_adapts_to_two_then_one_row_cards(self) -> None:
+        two_rows = vertical_tab_layout(3, 10)
+        one_row = vertical_tab_layout(3, 7)
+
+        self.assertTrue(all(item.card_height == 2 for item in two_rows.placements))
+        self.assertTrue(all(item.card_height == 1 for item in one_row.placements))
+
+    def test_overflow_keeps_active_tab_visible_and_draws_ellipsis(self) -> None:
+        layout = vertical_tab_layout(10, 4, active_index=8)
+
+        self.assertEqual(
+            [placement.data_index for placement in layout.placements],
+            [7, 8, 9],
+        )
+        self.assertEqual(layout.ellipsis_row, 3)
+
     def test_depth_indent_is_distinct_and_clamped_to_cell_budget(self) -> None:
         self.assertEqual(tree_indent(1, 24), "    └─ ")
         self.assertEqual(tree_indent(2, 24), "        └─ ")
         self.assertEqual(tree_indent(99, 13), "        └─ ")
         self.assertEqual(bounded_cell_count(0), 40)
+        self.assertEqual(tree_leading_cells(4, 19), 12)
+        self.assertEqual(tree_leading_cells(99, 9), 4)
 
     def test_title_fit_shortens_indent_before_semantic_labels(self) -> None:
         rendered = fit_vertical_title(
