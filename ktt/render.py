@@ -906,9 +906,22 @@ def tab_labels(
     tab: TabRecord,
     width: int,
     worktree: str | None = None,
+    *,
+    show_title: bool = True,
 ) -> tuple[str, str, str]:
     repository = tab.repository or ""
-    if not repository or width < 14:
+    if not repository:
+        return (
+            truncate_cells(tab.title, max(0, width)) if show_title else "",
+            "",
+            "",
+        )
+    if not show_title and width < 14:
+        repository_label = truncate_cells(
+            f"/{repository}/", max(0, width)
+        )
+        return "", repository_label, ""
+    if width < 14:
         return truncate_cells(tab.title, max(0, width)), "", ""
     repository_width = min(20, max(6, width // 3))
     repository = f"/{truncate_cells(repository, repository_width - 2)}/"
@@ -922,6 +935,8 @@ def tab_labels(
         worktree_label = truncate_cells(worktree_label, worktree_budget)
         if worktree_label:
             metadata_width += 2 + display_width(worktree_label)
+    if not show_title:
+        return "", repository, worktree_label
     title_width = width - metadata_width - 4
     if title_width < 5:
         return truncate_cells(tab.title, max(0, width)), "", ""
@@ -944,6 +959,7 @@ def render_row(
     show_repository_metadata: bool = True,
     show_worktree_metadata: bool = True,
     show_tab_title: bool = True,
+    prefer_repository_metadata: bool = False,
     center_content: bool = False,
 ) -> str:
     tab = row.tab
@@ -1015,7 +1031,13 @@ def render_row(
         ))
     inline_context_width = 0
     if show_repository_metadata:
-        title, repository, worktree = tab_labels(tab, remaining)
+        title, repository, worktree = tab_labels(
+            tab,
+            remaining,
+            show_title=(
+                show_tab_title or not prefer_repository_metadata
+            ),
+        )
         if inline_context_segments:
             full_context_width = display_width("".join(
                 text for text, _, _ in inline_context_segments
@@ -1459,8 +1481,30 @@ def render_card(
         )
         else ""
     )
-    secondary_context_is_separate = (
-        card_height >= 2 and bool(worktree or useful_branch)
+    indent_width = TREE_INDENT_WIDTH * row.depth
+    card_width = max(1, width - indent_width - 1)
+    body_width = card_width - 2 if card_width >= 3 else card_width
+    prefix_width = 1 + 1 + STATUS_CELL_WIDTH + 1
+    minimum_worktree_width = min(
+        5,
+        display_width(f" {WORKTREE_GLYPH}{worktree}") if worktree else 0,
+    )
+    state_width = min(
+        display_width(state),
+        max(0, body_width - prefix_width - minimum_worktree_width - 3),
+    )
+    label_width = max(
+        1,
+        body_width
+        - prefix_width
+        - state_width
+        - (3 if state_width else 0),
+    )
+    status_squeezes_repository = bool(
+        repository_lines and row.tab.repository and label_width < 14
+    )
+    secondary_context_is_separate = card_height >= 2 and bool(
+        worktree or useful_branch or status_squeezes_repository
     )
     secondary_segments: list[tuple[str, str, bool]] = []
     if secondary_context_is_separate and useful_branch:
@@ -1494,6 +1538,7 @@ def render_card(
             show_repository_metadata=True,
             show_worktree_metadata=True,
             show_tab_title=not secondary_context_is_separate,
+            prefer_repository_metadata=status_squeezes_repository,
             center_content=False,
         )
         if line == content_line

@@ -238,6 +238,88 @@ class FancylogMonitor:
         self.next_refresh = 0.0
 
 
+class AsyncFancylogMonitor:
+    """Refresh one Fancylog summary without blocking a UI renderer."""
+
+    def __init__(
+        self,
+        interval: float = 3.0,
+        timeout: float = 0.75,
+        executable: str = "fancylog",
+        palette: str = DEFAULT_REPOSITORY_PALETTE,
+    ) -> None:
+        self.interval = interval
+        self.timeout = timeout
+        self.executable = executable
+        self.palette = palette
+        self.key: tuple[str, int, int] | None = None
+        self.lines: list[str] = []
+        self.next_refresh = 0.0
+        self.pending: Future[list[str] | None] | None = None
+        self.pending_key: tuple[str, int, int] | None = None
+        self.executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="ktt-repository-summary",
+        )
+
+    def update(
+        self,
+        path: str | None,
+        width: int,
+        max_lines: int,
+        now: float | None = None,
+    ) -> list[str]:
+        current = time.monotonic() if now is None else now
+        key = (
+            (path, width, max_lines)
+            if path and width > 0 and max_lines > 0
+            else None
+        )
+        if key != self.key:
+            self.key = key
+            self.lines = []
+            self.next_refresh = 0.0
+
+        if self.pending is not None and self.pending.done():
+            try:
+                lines = self.pending.result()
+            except Exception:
+                lines = None
+            if self.pending_key == self.key and lines is not None:
+                self.lines = lines
+            self.pending = None
+            self.pending_key = None
+
+        if (
+            self.key is not None
+            and self.pending is None
+            and current >= self.next_refresh
+        ):
+            path_value, width_value, max_lines_value = self.key
+            self.pending_key = self.key
+            self.next_refresh = current + self.interval
+            self.pending = self.executor.submit(
+                fancylog_status_lines,
+                self.executable,
+                path_value,
+                max(MINIMUM_STATUS_SOURCE_WIDTH, width_value * 3),
+                max_lines_value,
+                self.palette,
+                self.timeout,
+            )
+        return self.lines
+
+    def needs_refresh(self, now: float | None = None) -> bool:
+        current = time.monotonic() if now is None else now
+        return (
+            self.pending is not None
+            or (self.key is not None and current >= self.next_refresh)
+        )
+
+    def close(self) -> None:
+        self.executor.shutdown(wait=False, cancel_futures=True)
+
+
 class FancylogIdentityCache:
     def __init__(
         self,

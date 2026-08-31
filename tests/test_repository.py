@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from ktt.model import TabRecord
 from ktt.repository import (
+    AsyncFancylogMonitor,
     FancylogIdentityCache,
     FancylogMonitor,
     RepositoryLocation,
@@ -247,6 +248,28 @@ class RepositoryTests(unittest.TestCase):
             monitor.update("/work/project", 40, 1, now=13.0),
             ["status"],
         )
+
+    def test_async_monitor_refreshes_without_blocking_the_caller(self) -> None:
+        monitor = AsyncFancylogMonitor(interval=3.0)
+        try:
+            with patch(
+                "ktt.repository.fancylog_status_lines",
+                return_value=["header", "branch"],
+            ) as status:
+                self.assertEqual(
+                    monitor.update("/work/project", 40, 2, now=10.0), []
+                )
+                self.assertTrue(monitor.needs_refresh(now=10.1))
+                assert monitor.pending is not None
+                monitor.pending.result(timeout=1.0)
+                self.assertEqual(
+                    monitor.update("/work/project", 40, 2, now=10.1),
+                    ["header", "branch"],
+                )
+                self.assertFalse(monitor.needs_refresh(now=12.9))
+                status.assert_called_once()
+        finally:
+            monitor.close()
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from .native_tabs import (
     HIDDEN_MIN_TABS,
+    NATIVE_CARD_STATE_ATTRIBUTE,
     NATIVE_MANAGED_ATTRIBUTE,
     NATIVE_MARKER_ATTRIBUTE,
     NATIVE_STYLE_RECOVERY_ATTRIBUTE,
@@ -61,6 +62,21 @@ def options_hidden(options: Any) -> bool:
         options.tab_bar_style == "hidden"
         or options.tab_bar_min_tabs >= HIDDEN_MIN_TABS
     )
+
+
+def _close_native_card_state(
+    boss: Any, log_error: Callable[[str], None]
+) -> None:
+    state = getattr(boss, NATIVE_CARD_STATE_ATTRIBUTE, None)
+    if state is None:
+        return
+    try:
+        state.close()
+    except Exception as error:
+        log_error(f"ktt native tabs: renderer cleanup failed: {error}")
+    finally:
+        if getattr(boss, NATIVE_CARD_STATE_ATTRIBUTE, None) is state:
+            delattr(boss, NATIVE_CARD_STATE_ATTRIBUTE)
 
 
 def current_edge_name(
@@ -287,6 +303,7 @@ def run_native_tabs_action(
             ) from original_error
         raise original_error
 
+    _close_native_card_state(boss, log_error)
     try:
         boss.load_config_file(
             apply_overrides=False,

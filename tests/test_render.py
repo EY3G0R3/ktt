@@ -239,6 +239,36 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(title_index, status_index)
         self.assertGreater(lines[status_index].index("✓ clean"), 20)
 
+    def test_long_active_state_keeps_repository_identity_visible(self) -> None:
+        row = TreeRow(
+            TabRecord(
+                1,
+                1,
+                "~/src/ktt",
+                (10,),
+                repository="ktt",
+            ),
+            0,
+            None,
+        )
+
+        card = render_card(
+            row,
+            selected=True,
+            width=48,
+            card_height=3,
+            ansi=False,
+            repository_lines=[
+                "~/src/ktt  ◈ 9 unstaged · 2 untracked",
+            ],
+            repository_location=RepositoryLocation(),
+        )
+
+        self.assertIn("/ktt/", card[1])
+        self.assertIn("9 unstaged", card[1])
+        self.assertNotIn("~/src/ktt", card[1])
+        self.assertIn("~/src/ktt", card[2])
+
     def test_embedded_repository_context_keeps_lower_tabs_in_the_group(self) -> None:
         rows = [
             TreeRow(TabRecord(1, 1, "one", (10,), repository="ktt"), 0, None),

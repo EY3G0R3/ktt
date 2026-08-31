@@ -5,6 +5,7 @@ import unittest
 
 from ktt.native_tabs import (
     HIDDEN_MIN_TABS,
+    NATIVE_CARD_STATE_ATTRIBUTE,
     NATIVE_MANAGED_ATTRIBUTE,
     NATIVE_MARKER_ATTRIBUTE,
     NativeVerticalTabsUnsupported,
@@ -267,6 +268,30 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         self.assertTrue(getattr(boss, NATIVE_MARKER_ATTRIBUTE))
         self.assertTrue(plan.native_visible)
         self.assertEqual(logs, [])
+
+    def test_reload_closes_background_renderer_state_before_config_load(self) -> None:
+        events = []
+        current_options = options()
+        boss = FakeBoss(current_options, events)
+        state = SimpleNamespace(close=lambda: events.append("card-close"))
+        setattr(boss, NATIVE_CARD_STATE_ATTRIBUTE, state)
+
+        run_native_tabs_action(
+            boss=boss,
+            action="enable",
+            strict=True,
+            running_version=(0, 48, 2),
+            options=current_options,
+            read_options=lambda: current_options,
+            left_edge=LEFT_EDGE,
+            right_edge=RIGHT_EDGE,
+            kitty_layout=FakeLayout(events),
+            kitty_tabs=FakeTabs(boss, events),
+            log_error=lambda _message: None,
+        )
+
+        self.assertLess(events.index("card-close"), events.index("load"))
+        self.assertFalse(hasattr(boss, NATIVE_CARD_STATE_ATTRIBUTE))
 
     def test_strict_maintenance_failure_logs_cleans_up_then_raises(self) -> None:
         events = []

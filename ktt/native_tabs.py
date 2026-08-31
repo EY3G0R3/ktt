@@ -17,6 +17,7 @@ HIDDEN_MIN_TABS = 1_000_000
 NATIVE_MARKER_ATTRIBUTE = "_ktt_native_vertical_tabs_enabled"
 NATIVE_MANAGED_ATTRIBUTE = "_ktt_native_vertical_tabs_managed"
 NATIVE_STYLE_RECOVERY_ATTRIBUTE = "_ktt_native_tabs_style_recovery"
+NATIVE_CARD_STATE_ATTRIBUTE = "_ktt_native_card_state"
 KTT_OVERRIDE_KEYS = frozenset({
     "tab_bar_edge",
     "tab_bar_align",

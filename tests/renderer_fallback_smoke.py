@@ -48,6 +48,9 @@ def mocked_kitty(*, vertical_api: bool = True):
         )
         tab_bar.TabExtent = namedtuple("TabExtent", "tab_id x y")
     tab_bar.as_rgb = lambda value: value
+    tab_bar.draw_attributed_string = (
+        lambda value, screen: screen.draw(value)
+    )
     tab_bar.draw_title = (
         lambda _data, screen, _tab, _index, _limit: screen.draw("title")
     )

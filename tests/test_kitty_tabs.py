@@ -23,6 +23,15 @@ class FakeWindow:
         self.user_vars = user_vars
 
 
+class CwdWindow(FakeWindow):
+    def __init__(self, window_id: int, cwd: str, **user_vars: str) -> None:
+        super().__init__(window_id, **user_vars)
+        self.cwd = cwd
+
+    def get_cwd_of_child(self) -> str:
+        return self.cwd
+
+
 class LiveTab:
     def __init__(
         self, tab_id: int, windows: list[FakeWindow], active: int = 0
@@ -167,6 +176,36 @@ class TabOrderingTests(unittest.TestCase):
         )
 
         self.assertEqual(target, 20)
+
+    def test_live_tree_records_include_content_window_cwd(self) -> None:
+        tab = LiveTab(10, [CwdWindow(100, "/work/project")])
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.cwd, "/work/project")
+
+    def test_live_tree_verdict_overrides_working_status(self) -> None:
+        tab = LiveTab(10, [FakeWindow(
+            100,
+            workmux_status="working",
+            workmux_verdict="ready_to_merge",
+        )])
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.status, "ready_to_merge")
+
+    def test_live_tree_uses_content_title_when_tab_title_is_surf(self) -> None:
+        content = FakeWindow(100)
+        content.title = "implement auth"
+        sidebar = FakeWindow(101, ktt_sidebar="1")
+        sidebar.title = "surf"
+        tab = LiveTab(10, [content, sidebar])
+        tab.title = "surf"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "implement auth")
 
     def test_live_tree_suppresses_fresh_waiting_spinner_attention(self) -> None:
         active = LiveTab(10, [FakeWindow(100)])

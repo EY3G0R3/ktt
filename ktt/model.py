@@ -10,6 +10,7 @@ from .tab_bar_geometry import select_content_windows
 
 PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
+VERDICT_VAR = "workmux_verdict"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
 SIDEBAR_VAR = "ktt_sidebar"
 AGENT_ROLE = "agent"

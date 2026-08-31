@@ -48,6 +48,19 @@ def _first_user_var(windows: Sequence[Any], key: str) -> str | None:
     )
 
 
+def _window_cwd(window: Any) -> str | None:
+    for name in ("get_cwd_of_child", "get_cwd_of_root_child"):
+        getter = getattr(window, name, None)
+        if callable(getter):
+            try:
+                value = getter()
+            except Exception:
+                value = None
+            if value and str(value) != "/":
+                return str(value)
+    return None
+
+
 def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
     """Build tree records from Kitty's live tabs without a process snapshot."""
     records = []
@@ -55,17 +68,35 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         windows = _content_windows(tab)
         if not windows:
             continue
-        title = str(getattr(tab, "title", "")) or "untitled"
-        status = _first_user_var(windows, model.STATUS_VAR)
+        title = str(getattr(tab, "title", ""))
+        if not title or title == "surf":
+            title = next(
+                (
+                    str(window.title)
+                    for window in windows
+                    if getattr(window, "title", "")
+                    and str(window.title) != "surf"
+                ),
+                title,
+            )
+        title = title or "untitled"
+        status = _first_user_var(windows, model.VERDICT_VAR) or _first_user_var(
+            windows, model.STATUS_VAR
+        )
+        cwd = next(
+            (value for window in windows if (value := _window_cwd(window))),
+            None,
+        )
         records.append(model.TabRecord(
             id=tab.id,
             os_window_id=tab_manager.os_window_id,
-            title=title,
+            title=model.clean_title(title, cwd=cwd),
             window_ids=tuple(window.id for window in windows),
             is_active=tab is tab_manager.active_tab,
             parent_window_id=_parent_window_id(windows),
             status=status,
             source_index=source_index,
+            cwd=cwd,
             attention_suppressed=(
                 status in model.WAITING_STATUSES
                 and model.title_is_working(title)
