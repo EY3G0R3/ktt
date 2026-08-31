@@ -4,6 +4,21 @@ Decided on August 22, 2026 (PDT). These choices replace the open-ended items
 in the original first-slice plan. They can be revisited with evidence, but no
 longer block implementation.
 
+## 0. Native vertical tabs are primary; the sidebar is compatibility-only
+
+Kitty 0.48 added left/right native tab bars. Bare `ktt` selects that backend
+when the running Kitty process is new enough and falls back to the original
+separate-window sidebar otherwise. `ktt native` requires the new backend, while
+`ktt launch` always exposes the legacy one.
+Native selection is a runtime override for the current Kitty process, not a
+persistent config rewrite. Hiding the bar retains that native identity so the
+same toggle can show it again; restarting Kitty restores the configured edge.
+
+The legacy backend remains tested but frozen: compatibility fixes are in scope;
+new vertical presentation features are not. Remove it after the supported
+machines have moved to Kitty 0.48+, rather than carrying permanent dual-backend
+feature work.
+
 ## 1. Workmux owns launch-time assignment; ktt owns the contract
 
 `ktt_parent_window_id` is the canonical tree edge. `ktt` owns its meaning,
@@ -72,7 +87,8 @@ Kitty-wide `Alt-j` and `Alt-k` traverse the visible tree rather than Kitty's
 flat tab order. From the main window, the Kitty-side kitten delegates through
 ktt's event socket. From the focused sidebar, it reads ktt's owner-only visible
 order snapshot and changes the target manager's active tab directly, preserving
-OS-window focus. Folded subtrees are skipped exactly as rendered. The kitten
+OS-window focus. Snapshots name their publisher PID and are ignored once that
+process is gone. Folded subtrees are skipped exactly as rendered. The kitten
 computes the complete tree itself when no ktt listener or snapshot is
 available; no path reorders native tabs.
 

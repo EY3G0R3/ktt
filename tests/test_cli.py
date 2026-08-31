@@ -1,3 +1,4 @@
+from io import StringIO
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -7,6 +8,8 @@ from ktt.cli import (
     _validate_link,
     main,
 )
+from ktt.kitty import KittyError
+from ktt.native_tabs import NativeVerticalTabsUnsupported
 
 
 def window(window_id, parent=None):
@@ -65,6 +68,9 @@ class LinkValidationTests(unittest.TestCase):
         self, remote_class, run_tui
     ) -> None:
         remote = remote_class.return_value
+        remote.enable_native_vertical_tabs.side_effect = (
+            NativeVerticalTabsUnsupported((0, 47, 4))
+        )
         remote.snapshot.return_value = [{
             "id": 7,
             "tabs": [
@@ -73,10 +79,117 @@ class LinkValidationTests(unittest.TestCase):
             ],
         }]
         remote.launch_sidebar.return_value = 900
-        with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
+        error_output = StringIO()
+        with (
+            patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}),
+            patch("sys.stderr", error_output),
+        ):
             self.assertEqual(main([]), 0)
         remote.launch_sidebar.assert_called_once_with(
             7, "tapered", "amber", "vertical", "bottom"
+        )
+        self.assertIn("running 0.47.4", error_output.getvalue())
+        self.assertIn("opening the legacy sidebar", error_output.getvalue())
+        run_tui.assert_not_called()
+
+    @patch("ktt.cli.run_tui")
+    @patch("ktt.cli.RemoteControl")
+    def test_bare_command_uses_native_vertical_tabs_when_supported(
+        self, remote_class, run_tui
+    ) -> None:
+        remote = remote_class.return_value
+        remote.snapshot.return_value = [{
+            "id": 7,
+            "tabs": [{"id": 10, "windows": [window(100)]}],
+        }]
+        with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
+            self.assertEqual(main([]), 0)
+        remote.enable_native_vertical_tabs.assert_called_once_with(
+            100, strict=False
+        )
+        remote.launch_sidebar.assert_not_called()
+        run_tui.assert_not_called()
+
+    @patch("ktt.cli.RemoteControl")
+    def test_native_command_directs_old_kitty_to_legacy_sidebar(
+        self, remote_class
+    ) -> None:
+        remote = remote_class.return_value
+        remote.enable_native_vertical_tabs.side_effect = (
+            NativeVerticalTabsUnsupported((0, 47, 4))
+        )
+        error_output = StringIO()
+        with (
+            patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}),
+            patch("sys.stderr", error_output),
+        ):
+            self.assertEqual(main(["native"]), 1)
+        remote.enable_native_vertical_tabs.assert_called_once_with(
+            100, strict=True
+        )
+        self.assertIn("running 0.47.4", error_output.getvalue())
+        self.assertIn("ktt launch", error_output.getvalue())
+
+    @patch("ktt.cli.RemoteControl")
+    def test_bare_command_falls_back_after_other_native_failures(
+        self, remote_class
+    ) -> None:
+        remote = remote_class.return_value
+        remote.snapshot.return_value = [{
+            "id": 7,
+            "tabs": [{"id": 10, "windows": [window(100)]}],
+        }]
+        remote.enable_native_vertical_tabs.side_effect = KittyError("denied")
+        remote.launch_sidebar.return_value = 900
+
+        error_output = StringIO()
+        with (
+            patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}),
+            patch("sys.stderr", error_output),
+        ):
+            self.assertEqual(main([]), 0)
+
+        remote.launch_sidebar.assert_called_once_with(
+            7, "tapered", "amber", "vertical", "bottom"
+        )
+        self.assertIn("denied", error_output.getvalue())
+        self.assertIn("opening the legacy sidebar", error_output.getvalue())
+
+    @patch("ktt.cli.RemoteControl")
+    def test_explicit_native_does_not_mask_other_failures(
+        self, remote_class
+    ) -> None:
+        remote = remote_class.return_value
+        remote.enable_native_vertical_tabs.side_effect = KittyError("denied")
+
+        output = StringIO()
+        with (
+            patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}),
+            patch("sys.stdout", output),
+        ):
+            self.assertEqual(main(["native"]), 1)
+
+        remote.launch_sidebar.assert_not_called()
+        self.assertNotIn("enabled Kitty", output.getvalue())
+
+    @patch("ktt.cli.run_tui")
+    @patch("ktt.cli.RemoteControl")
+    def test_bare_horizontal_command_uses_legacy_sidebar_on_new_kitty(
+        self, remote_class, run_tui
+    ) -> None:
+        remote = remote_class.return_value
+        remote.snapshot.return_value = [{
+            "id": 7,
+            "tabs": [{"id": 10, "windows": [window(100)]}],
+        }]
+        remote.launch_sidebar.return_value = 900
+
+        with patch.dict("os.environ", {"KITTY_WINDOW_ID": "100"}):
+            self.assertEqual(main(["--orientation", "horizontal"]), 0)
+
+        remote.enable_native_vertical_tabs.assert_not_called()
+        remote.launch_sidebar.assert_called_once_with(
+            7, "tapered", "amber", "horizontal", "bottom"
         )
         run_tui.assert_not_called()
 

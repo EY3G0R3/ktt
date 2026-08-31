@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 
@@ -15,12 +16,25 @@ class VisibleOrder:
     attention_tab_ids: tuple[int, ...] | None = None
 
 
+def _pid_is_live(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def order_path(os_window_id: int, *, kitty_pid: int | None = None) -> Path:
     return event_socket_path(os_window_id, kitty_pid=kitty_pid).with_suffix(".order")
 
 
 def read_visible_order(
-    os_window_id: int, *, kitty_pid: int | None = None
+    os_window_id: int,
+    *,
+    kitty_pid: int | None = None,
+    require_live_publisher: bool = False,
 ) -> VisibleOrder | None:
     try:
         lines = order_path(os_window_id, kitty_pid=kitty_pid).read_text().splitlines()
@@ -32,7 +46,20 @@ def read_visible_order(
             if len(lines) >= 3
             else None
         )
+        publisher = json.loads(lines[3]) if len(lines) >= 4 else None
     except (OSError, ValueError, IndexError):
+        return None
+    except json.JSONDecodeError:
+        return None
+    if publisher is None:
+        if require_live_publisher:
+            return None
+    elif (
+        not isinstance(publisher, dict)
+        or not isinstance(publisher.get("pid"), int)
+        or publisher["pid"] <= 0
+        or not _pid_is_live(publisher["pid"])
+    ):
         return None
     if anchor_tab_id not in tab_ids:
         return None
@@ -44,6 +71,7 @@ class VisibleOrderPublisher:
         self.path: Path | None = None
         self.inode: int | None = None
         self.value: VisibleOrder | None = None
+        self.pid = os.getpid()
 
     def publish(
         self,
@@ -70,6 +98,11 @@ class VisibleOrderPublisher:
                 f"{value.anchor_tab_id}\n"
                 f"{','.join(map(str, value.tab_ids))}\n"
                 f"{','.join(map(str, value.attention_tab_ids or ()))}\n"
+                + json.dumps(
+                    {"pid": self.pid},
+                    separators=(",", ":"),
+                )
+                + "\n"
             )
             temporary.chmod(0o600)
             inode = temporary.stat().st_ino

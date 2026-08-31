@@ -15,40 +15,6 @@ def main(_args: list[str]) -> None:
     pass
 
 
-def _apply_tab_order(tab_manager: object, desired_tab_ids: tuple[int, ...]) -> None:
-    from kitty.fast_data_types import swap_tabs
-
-    tabs = tab_manager.tabs
-    active_tab = tab_manager.active_tab
-    by_id = {tab.id: tab for tab in tabs}
-    desired = [by_id[tab_id] for tab_id in desired_tab_ids if tab_id in by_id]
-    desired_ids = {tab.id for tab in desired}
-    known_slots = [
-        index for index, tab in enumerate(tabs) if tab.id in desired_ids
-    ]
-    final_order = list(tabs)
-    for index, tab in zip(known_slots, desired):
-        final_order[index] = tab
-    if final_order == tabs:
-        return
-
-    for target_index, target in enumerate(final_order):
-        current_index = tabs.index(target)
-        while current_index > target_index:
-            previous_index = current_index - 1
-            tabs[previous_index], tabs[current_index] = (
-                tabs[current_index],
-                tabs[previous_index],
-            )
-            swap_tabs(tab_manager.os_window_id, previous_index, current_index)
-            current_index = previous_index
-    if active_tab is not None:
-        tab_manager._set_active_tab(
-            tabs.index(active_tab), store_in_history=False
-        )
-    tab_manager.mark_tab_bar_dirty()
-
-
 @result_handler(no_ui=True)
 def handle_result(
     args: list[str], _answer: str, target_window_id: int, boss: Boss
@@ -62,8 +28,10 @@ def handle_result(
     # Kitty evaluates custom kittens without defining ``__file__``. The first
     # result-handler argument is the absolute kitten path from the mapping.
     package_root = Path(args[0]).resolve().parent.parent
-    sys.path.insert(0, str(package_root))
+    if str(package_root) not in sys.path:
+        sys.path.insert(0, str(package_root))
     import ktt.events as events
+    import ktt.kitty_tabs as kitty_tabs
     import ktt.model as model
     import ktt.order as order
     from ktt.kitty import SIDEBAR_VAR, TARGET_OS_WINDOW_VAR
@@ -72,6 +40,7 @@ def handle_result(
     # the pure tree model and runtime snapshot reader so source updates work
     # without restarting Kitty.
     model = importlib.reload(model)
+    kitty_tabs = importlib.reload(kitty_tabs)
     order = importlib.reload(order)
 
     action = args[1]
@@ -99,18 +68,10 @@ def handle_result(
     if target_manager is None:
         return
     if attention:
-        os_window = next(
-            (
-                value
-                for value in boss.list_os_windows(self_window=source)
-                if int(value["id"]) == target_os_window_id
-            ),
-            None,
-        )
-        if os_window is None:
-            return
         visible = order.read_visible_order(
-            target_os_window_id, kitty_pid=os.getpid()
+            target_os_window_id,
+            kitty_pid=os.getpid(),
+            require_live_publisher=True,
         )
         attention_tab_ids = getattr(visible, "attention_tab_ids", None)
         eligible_tab_ids = (
@@ -119,7 +80,7 @@ def handle_result(
             else None
         )
         target_tab_id = model.next_attention_tab_id(
-            model.tree_rows(model.records_for_os_window(os_window)),
+            model.tree_rows(kitty_tabs.live_tree_records(target_manager)),
             eligible_tab_ids,
         )
         target = next(
@@ -135,7 +96,9 @@ def handle_result(
         return
     if reorder:
         visible = order.read_visible_order(
-            target_os_window_id, kitty_pid=os.getpid()
+            target_os_window_id,
+            kitty_pid=os.getpid(),
+            require_live_publisher=True,
         )
         anchor_tab_id = (
             visible.anchor_tab_id
@@ -144,27 +107,21 @@ def handle_result(
             if target_manager.active_tab is not None
             else None
         )
-        os_window = next(
-            (
-                value
-                for value in boss.list_os_windows(self_window=source)
-                if int(value["id"]) == target_os_window_id
-            ),
-            None,
-        )
-        if anchor_tab_id is None or os_window is None:
+        if anchor_tab_id is None:
             return
         desired_tab_ids = model.reordered_tree_tab_ids(
-            model.tree_rows(model.records_for_os_window(os_window)),
+            model.tree_rows(kitty_tabs.live_tree_records(target_manager)),
             anchor_tab_id,
             direction,
         )
         if desired_tab_ids is not None:
-            _apply_tab_order(target_manager, desired_tab_ids)
+            kitty_tabs.apply_tab_order(target_manager, desired_tab_ids)
         return
     if from_sidebar:
         visible = order.read_visible_order(
-            target_os_window_id, kitty_pid=os.getpid()
+            target_os_window_id,
+            kitty_pid=os.getpid(),
+            require_live_publisher=True,
         )
         if visible is not None:
             index = visible.tab_ids.index(visible.anchor_tab_id)
@@ -193,18 +150,8 @@ def handle_result(
 
     # If ktt is not running, preserve useful navigation by computing the full
     # tree in Kitty. There is no local fold state to honor in this fallback.
-    os_window = next(
-        (
-            value
-            for value in boss.list_os_windows(self_window=source)
-            if int(value["id"]) == target_os_window_id
-        ),
-        None,
-    )
-    if os_window is None:
-        return
     target_tab_id = model.adjacent_tree_tab_id(
-        model.tree_rows(model.records_for_os_window(os_window)), direction
+        model.tree_rows(kitty_tabs.live_tree_records(target_manager)), direction
     )
     target = next(
         (candidate for candidate in target_manager if candidate.id == target_tab_id),

@@ -1,8 +1,14 @@
 # ktt
 
-`ktt` is a tree-shaped tab bar for Kitty with vertical and experimental
-horizontal views. It runs in a separate Kitty OS window, watches the tabs in a
-main Kitty OS window, and uses Kitty remote control to focus the active tab.
+`ktt` is a tree-shaped tab bar for Kitty with native vertical and experimental
+horizontal views. On Kitty 0.48 or newer, bare `ktt` enables Kitty's native
+left-side tab bar and keeps tree/status presentation in the custom tab renderer.
+On older Kitty releases, it automatically opens the original separate-window
+sidebar. `ktt launch` keeps that legacy backend explicitly available on every
+supported Kitty version.
+
+The legacy sidebar watches the tabs in a main Kitty OS window and uses Kitty
+remote control to focus the active tab.
 Vertical cards use three terminal rows
 when the whole tree fits, squeeze to two rows when necessary, and fall back to
 one row under pressure. The normal TUI has no diagnostic
@@ -28,24 +34,59 @@ in [IMPROVEMENTS.md](IMPROVEMENTS.md).
 ## Try it from this checkout
 
 Requirements: Python 3.11+, Kitty with `allow_remote_control yes`, and a
-reachable `KITTY_LISTEN_ON` socket. Changing a tab's parent interactively also
-requires `rofi`.
+reachable `KITTY_LISTEN_ON` socket. Native vertical tabs require Kitty 0.48+;
+older versions use the legacy backend. Changing a tab's parent interactively
+also requires `rofi`.
 
 ```bash
 python3 -m ktt list
 python3 -m ktt
+python3 -m ktt launch
 ```
 
-Bare `ktt` targets the current Kitty OS window and opens the tree in a separate
-sidebar OS window. The launched internal TUI receives that target explicitly,
-so the sidebar never treats its own OS window as the tab source.
+Bare `ktt` uses the current Kitty OS window to select a running Kitty process.
+It enables native vertical tabs process-wide when that Kitty is 0.48+ and
+otherwise opens the legacy tree in a separate sidebar OS window. Use
+`ktt native` to require the native backend; it reports the running version and
+points to `ktt launch` when Kitty is too old.
+Native enablement is a process-local Kitty override: it does not rewrite the
+persistent tab-bar preset or alignment. It remains in effect for that Kitty
+process, including while `t` hides and shows the bar, and a Kitty restart
+returns to the persistent configuration until bare `ktt` or `ktt native`
+enables it again. Ktt replaces only its edge, visibility, and native-width
+keys, retaining unrelated Kitty `-o` overrides; an existing right-side native
+bar stays on the right.
+The native backend ignores TUI-only presentation and lifecycle flags such as
+`--edge-style`, `--repository-palette`, `--changed-files-placement`,
+`--poll-interval`, and `--no-auto-reload`. If native setup fails, bare `ktt`
+prints the reason to stderr before opening the legacy sidebar with those TUI
+settings.
+Bare auto-selection logs noncritical ordering/layout maintenance failures and
+reports success only after reading back a visible native edge. Explicit
+`ktt native` and the `t` toggle treat those maintenance failures as errors.
+Normal tab-bar styles and alignment remain untouched. If the effective style
+is exactly `hidden`, native enable or toggle uses a process-local `fade` style
+override so the requested visible bar can recover without rewriting the
+persistent preset. Ktt removes that recovery override when it hides the managed
+bar again; an ordinary configured fade preset is left untouched.
+The launched legacy TUI receives its target explicitly, so the sidebar never
+treats its own OS window as the tab source.
 
-For immediate external tab-switch updates, load ktt's global Kitty watcher.
+The legacy backend is compatibility-only: it remains tested and usable, but new
+vertical features should target Kitty's native backend. This avoids maintaining
+two evolving renderers while machines transition to Kitty 0.48+.
+
+For immediate external tab-switch updates and continuous native tree-order
+normalization, load ktt's global Kitty watcher.
 Run `ktt watcher-path`, then paste the printed absolute path into `kitty.conf`:
 
 ```conf
 watcher /absolute/path/printed/by/ktt-watcher-path
 ```
+
+Ordering is gated by a process-local marker set only when ktt enables or shows
+its native backend. The watcher still emits ordinary tab notifications, but it
+does not reorder a left/right tab bar configured independently of ktt.
 
 The watcher sends the active tab ID and ordered membership in a nonblocking
 local Unix datagram only when either value changes. When membership still
@@ -91,7 +132,8 @@ subtrees are honored. ktt also publishes its visible order and folded active
 anchor to a tiny owner-only runtime file only when that value changes. When the
 sidebar itself is focused, the kitten reads that snapshot and changes the main
 tab directly inside Kitty without moving OS-window focus. If the sidebar is
-absent, it falls back to the complete tree order inside Kitty. Navigation stays
+absent or the publishing process is no longer alive, it falls back to the
+complete tree order inside Kitty. Navigation stays
 bounded at the first and last visible rows, and no path rewrites native tabs.
 Rapid key repeats are drained one transition per repaint at 50 ms intervals, so
 every adjacent row remains visible instead of several queued switches appearing
@@ -242,6 +284,10 @@ below it. Use `--changed-files-placement inline` to attach them immediately belo
 the selected card. `KTT_CHANGED_FILES_PLACEMENT=inline` sets the same override
 through the environment. Status and branch placement inside the selected card
 is unchanged.
+
+These placement modes apply to ktt's terminal TUI backends. Kitty's native
+vertical bar retains tree, repository, status, and verdict labels, but has no
+terminal surface for the detailed Fancylog changed-file rows.
 
 Fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
 worktree-status, file-row palette, and truncation policy. Ktt parses only the

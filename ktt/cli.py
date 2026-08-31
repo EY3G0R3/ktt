@@ -14,6 +14,7 @@ from .kitty import (
     find_tab_for_window,
 )
 from .model import choose_os_window, records_for_os_window, tree_rows
+from .native_tabs import NativeVerticalTabsUnsupported, format_version
 from .render import (
     CHANGED_FILES_PLACEMENTS,
     DEFAULT_CHANGED_FILES_PLACEMENT,
@@ -102,7 +103,12 @@ def _parser() -> argparse.ArgumentParser:
         "path", nargs="?", type=Path, default=default_manifest_path()
     )
     subparsers.add_parser("list", help="print the current tree once")
-    subparsers.add_parser("launch", help="open ktt in a separate Kitty OS window")
+    subparsers.add_parser(
+        "native", help="use Kitty 0.48+'s native vertical tab bar"
+    )
+    subparsers.add_parser(
+        "launch", help="open the legacy ktt sidebar in a separate Kitty OS window"
+    )
     launch_pane = subparsers.add_parser(
         "launch-pane", help="open horizontal ktt beneath the current Kitty window"
     )
@@ -276,6 +282,28 @@ def main(argv: list[str] | None = None) -> int:
             if location is None:
                 raise ValueError("the current Kitty window was not found")
             target = location[0]
+            if args.orientation == "vertical":
+                try:
+                    remote.enable_native_vertical_tabs(self_id, strict=False)
+                except NativeVerticalTabsUnsupported as error:
+                    print(
+                        "ktt: native vertical tabs require Kitty 0.48.0 or "
+                        f"newer (running {format_version(error.version)}); "
+                        "opening the legacy sidebar",
+                        file=sys.stderr,
+                    )
+                except KittyError as error:
+                    print(
+                        "ktt: native vertical tab setup failed "
+                        f"({error}); opening the legacy sidebar",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        "enabled Kitty's native vertical tab bar for this "
+                        "Kitty process"
+                    )
+                    return 0
             new_window_id = remote.launch_sidebar(
                 target,
                 args.edge_style,
@@ -286,6 +314,22 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"opened ktt in Kitty window {new_window_id}, "
                 f"targeting OS window {target}"
+            )
+            return 0
+        if args.command == "native":
+            source = _self_window_id()
+            if source is None:
+                raise ValueError("native must run inside Kitty")
+            try:
+                remote.enable_native_vertical_tabs(source, strict=True)
+            except NativeVerticalTabsUnsupported as error:
+                raise ValueError(
+                    "native vertical tabs require Kitty 0.48.0 or newer "
+                    f"(running {format_version(error.version)}); use "
+                    "`ktt launch` for the legacy sidebar"
+                ) from error
+            print(
+                "enabled Kitty's native vertical tab bar for this Kitty process"
             )
             return 0
         if args.command == "watcher-path":

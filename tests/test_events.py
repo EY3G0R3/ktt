@@ -1,5 +1,6 @@
 import errno
 import os
+from collections import deque
 from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
@@ -13,12 +14,24 @@ from ktt.events import (
     send_navigation,
     tab_state_event,
 )
-from ktt.kitty_watcher import _notify, on_tab_bar_dirty
+from ktt.kitty_watcher import (
+    NATIVE_MARKER_ATTRIBUTE,
+    NORMALIZING_ATTRIBUTE,
+    _normalize_native_tab_order,
+    _notify,
+    on_tab_bar_dirty,
+)
 
 
 class FakeTab:
     def __init__(self, tab_id: int) -> None:
         self.id = tab_id
+        self.title = f"tab {tab_id}"
+        self.windows = []
+        self.active_window = None
+
+    def __iter__(self):
+        return iter(self.windows)
 
 
 class FakeTabManager(list):
@@ -26,6 +39,27 @@ class FakeTabManager(list):
         super().__init__(FakeTab(tab_id) for tab_id in tab_ids)
         self.os_window_id = os_window_id
         self.active_tab = next(tab for tab in self if tab.id == active)
+        self.active_tab_history = deque()
+        self.on_dirty = None
+        self.dirty_count = 0
+
+    @property
+    def tabs(self):
+        return self
+
+    def _set_active_tab(self, index, store_in_history=True):
+        self.active_tab = self[index]
+
+    def mark_tab_bar_dirty(self):
+        self.dirty_count += 1
+        if self.on_dirty is not None:
+            self.on_dirty()
+
+
+class FakeWindow:
+    def __init__(self, window_id: int, **user_vars: str) -> None:
+        self.id = window_id
+        self.user_vars = user_vars
 
 
 class FakeBoss:
@@ -178,6 +212,172 @@ class EventTests(unittest.TestCase):
             [call.args for call in notify.call_args_list],
             [(3, 10, (10, 20)), (3, 20, (10, 20))],
         )
+
+    def test_normalization_failure_does_not_suppress_notification(self) -> None:
+        boss = FakeBoss()
+        manager = FakeTabManager(3, [10, 20], 10)
+
+        with (
+            patch(
+                "ktt.kitty_watcher._normalize_native_tab_order",
+                side_effect=RuntimeError("private Kitty API changed"),
+            ),
+            patch("ktt.kitty_watcher._log_error") as log_error,
+            patch("ktt.kitty_watcher._notify") as notify,
+        ):
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+
+        notify.assert_called_once_with(3, 10, (10, 20))
+        self.assertIn("private Kitty API changed", log_error.call_args.args[0])
+
+    def test_vertical_watcher_normalizes_new_or_reparented_tabs(self) -> None:
+        boss = FakeBoss()
+        setattr(boss, NATIVE_MARKER_ATTRIBUTE, True)
+        manager = FakeTabManager(3, [20, 10], 20)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch("ktt.kitty_watcher._load_kitty_tabs") as load_tabs,
+            patch("ktt.kitty_watcher._notify"),
+        ):
+            load_tabs.return_value.tree_topology_signature.return_value = (
+                (10, 20),
+            )
+            load_tabs.return_value.live_tree_tab_ids.return_value = (10, 20)
+            apply = load_tabs.return_value.apply_tab_order
+            apply.return_value = True
+            on_tab_bar_dirty(boss, object(), {"tab_manager": manager})
+
+        apply.assert_called_once_with(manager, (10, 20))
+
+    def test_vertical_watcher_skips_title_only_churn_before_modeling(self) -> None:
+        boss = FakeBoss()
+        setattr(boss, NATIVE_MARKER_ATTRIBUTE, True)
+        manager = FakeTabManager(3, [10, 20], 10)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch("ktt.kitty_watcher._load_kitty_tabs") as load_tabs,
+            patch("ktt.kitty_watcher._notify"),
+        ):
+            load_tabs.return_value.tree_topology_signature.return_value = (
+                (10, 20),
+            )
+            live_order = load_tabs.return_value.live_tree_tab_ids
+            live_order.return_value = (10, 20)
+            load_tabs.return_value.apply_tab_order.return_value = False
+            on_tab_bar_dirty(boss, object(), {"tab_manager": manager})
+            on_tab_bar_dirty(boss, object(), {"tab_manager": manager})
+
+        live_order.assert_called_once_with(manager)
+
+    def test_ordering_import_failure_does_not_suppress_notification(self) -> None:
+        boss = FakeBoss()
+        setattr(boss, NATIVE_MARKER_ATTRIBUTE, True)
+        manager = FakeTabManager(3, [10, 20], 10)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch(
+                "ktt.kitty_watcher._load_kitty_tabs",
+                side_effect=ImportError("checkout unavailable"),
+            ),
+            patch("ktt.kitty_watcher._log_error") as log_error,
+            patch("ktt.kitty_watcher._notify") as notify,
+        ):
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+
+        notify.assert_called_once_with(3, 10, (10, 20))
+        self.assertIn("checkout unavailable", log_error.call_args.args[0])
+
+    def test_persistent_order_failure_logs_once_per_topology(self) -> None:
+        boss = FakeBoss()
+        setattr(boss, NATIVE_MARKER_ATTRIBUTE, True)
+        manager = FakeTabManager(3, [20, 10], 20)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch("ktt.kitty_watcher._load_kitty_tabs") as load_tabs,
+            patch("ktt.kitty_watcher._log_error") as log_error,
+            patch("ktt.kitty_watcher._notify"),
+        ):
+            load_tabs.return_value.tree_topology_signature.return_value = (
+                (20, 10),
+            )
+            load_tabs.return_value.live_tree_tab_ids.return_value = (10, 20)
+            load_tabs.return_value.apply_tab_order.side_effect = RuntimeError(
+                "persistent failure"
+            )
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+
+        load_tabs.return_value.apply_tab_order.assert_called_once()
+        log_error.assert_called_once()
+
+    def test_normalization_guard_stops_synchronous_dirty_recursion(self) -> None:
+        boss = FakeBoss()
+        setattr(boss, NATIVE_MARKER_ATTRIBUTE, True)
+        manager = FakeTabManager(3, [20, 10], 20)
+        child, root = manager
+        child.windows = [FakeWindow(200, ktt_parent_window_id="100")]
+        child.active_window = child.windows[0]
+        root.windows = [FakeWindow(100)]
+        root.active_window = root.windows[0]
+        manager.on_dirty = lambda: on_tab_bar_dirty(
+            boss, None, {"tab_manager": manager}
+        )
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch("ktt.kitty_tabs._swap_tabs"),
+            patch("ktt.kitty_watcher._notify") as notify,
+        ):
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+
+        self.assertEqual([tab.id for tab in manager], [10, 20])
+        self.assertEqual(manager.dirty_count, 1)
+        notify.assert_called_once_with(3, 20, (10, 20))
+
+    def test_normalization_guard_returns_before_ordering_import(self) -> None:
+        boss = FakeBoss()
+        setattr(boss, NATIVE_MARKER_ATTRIBUTE, True)
+        setattr(boss, NORMALIZING_ATTRIBUTE, {3})
+        manager = FakeTabManager(3, [20, 10], 20)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch("ktt.kitty_watcher._load_kitty_tabs") as load_tabs,
+        ):
+            _normalize_native_tab_order(boss, None, manager)
+
+        load_tabs.assert_not_called()
+
+    def test_unmarked_vertical_bar_notifies_without_reordering(self) -> None:
+        boss = FakeBoss()
+        manager = FakeTabManager(3, [20, 10], 20)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=True),
+            patch("ktt.kitty_watcher._load_kitty_tabs") as load_tabs,
+            patch("ktt.kitty_watcher._notify") as notify,
+        ):
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+
+        load_tabs.assert_not_called()
+        notify.assert_called_once_with(3, 20, (20, 10))
+
+    def test_horizontal_watcher_leaves_native_order_alone(self) -> None:
+        boss = FakeBoss()
+        manager = FakeTabManager(3, [20, 10], 20)
+
+        with (
+            patch("ktt.kitty_watcher._is_vertical_tab_bar", return_value=False),
+            patch("ktt.kitty_watcher._load_kitty_tabs") as load_tabs,
+            patch("ktt.kitty_watcher._notify"),
+        ):
+            on_tab_bar_dirty(boss, None, {"tab_manager": manager})
+
+        load_tabs.assert_not_called()
 
 
 if __name__ == "__main__":

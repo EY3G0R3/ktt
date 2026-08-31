@@ -4,7 +4,8 @@ import unittest
 from unittest.mock import patch
 
 import ktt.kitty as kitty_module
-from ktt.kitty import RemoteControl, find_sidebar_window
+from ktt.kitty import KittyError, RemoteControl, find_sidebar_window
+from ktt.native_tabs import NativeVerticalTabsUnsupported, UNSUPPORTED_MARKER
 
 
 class RecordingRemote(RemoteControl):
@@ -139,6 +140,43 @@ class RemoteControlTests(unittest.TestCase):
                 "native_tabs_kitten.py"
             )),
         ))
+
+    def test_native_vertical_tabs_target_the_main_window(self) -> None:
+        remote = RecordingRemote()
+        remote.enable_native_vertical_tabs(12)
+        subcommand, arguments = remote.call
+        self.assertEqual(subcommand, "action")
+        self.assertEqual(arguments[:2], ("--match", "id:12"))
+        self.assertEqual(arguments[-3:], (
+            str(Path(kitty_module.__file__).with_name(
+                "native_tabs_kitten.py"
+            )),
+            "vertical",
+            "strict",
+        ))
+
+    def test_auto_native_vertical_tabs_mark_the_kitten_request(self) -> None:
+        remote = RecordingRemote()
+
+        remote.enable_native_vertical_tabs(12, strict=False)
+
+        self.assertEqual(remote.call[1][-2:], ("vertical", "auto"))
+
+    def test_native_vertical_tabs_translate_running_kitty_version_error(self) -> None:
+        remote = RecordingRemote()
+        with (
+            patch.object(
+                remote,
+                "run",
+                side_effect=KittyError(
+                    f"Kitty action failed: {UNSUPPORTED_MARKER}0.47.4"
+                ),
+            ),
+            self.assertRaises(NativeVerticalTabsUnsupported) as raised,
+        ):
+            remote.enable_native_vertical_tabs(12)
+
+        self.assertEqual(raised.exception.version, (0, 47, 4))
 
     def test_running_sidebar_reapplies_launch_appearance_and_identity(self) -> None:
         remote = RecordingRemote()

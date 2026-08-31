@@ -9,6 +9,7 @@ import sys
 from typing import Any, Sequence
 
 from .model import COCKPIT_ROLE_VAR, PARENT_VAR, SIDEBAR_VAR
+from .native_tabs import NativeVerticalTabsUnsupported
 from .render import DEFAULT_CHANGED_FILES_PLACEMENT
 
 
@@ -173,6 +174,27 @@ class RemoteControl:
             "kitten",
             str(kitten),
         )
+
+    def enable_native_vertical_tabs(
+        self, source_window_id: int, *, strict: bool = True
+    ) -> None:
+        """Show native vertical tabs in the source window's Kitty process."""
+        kitten = Path(__file__).with_name("native_tabs_kitten.py")
+        try:
+            self.run(
+                "action",
+                "--match",
+                f"id:{source_window_id}",
+                "kitten",
+                str(kitten),
+                "vertical",
+                "strict" if strict else "auto",
+            )
+        except KittyError as error:
+            unsupported = NativeVerticalTabsUnsupported.from_message(str(error))
+            if unsupported is not None:
+                raise unsupported from error
+            raise
 
     def place_sidebar_left(
         self,

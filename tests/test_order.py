@@ -41,6 +41,65 @@ class VisibleOrderTests(unittest.TestCase):
 
         self.assertIsNone(visible.attention_tab_ids)
 
+    def test_native_reader_does_not_trust_legacy_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "visible.order"
+            path.write_text("10\n10,20\n")
+            with patch("ktt.order.order_path", return_value=path):
+                self.assertIsNone(
+                    read_visible_order(1, require_live_publisher=True)
+                )
+
+    def test_live_publisher_identity_is_accepted(self) -> None:
+        rows = [TreeRow(
+            TabRecord(10, 1, "live", (100,), is_active=True), 0, None
+        )]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "visible.order"
+            with (
+                patch("ktt.order.order_path", return_value=path),
+                patch("ktt.order._pid_is_live", return_value=True),
+            ):
+                publisher = VisibleOrderPublisher()
+                publisher.publish(1, rows)
+                self.assertEqual(
+                    read_visible_order(1, require_live_publisher=True).tab_ids,
+                    (10,),
+                )
+                publisher.close()
+
+    def test_dead_publisher_is_ignored(self) -> None:
+        rows = [TreeRow(
+            TabRecord(10, 1, "stale", (100,), is_active=True), 0, None
+        )]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "visible.order"
+            with patch("ktt.order.order_path", return_value=path):
+                publisher = VisibleOrderPublisher()
+                publisher.publish(1, rows)
+            with (
+                patch("ktt.order.order_path", return_value=path),
+                patch("ktt.order._pid_is_live", return_value=False),
+            ):
+                self.assertIsNone(
+                    read_visible_order(1, require_live_publisher=True)
+                )
+
+    def test_unclean_snapshot_remains_but_clean_close_removes_it(self) -> None:
+        rows = [TreeRow(
+            TabRecord(10, 1, "live", (100,), is_active=True), 0, None
+        )]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "visible.order"
+            with patch("ktt.order.order_path", return_value=path):
+                crashed = VisibleOrderPublisher()
+                crashed.publish(1, rows)
+                self.assertTrue(path.exists())
+                clean = VisibleOrderPublisher()
+                clean.publish(1, rows)
+                clean.close()
+                self.assertFalse(path.exists())
+
     def test_old_publisher_does_not_remove_newer_snapshot(self) -> None:
         first_rows = [TreeRow(
             TabRecord(10, 1, "first", (100,), is_active=True), 0, None

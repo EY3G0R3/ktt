@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 from typing import Any, Iterable
 
+from .tab_bar_geometry import select_content_windows
+
 
 PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
@@ -129,19 +131,16 @@ def seeks_attention(record: TabRecord) -> bool:
 
 
 def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
-    windows = [
-        window
-        for window in tab.get("windows") or []
-        if str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") != "1"
-    ]
-    return sorted(
-        windows,
-        key=lambda window: (
-            str((window.get("user_vars") or {}).get(COCKPIT_ROLE_VAR) or "")
-            != AGENT_ROLE,
-            not bool(window.get("is_active")),
+    return list(select_content_windows(
+        tuple(tab.get("windows") or ()),
+        user_var=lambda window, key: str(
+            (window.get("user_vars") or {}).get(key) or ""
         ),
-    )
+        sidebar_var=SIDEBAR_VAR,
+        role_var=COCKPIT_ROLE_VAR,
+        agent_role=AGENT_ROLE,
+        is_active=lambda window: bool(window.get("is_active")),
+    ))
 
 
 def _content_title_for_embedded_tab(
