@@ -171,8 +171,10 @@ class VerticalTabRendererTests(unittest.TestCase):
             inactive_font_style=(False, False),
         )
         owner._update_edge_defaults = lambda _vertical: False
+        frame_tokens = []
 
         def draw_func(data, target, tab, before, limit, index, _last, extra):
+            frame_tokens.append(extra.ktt_frame_token)
             return draw_vertical_tab(
                 screen=target,
                 draw_title=draw_short_title,
@@ -212,6 +214,10 @@ class VerticalTabRendererTests(unittest.TestCase):
             row for row, _column, value in screen.drawn_at if value == "abc"
         ]
         self.assertEqual(title_rows, [3, 7, 11])
+        self.assertEqual(len(frame_tokens), 9)
+        self.assertTrue(all(
+            token is frame_tokens[0] for token in frame_tokens
+        ))
 
     def test_layout_wrapper_delegates_when_unmanaged_or_drawer_is_plain(
         self,

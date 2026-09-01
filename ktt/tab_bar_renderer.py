@@ -123,6 +123,7 @@ def update_vertical_tab_bar(
     )
     max_tab_length = max(1, screen.columns - 1)
     panel_background = as_rgb(color_as_int(owner.draw_data.default_bg))
+    frame_token = object()
     extents = []
     for placement in layout.placements:
         tab = data[placement.data_index]
@@ -140,6 +141,7 @@ def update_vertical_tab_bar(
             extra_data.ktt_line_index = line_index
             extra_data.ktt_card_height = placement.card_height
             extra_data.ktt_panel_background = panel_background
+            extra_data.ktt_frame_token = frame_token
             owner.draw_func(
                 owner.draw_data,
                 screen,

@@ -37,6 +37,10 @@ class NativeCardState:
         self.waiting = model.WaitingStatusDebouncer()
         self._frame_key: tuple[Any, ...] | None = None
         self._frame: dict[int, tuple[str, ...]] = {}
+        self._redraw_frames: dict[
+            int,
+            tuple[object, int, int, dict[int, tuple[str, ...]]],
+        ] = {}
 
     def render(
         self,
@@ -45,7 +49,18 @@ class NativeCardState:
         width: int,
         card_height: int,
         now: float | None = None,
+        frame_token: object | None = None,
     ) -> dict[int, tuple[str, ...]]:
+        os_window_id = int(tab_manager.os_window_id)
+        cached_redraw = self._redraw_frames.get(os_window_id)
+        if (
+            frame_token is not None
+            and cached_redraw is not None
+            and cached_redraw[0] is frame_token
+            and cached_redraw[1] == width
+            and cached_redraw[2] == card_height
+        ):
+            return cached_redraw[3]
         current = time.monotonic() if now is None else now
         records = [
             replace(record, status=STATUS_ALIASES.get(record.status, record.status))
@@ -62,7 +77,6 @@ class NativeCardState:
         rows = model.tree_rows(records)
         active = next((row.tab for row in rows if row.tab.is_active), None)
         active_path = active.cwd if active is not None else None
-        os_window_id = int(tab_manager.os_window_id)
         summary = self.summaries.setdefault(
             os_window_id, self.summary_factory()
         )
@@ -85,6 +99,10 @@ class NativeCardState:
             int(current / render.SPINNER_INTERVAL) if animated else None,
         )
         if frame_key == self._frame_key:
+            if frame_token is not None:
+                self._redraw_frames[os_window_id] = (
+                    frame_token, width, card_height, self._frame
+                )
             return self._frame
         self._frame_key = frame_key
         self._frame = {
@@ -104,6 +122,10 @@ class NativeCardState:
             ))
             for row in rows
         }
+        if frame_token is not None:
+            self._redraw_frames[os_window_id] = (
+                frame_token, width, card_height, self._frame
+            )
         return self._frame
 
     def needs_refresh(self, now: float | None = None) -> bool:
@@ -125,3 +147,4 @@ class NativeCardState:
         for summary in self.summaries.values():
             summary.close()
         self.summaries.clear()
+        self._redraw_frames.clear()

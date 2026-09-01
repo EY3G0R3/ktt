@@ -41,6 +41,7 @@ class FakeIdentities:
     pending = {}
 
     def __init__(self):
+        self.update_calls = 0
         self.locations = {
             "/work/repo__worktrees/feature": RepositoryLocation(
                 worktree="feature"
@@ -50,6 +51,7 @@ class FakeIdentities:
         }
 
     def update(self, paths, _now):
+        self.update_calls += 1
         return {path: "repo" for path in paths if path}
 
     def worktrees(self):
@@ -77,6 +79,48 @@ class FakeSummary:
 
 
 class NativeCardStateTests(unittest.TestCase):
+    def test_redraw_token_skips_repeated_metadata_work(self):
+        identities = FakeIdentities()
+        state = NativeCardState(
+            identities=identities, summary_factory=FakeSummary
+        )
+        manager = FakeManager([
+            FakeTab(
+                1,
+                "working tab",
+                FakeWindow(100, "/work/first", workmux_status="working"),
+                active=True,
+            )
+        ])
+        frame_token = object()
+
+        first = state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=20.0,
+            frame_token=frame_token,
+        )
+        repeated = state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=40.0,
+            frame_token=frame_token,
+        )
+
+        self.assertIs(repeated, first)
+        self.assertEqual(identities.update_calls, 1)
+
+        state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=40.0,
+            frame_token=object(),
+        )
+        self.assertEqual(identities.update_calls, 2)
+
     def test_native_cards_reuse_repository_status_and_verdict_rendering(self):
         root_window = FakeWindow(
             100,
