@@ -23,7 +23,7 @@ class NativeTabsTests(unittest.TestCase):
             "tab_bar_align center",
             "tab_bar_min_tabs 1",
             "tab_bar_style custom",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ))
         self.assertTrue(plan.normalize_tree_order)
 
@@ -64,14 +64,14 @@ class NativeTabsTests(unittest.TestCase):
             "tab_bar_align center",
             "tab_bar_min_tabs 1",
             "tab_bar_style custom",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ))
         self.assertEqual(disabled.overrides, (
             "tab_bar_edge right",
             "tab_bar_align center",
             "tab_bar_min_tabs 1000000",
             "tab_bar_style custom",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ))
 
     def test_native_toggle_round_trip_retains_native_identity(self) -> None:
@@ -101,7 +101,7 @@ class NativeTabsTests(unittest.TestCase):
 
         self.assertIn("tab_bar_edge left", enabled.overrides)
         self.assertIn("tab_bar_edge left", disabled.overrides)
-        self.assertIn("tab_title_max_length 40", disabled.overrides)
+        self.assertIn("tab_title_max_length 60", disabled.overrides)
         self.assertTrue(enabled.native_visible)
         self.assertFalse(disabled.native_visible)
         self.assertTrue(reenabled.native_visible)
@@ -148,7 +148,7 @@ class NativeTabsTests(unittest.TestCase):
             "tab_bar_align center",
             "tab_bar_min_tabs 1",
             "tab_bar_style custom",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ))
         self.assertIn("tab_bar_align center", plan.overrides)
 
@@ -189,7 +189,7 @@ class NativeTabsTests(unittest.TestCase):
             "tab_bar_align center",
             "tab_bar_edge left",
             "tab_bar_min_tabs 1",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ))
 
     def test_hidden_style_recovery_is_idempotent_across_enable(self) -> None:

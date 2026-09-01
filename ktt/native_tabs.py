@@ -125,7 +125,7 @@ def plan_native_tabs_action(
             "tab_bar_align center",
             "tab_bar_min_tabs 1",
             "tab_bar_style custom",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ]
         return NativeTabsActionPlan(
             tuple(overrides),
@@ -152,7 +152,7 @@ def plan_native_tabs_action(
             "tab_bar_align center",
             f"tab_bar_min_tabs {tab_bar_min_tabs}",
             "tab_bar_style custom",
-            "tab_title_max_length 40",
+            "tab_title_max_length 60",
         ]
         return NativeTabsActionPlan(
             tuple(overrides),
