@@ -121,6 +121,22 @@ def select_content_windows(
     ))
 
 
+def select_metadata_windows(
+    windows: Sequence[object],
+    *,
+    user_var: Callable[[object, str], str],
+    role_var: str,
+    agent_role: str,
+) -> tuple[object, ...]:
+    """Use only tagged agent windows once a tab declares their ownership."""
+    tagged = tuple(
+        window
+        for window in windows
+        if user_var(window, role_var) == agent_role
+    )
+    return tagged or tuple(windows)
+
+
 def bounded_cell_count(max_cells: int) -> int:
     """Use a finite native width even when Kitty reports no explicit bound."""
     return max_cells if max_cells > 0 else DEFAULT_MAX_CELLS

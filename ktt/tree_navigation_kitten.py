@@ -31,8 +31,15 @@ def handle_result(
     if str(package_root) not in sys.path:
         sys.path.insert(0, str(package_root))
     import ktt.events as events
-    import ktt.kitty_tabs as kitty_tabs
+    import ktt.tab_bar_geometry as tab_bar_geometry
+
+    # Reload leaf dependencies before importing modules that consume newly
+    # added helpers. Kitty keeps package modules alive between kitten runs, so
+    # importing model first can otherwise combine new model source with an old
+    # tab_bar_geometry module and fail before navigation starts.
+    tab_bar_geometry = importlib.reload(tab_bar_geometry)
     import ktt.model as model
+    import ktt.kitty_tabs as kitty_tabs
     import ktt.order as order
     from ktt.kitty import SIDEBAR_VAR, TARGET_OS_WINDOW_VAR
 

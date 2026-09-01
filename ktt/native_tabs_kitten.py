@@ -29,14 +29,14 @@ def handle_result(
     if added:
         sys.path.insert(0, package_root_text)
     try:
+        import ktt.tab_bar_geometry as tab_bar_geometry
+        tab_bar_geometry = importlib.reload(tab_bar_geometry)
         import ktt.kitty_layout as kitty_layout
-        import ktt.kitty_tabs as kitty_tabs
         import ktt.model as model
+        import ktt.kitty_tabs as kitty_tabs
         import ktt.native_tabs as native_tabs
         native_tabs = importlib.reload(native_tabs)
         import ktt.native_tabs_runtime as native_tabs_runtime
-        import ktt.tab_bar_geometry as tab_bar_geometry
-        tab_bar_geometry = importlib.reload(tab_bar_geometry)
         import ktt.tab_bar_renderer as tab_bar_renderer
 
         tab_bar_renderer = importlib.reload(tab_bar_renderer)

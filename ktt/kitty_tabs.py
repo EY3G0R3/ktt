@@ -7,7 +7,7 @@ import inspect
 from typing import Any
 
 from . import model
-from .tab_bar_geometry import select_content_windows
+from .tab_bar_geometry import select_content_windows, select_metadata_windows
 
 
 ORDER_TRANSACTION_ATTRIBUTE = "_ktt_tab_order_transaction"
@@ -25,6 +25,15 @@ def _content_windows(tab: Any) -> list[Any]:
         role_var=model.COCKPIT_ROLE_VAR,
         agent_role=model.AGENT_ROLE,
         is_active=lambda window: window is getattr(tab, "active_window", None),
+    ))
+
+
+def _metadata_windows(windows: Sequence[Any]) -> list[Any]:
+    return list(select_metadata_windows(
+        windows,
+        user_var=_user_var,
+        role_var=model.COCKPIT_ROLE_VAR,
+        agent_role=model.AGENT_ROLE,
     ))
 
 
@@ -68,23 +77,34 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         windows = _content_windows(tab)
         if not windows:
             continue
-        title = str(getattr(tab, "title", ""))
+        metadata_windows = _metadata_windows(windows)
+        agent_owned = any(
+            _user_var(window, model.COCKPIT_ROLE_VAR) == model.AGENT_ROLE
+            for window in windows
+        )
+        title = "" if agent_owned else str(getattr(tab, "title", ""))
         if not title or title == "surf":
             title = next(
                 (
                     str(window.title)
-                    for window in windows
+                    for window in metadata_windows
                     if getattr(window, "title", "")
                     and str(window.title) != "surf"
                 ),
                 title,
             )
         title = title or "untitled"
-        status = _first_user_var(windows, model.VERDICT_VAR) or _first_user_var(
-            windows, model.STATUS_VAR
+        status = _first_user_var(
+            metadata_windows, model.VERDICT_VAR
+        ) or _first_user_var(
+            metadata_windows, model.STATUS_VAR
         )
         cwd = next(
-            (value for window in windows if (value := _window_cwd(window))),
+            (
+                value
+                for window in metadata_windows
+                if (value := _window_cwd(window))
+            ),
             None,
         )
         records.append(model.TabRecord(
@@ -93,7 +113,7 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             title=model.clean_title(title, cwd=cwd),
             window_ids=tuple(window.id for window in windows),
             is_active=tab is tab_manager.active_tab,
-            parent_window_id=_parent_window_id(windows),
+            parent_window_id=_parent_window_id(metadata_windows),
             status=status,
             source_index=source_index,
             cwd=cwd,

@@ -177,6 +177,33 @@ class TabOrderingTests(unittest.TestCase):
 
         self.assertEqual(target, 20)
 
+    def test_live_tree_refuses_stale_companion_metadata_for_tagged_agent(
+        self,
+    ) -> None:
+        agent = CwdWindow(
+            200,
+            "/work/agent",
+            ktt_cockpit_role="agent",
+        )
+        agent.title = "agent pane"
+        companion = CwdWindow(
+            201,
+            "/work/editor",
+            ktt_parent_window_id="999",
+            workmux_status="working",
+        )
+        companion.title = "editor"
+        tab = LiveTab(20, [agent, companion], active=1)
+        tab.title = "editor"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.window_ids, (200, 201))
+        self.assertEqual(record.title, "agent pane")
+        self.assertEqual(record.cwd, "/work/agent")
+        self.assertIsNone(record.parent_window_id)
+        self.assertIsNone(record.status)
+
     def test_live_tree_records_include_content_window_cwd(self) -> None:
         tab = LiveTab(10, [CwdWindow(100, "/work/project")])
 

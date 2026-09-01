@@ -195,6 +195,43 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(record.parent_window_id, 55)
         self.assertEqual(record.status, "blocked")
 
+    def test_agent_role_refuses_stale_companion_metadata(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "editor",
+                "is_active": True,
+                "windows": [
+                    {
+                        "id": 101,
+                        "title": "agent pane",
+                        "cwd": "/work/agent",
+                        "is_active": False,
+                        "user_vars": {"ktt_cockpit_role": "agent"},
+                    },
+                    {
+                        "id": 102,
+                        "title": "editor",
+                        "cwd": "/work/editor",
+                        "is_active": True,
+                        "user_vars": {
+                            "ktt_parent_window_id": "999",
+                            "workmux_status": "working",
+                        },
+                    },
+                ],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(record.window_ids, (101, 102))
+        self.assertEqual(record.title, "agent pane")
+        self.assertEqual(record.cwd, "/work/agent")
+        self.assertIsNone(record.parent_window_id)
+        self.assertIsNone(record.status)
+
     def test_embedded_sidebar_is_excluded_from_tab_identity(self) -> None:
         os_window = {
             "id": 7,

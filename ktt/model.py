@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 from typing import Any, Iterable
 
-from .tab_bar_geometry import select_content_windows
+from .tab_bar_geometry import select_content_windows, select_metadata_windows
 
 
 PARENT_VAR = "ktt_parent_window_id"
@@ -144,10 +144,36 @@ def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
     ))
 
 
+def _metadata_windows(
+    windows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return list(select_metadata_windows(
+        windows,
+        user_var=lambda window, key: str(
+            (window.get("user_vars") or {}).get(key) or ""
+        ),
+        role_var=COCKPIT_ROLE_VAR,
+        agent_role=AGENT_ROLE,
+    ))
+
+
 def _content_title_for_embedded_tab(
     tab: dict[str, Any], windows: list[dict[str, Any]]
 ) -> str:
     title = str(tab.get("title") or "")
+    if any(
+        str((window.get("user_vars") or {}).get(COCKPIT_ROLE_VAR) or "")
+        == AGENT_ROLE
+        for window in windows
+    ):
+        return next(
+            (
+                str(window.get("title") or "")
+                for window in windows
+                if window.get("title") and window.get("title") != "surf"
+            ),
+            "",
+        )
     active_sidebar_titles = {
         str(window.get("title") or "")
         for window in tab.get("windows") or []
@@ -236,19 +262,20 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
         windows = _ordered_windows(tab)
         if not windows:
             continue
+        metadata_windows = _metadata_windows(windows)
         window_ids = tuple(int(window["id"]) for window in windows)
-        title = _content_title_for_embedded_tab(tab, windows)
+        title = _content_title_for_embedded_tab(tab, metadata_windows)
         if title == "surf" or not title:
             title = next(
                 (
                     str(window.get("title") or "")
-                    for window in windows
+                    for window in metadata_windows
                     if window.get("title") and window.get("title") != "surf"
                 ),
                 title,
             )
-        status = _first_user_var(windows, STATUS_VAR)
-        cwd = _first_cwd(windows)
+        status = _first_user_var(metadata_windows, STATUS_VAR)
+        cwd = _first_cwd(metadata_windows)
         records.append(
             TabRecord(
                 id=int(tab["id"]),
@@ -257,7 +284,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 window_ids=window_ids,
                 is_active=bool(tab.get("is_active")),
                 parent_window_id=_positive_int(
-                    _first_user_var(windows, PARENT_VAR)
+                    _first_user_var(metadata_windows, PARENT_VAR)
                 ),
                 status=status,
                 source_index=index,

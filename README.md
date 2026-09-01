@@ -433,6 +433,12 @@ prompt's exact `Coordinator: HANDLE`, resolves that handle within the same Git
 repository, selects its sole status-bearing Kitty agent window, and writes that
 window ID to the child as `ktt_parent_window_id`.
 
+Those wrappers also mark their exact launch-time Kitty window with
+`ktt_cockpit_role=agent`. Once that marker exists, ktt treats the agent window
+as the tab's exclusive source for title, working directory, parent, lifecycle
+status, and verdict. Missing agent metadata stays missing instead of falling
+back to a companion shell, editor, or embedded view that may carry stale state.
+
 The adapter fails closed when the coordinator, repository, Kitty session, or
 agent window is missing or ambiguous. It never writes `workmux_family`, and it
 does not modify or depend on Workmux source or binary internals. A plain
