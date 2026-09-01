@@ -6,6 +6,7 @@ from ktt.model import (
     adjacent_tree_tab_id,
     choose_os_window,
     clean_title,
+    content_window_cwd,
     next_attention_tab_id,
     records_for_os_window,
     reordered_tree_tab_ids,
@@ -119,6 +120,22 @@ class ModelTests(unittest.TestCase):
         self.assertNotIn("family", record.__dict__)
         self.assertEqual(record.status, "ready_to_merge")
         self.assertEqual(record.cwd, "/work/quiver__worktrees/feature")
+
+    def test_null_foreground_cmdline_falls_back_to_process_cwd(self) -> None:
+        self.assertEqual(
+            content_window_cwd(
+                {
+                    "cwd": "/stale-launch-directory",
+                    "foreground_processes": [
+                        {
+                            "cmdline": None,
+                            "cwd": "/worktree",
+                        }
+                    ],
+                }
+            ),
+            "/worktree",
+        )
 
     def test_agent_foreground_cwd_overrides_stale_launch_cwd(self) -> None:
         os_window = {
