@@ -30,6 +30,8 @@ to show useful tree lanes.
 
 See [VISION.md](VISION.md) for the original product vision and architecture.
 The resolved product choices are in [DECISIONS.md](DECISIONS.md).
+Native migration and legacy-removal are gated by
+[VISUAL_CONTRACT.md](VISUAL_CONTRACT.md).
 Prioritized follow-up work and the current status-data contract are documented
 in [IMPROVEMENTS.md](IMPROVEMENTS.md).
 

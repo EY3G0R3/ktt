@@ -2,6 +2,7 @@ import re
 import unittest
 import unicodedata
 
+from ktt.render import adaptive_card_height, vertical_padding
 from ktt.tab_bar_geometry import (
     bounded_cell_count,
     cached_tree_depth,
@@ -101,6 +102,24 @@ class TabBarGeometryTests(unittest.TestCase):
 
         self.assertTrue(all(item.card_height == 2 for item in two_rows.placements))
         self.assertTrue(all(item.card_height == 1 for item in one_row.placements))
+
+    def test_native_density_and_centering_match_legacy_geometry(self) -> None:
+        for tab_count, height in ((3, 15), (3, 10), (3, 7), (4, 14)):
+            with self.subTest(tab_count=tab_count, height=height):
+                layout = vertical_tab_layout(tab_count, height)
+                legacy_height = adaptive_card_height(tab_count, height)
+
+                self.assertTrue(layout.placements)
+                self.assertTrue(
+                    all(
+                        placement.card_height == legacy_height
+                        for placement in layout.placements
+                    )
+                )
+                self.assertEqual(
+                    layout.placements[0].start_row,
+                    vertical_padding(tab_count, height, legacy_height),
+                )
 
     def test_overflow_keeps_active_tab_visible_and_draws_ellipsis(self) -> None:
         layout = vertical_tab_layout(10, 4, active_index=8)

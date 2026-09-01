@@ -1,8 +1,9 @@
 import unittest
 
+from ktt import model
 from ktt.native_card_state import NativeCardState
 from ktt.repository import RepositoryLocation
-from ktt.render import READY_RIGHT_CAP, strip_ansi
+from ktt.render import READY_RIGHT_CAP, render_screen, strip_ansi
 
 
 class FakeWindow:
@@ -19,9 +20,13 @@ class FakeWindow:
 
 
 class FakeTab:
-    def __init__(self, tab_id, title, window, *, active=False):
+    def __init__(
+        self, tab_id, title, window, *, active=False, effective_title=None
+    ):
         self.id = tab_id
         self.title = title
+        if effective_title is not None:
+            self.effective_title = effective_title
         self.windows = [window]
         self.active_window = window
         self.active = active
@@ -153,6 +158,74 @@ class NativeCardStateTests(unittest.TestCase):
         self.assertTrue(any(READY_RIGHT_CAP in line for line in root))
         self.assertIn("💬", child[1])
         self.assertTrue(child[1].startswith("    "))
+
+    def test_native_cards_match_legacy_visual_output(self):
+        path = "/work/repo__worktrees/feature"
+        root_window = FakeWindow(
+            100,
+            path,
+            workmux_status="working",
+            workmux_verdict="ready_to_merge",
+        )
+        child_window = FakeWindow(
+            200,
+            path,
+            ktt_parent_window_id="100",
+            workmux_status="waiting",
+        )
+        manager = FakeManager([
+            FakeTab(
+                1,
+                "⠼ repo",
+                root_window,
+                active=True,
+                effective_title="Hirayama supervisor",
+            ),
+            FakeTab(2, "review", child_window),
+        ])
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+
+        native = state.render(manager, width=40, card_height=3, now=20.0)
+        rows = model.tree_rows([
+            model.TabRecord(
+                1,
+                7,
+                "Hirayama supervisor",
+                (100,),
+                is_active=True,
+                status="ready_to_merge",
+                cwd=path,
+                repository="repo",
+                repository_worktree="feature",
+            ),
+            model.TabRecord(
+                2,
+                7,
+                "review",
+                (200,),
+                parent_window_id=100,
+                status="💬",
+                source_index=1,
+                cwd=path,
+                repository="repo",
+                repository_worktree="feature",
+            ),
+        ])
+        legacy_lines = render_screen(
+            rows,
+            selected_index=0,
+            os_window_id=7,
+            width=40,
+            height=7,
+            now=20.0,
+            repository_lines=["/repo/  ✓ clean", "topic"],
+            repository_location=RepositoryLocation(worktree="feature"),
+        ).splitlines()
+
+        self.assertEqual(native[1], tuple(legacy_lines[:3]))
+        self.assertEqual(native[2], tuple(legacy_lines[4:7]))
 
     def test_repository_summaries_are_isolated_per_os_window(self):
         summaries = iter((FakeSummary("first"), FakeSummary("second")))
