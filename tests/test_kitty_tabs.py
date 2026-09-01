@@ -229,10 +229,22 @@ class TabOrderingTests(unittest.TestCase):
         sidebar.title = "surf"
         tab = LiveTab(10, [content, sidebar])
         tab.title = "surf"
+        tab.effective_title = "surf"
 
         record = live_tree_records(LiveTabManager([tab]))[0]
 
         self.assertEqual(record.title, "implement auth")
+
+    def test_live_tree_prefers_custom_effective_title(self) -> None:
+        content = FakeWindow(100)
+        content.title = "⠼ qri-apps"
+        tab = LiveTab(10, [content])
+        tab.title = content.title
+        tab.effective_title = "Hirayama supervisor"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "Hirayama supervisor")
 
     def test_live_tree_suppresses_fresh_waiting_spinner_attention(self) -> None:
         active = LiveTab(10, [FakeWindow(100)])

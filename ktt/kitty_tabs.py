@@ -82,7 +82,10 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             _user_var(window, model.COCKPIT_ROLE_VAR) == model.AGENT_ROLE
             for window in windows
         )
-        title = "" if agent_owned else str(getattr(tab, "title", ""))
+        effective_title = getattr(tab, "effective_title", None)
+        if effective_title is None:
+            effective_title = getattr(tab, "title", "")
+        title = "" if agent_owned else str(effective_title)
         if not title or title == "surf":
             title = next(
                 (
