@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import replace
 import time
 from typing import Any, Callable
@@ -20,6 +21,7 @@ STATUS_ALIASES = {
     "done": "✅",
     "complete": "✅",
 }
+FRAME_CACHE_LIMIT = len(render.SPINNER_FRAMES) + 2
 
 
 class NativeCardState:
@@ -37,6 +39,12 @@ class NativeCardState:
         self.waiting = model.WaitingStatusDebouncer()
         self._frame_key: tuple[Any, ...] | None = None
         self._frame: dict[int, tuple[str, ...]] = {}
+        self._frame_cache: dict[
+            int,
+            OrderedDict[
+                tuple[Any, ...], dict[int, tuple[str, ...]]
+            ],
+        ] = {}
         self._redraw_frames: dict[
             int,
             tuple[object, int, int, dict[int, tuple[str, ...]]],
@@ -96,7 +104,12 @@ class NativeCardState:
             card_height,
             tuple(repository_lines),
             active_location,
-            int(current / render.SPINNER_INTERVAL) if animated else None,
+            (
+                int(current / render.SPINNER_INTERVAL)
+                % len(render.SPINNER_FRAMES)
+                if animated
+                else None
+            ),
         )
         if frame_key == self._frame_key:
             if frame_token is not None:
@@ -104,24 +117,33 @@ class NativeCardState:
                     frame_token, width, card_height, self._frame
                 )
             return self._frame
+        frame_cache = self._frame_cache.setdefault(
+            os_window_id, OrderedDict()
+        )
+        cached_frame = frame_cache.pop(frame_key, None)
         self._frame_key = frame_key
-        self._frame = {
-            row.tab.id: tuple(render.render_card(
-                row,
-                selected=row.tab.is_active,
-                width=width,
-                card_height=card_height,
-                now=current,
-                repository_hue=hues.get(row.tab.repository or ""),
-                repository_location=(
-                    active_location if row.tab.is_active else None
-                ),
-                repository_lines=(
-                    repository_lines if row.tab.is_active else None
-                ),
-            ))
-            for row in rows
-        }
+        if cached_frame is None:
+            cached_frame = {
+                row.tab.id: tuple(render.render_card(
+                    row,
+                    selected=row.tab.is_active,
+                    width=width,
+                    card_height=card_height,
+                    now=current,
+                    repository_hue=hues.get(row.tab.repository or ""),
+                    repository_location=(
+                        active_location if row.tab.is_active else None
+                    ),
+                    repository_lines=(
+                        repository_lines if row.tab.is_active else None
+                    ),
+                ))
+                for row in rows
+            }
+        self._frame = cached_frame
+        frame_cache[frame_key] = cached_frame
+        while len(frame_cache) > FRAME_CACHE_LIMIT:
+            frame_cache.popitem(last=False)
         if frame_token is not None:
             self._redraw_frames[os_window_id] = (
                 frame_token, width, card_height, self._frame
@@ -147,4 +169,5 @@ class NativeCardState:
         for summary in self.summaries.values():
             summary.close()
         self.summaries.clear()
+        self._frame_cache.clear()
         self._redraw_frames.clear()

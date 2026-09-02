@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from ktt import model
+from ktt import model, render
 from ktt.native_card_state import NativeCardState
 from ktt.repository import RepositoryLocation
 from ktt.render import READY_RIGHT_CAP, render_screen, strip_ansi
@@ -125,6 +126,72 @@ class NativeCardStateTests(unittest.TestCase):
             frame_token=object(),
         )
         self.assertEqual(identities.update_calls, 2)
+
+    def test_spinner_cycle_reuses_cached_rendered_cards(self):
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+        manager = FakeManager([
+            FakeTab(
+                1,
+                "working tab",
+                FakeWindow(100, "/work/first", workmux_status="working"),
+                active=True,
+            )
+        ])
+
+        with patch.object(
+            render, "render_card", wraps=render.render_card
+        ) as render_card:
+            frames = [
+                state.render(
+                    manager,
+                    width=40,
+                    card_height=3,
+                    now=(index + 0.01) * render.SPINNER_INTERVAL,
+                )
+                for index in range(len(render.SPINNER_FRAMES))
+            ]
+            repeated = state.render(
+                manager,
+                width=40,
+                card_height=3,
+                now=(len(render.SPINNER_FRAMES) + 0.01)
+                * render.SPINNER_INTERVAL,
+            )
+
+        self.assertIs(repeated, frames[0])
+        self.assertEqual(render_card.call_count, len(render.SPINNER_FRAMES))
+
+    def test_spinner_cache_invalidates_when_tab_metadata_changes(self):
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+        tab = FakeTab(
+            1,
+            "working tab",
+            FakeWindow(100, "/work/first", workmux_status="working"),
+            active=True,
+        )
+        manager = FakeManager([tab])
+        first = state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=0.01 * render.SPINNER_INTERVAL,
+        )
+
+        tab.title = "renamed tab"
+        changed = state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=(len(render.SPINNER_FRAMES) + 0.01)
+            * render.SPINNER_INTERVAL,
+        )
+
+        self.assertIsNot(changed, first)
+        self.assertTrue(any("renamed tab" in line for line in changed[1]))
 
     def test_native_cards_reuse_repository_status_and_verdict_rendering(self):
         root_window = FakeWindow(
