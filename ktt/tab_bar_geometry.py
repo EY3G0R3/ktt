@@ -101,7 +101,6 @@ def select_content_windows(
     windows: Sequence[object],
     *,
     user_var: Callable[[object, str], str],
-    sidebar_var: str,
     role_var: str,
     agent_role: str,
     is_active: Callable[[object], bool] | None = None,
@@ -109,11 +108,7 @@ def select_content_windows(
     """Select content windows with agent role ahead of active-window state."""
     active = is_active or (lambda _window: False)
     return tuple(sorted(
-        (
-            window
-            for window in windows
-            if user_var(window, sidebar_var) != "1"
-        ),
+        windows,
         key=lambda window: (
             user_var(window, role_var) != agent_role,
             not active(window),

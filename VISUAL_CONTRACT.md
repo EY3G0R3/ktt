@@ -2,14 +2,15 @@
 
 Established September 1, 2026 (PDT).
 
-This document is the compatibility gate for replacing the attached legacy KTT
-window with Kitty's native vertical tabs. Native tabs are a new host surface,
-not a new visual design. The established behavior remains authoritative until
-an explicit later decision changes it.
+This document was the compatibility gate for replacing the attached KTT window
+with Kitty's native vertical tabs. The gate passed, and the old runtime was
+removed on September 1, 2026 (PDT). Its final revision is tagged
+`last-with-legacy`. The established behavior remains authoritative until an
+explicit later decision changes it.
 
-## Native migration gate
+## Completed native migration gate
 
-The obsolete legacy transport and interactive TUI may be removed only after:
+The retired transport and interactive TUI were removed after:
 
 1. Equivalent live-Kitty and serialized-Kitty inputs produce equivalent tab
    identity, effective custom titles, agent ownership, hierarchy, working
@@ -20,14 +21,15 @@ The obsolete legacy transport and interactive TUI may be removed only after:
    and separator rules. Native-only scrolling or an overflow marker may differ.
 4. The card and dormant-surface tests named below remain in the suite.
 
-The executable gates are `tests/test_adapter_parity.py`,
+The retained executable regression gates are `tests/test_adapter_parity.py`,
 `tests/test_native_card_state.py`, `tests/test_render.py`, and
 `tests/test_tab_bar_geometry.py`.
 
-## Accepted native differences
+## Accepted historical differences
 
-Parity protects product behavior, not the implementation mechanics or every
-terminal cell. These differences are intentional:
+Parity protected product behavior, not implementation mechanics or every
+terminal cell. These differences justified the native result and remain
+recorded:
 
 - Kitty owns the native surface's physical width, mouse targets, and scrolling.
   KTT keeps the same responsive truncation and card-density rules at a given
@@ -99,5 +101,5 @@ These decisions are guarded by the help and control-legend cases in
 `tests/test_render.py`.
 
 Historical rationale and the fuller design remain in `DECISIONS.md` sections 6
-and 7 and README's “Active repository context” section. Removing a runtime path
-does not authorize deleting those decisions, pure renderers, or their tests.
+and 7. The runtime removal did not delete those decisions, pure renderers, or
+their tests.

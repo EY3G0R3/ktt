@@ -45,7 +45,7 @@ class LiveManager(list):
         self.active_tab = tabs[active_tab]
 
 
-def legacy_snapshot(manager):
+def serialized_snapshot(manager):
     return {
         "id": manager.os_window_id,
         "tabs": [
@@ -70,17 +70,13 @@ def legacy_snapshot(manager):
 
 
 class AdapterParityTests(unittest.TestCase):
-    def test_native_records_match_legacy_identity_and_tree_semantics(self):
+    def test_live_records_match_serialized_identity_and_tree_semantics(self):
         root_content = LiveWindow(100, "⠼ qri-apps", "/work/qri-apps")
-        root_sidebar = LiveWindow(
-            101, "ktt", "/work/qri-apps", ktt_sidebar="1"
-        )
         root = LiveTab(
             10,
             "ktt",
             "Hirayama supervisor",
-            [root_content, root_sidebar],
-            active_window=1,
+            [root_content],
         )
         agent = LiveWindow(
             200,
@@ -108,22 +104,18 @@ class AdapterParityTests(unittest.TestCase):
         plain_content = LiveWindow(
             300, "✳ implement auth", "/work/other", workmux_status="waiting"
         )
-        plain_sidebar = LiveWindow(
-            301, "surf", "/work/other", ktt_sidebar="1"
-        )
-        sidebar_focused = LiveTab(
+        plain = LiveTab(
             30,
             "surf",
             "surf",
-            [plain_content, plain_sidebar],
-            active_window=1,
+            [plain_content],
         )
-        manager = LiveManager([root, child, sidebar_focused])
+        manager = LiveManager([root, child, plain])
 
-        legacy = tuple(model.records_for_os_window(legacy_snapshot(manager)))
+        serialized = tuple(model.records_for_os_window(serialized_snapshot(manager)))
         native = live_tree_records(manager)
 
-        for legacy_record, native_record in zip(legacy, native, strict=True):
+        for serialized_record, native_record in zip(serialized, native, strict=True):
             self.assertEqual(
                 (
                     native_record.id,
@@ -136,14 +128,14 @@ class AdapterParityTests(unittest.TestCase):
                     native_record.cwd,
                 ),
                 (
-                    legacy_record.id,
-                    legacy_record.os_window_id,
-                    legacy_record.title,
-                    legacy_record.window_ids,
-                    legacy_record.is_active,
-                    legacy_record.parent_window_id,
-                    legacy_record.source_index,
-                    legacy_record.cwd,
+                    serialized_record.id,
+                    serialized_record.os_window_id,
+                    serialized_record.title,
+                    serialized_record.window_ids,
+                    serialized_record.is_active,
+                    serialized_record.parent_window_id,
+                    serialized_record.source_index,
+                    serialized_record.cwd,
                 ),
             )
         self.assertEqual(native[0].title, "Hirayama supervisor")
@@ -162,10 +154,10 @@ class AdapterParityTests(unittest.TestCase):
             LiveTab(10, "review agent", "review agent", [window])
         ])
 
-        legacy = model.records_for_os_window(legacy_snapshot(manager))[0]
+        serialized = model.records_for_os_window(serialized_snapshot(manager))[0]
         native = live_tree_records(manager)[0]
 
-        self.assertEqual(legacy.status, "working")
+        self.assertEqual(serialized.status, "working")
         self.assertEqual(native.status, "ready_to_merge")
 
 

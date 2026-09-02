@@ -116,9 +116,9 @@ def plan_native_tabs_action(
 ) -> NativeTabsActionPlan:
     """Plan one config reload without masking the selected tab-bar preset."""
     supported = running_version >= NATIVE_VERTICAL_TABS_VERSION
+    if not supported:
+        raise NativeVerticalTabsUnsupported(running_version)
     if action == "enable":
-        if not supported:
-            raise NativeVerticalTabsUnsupported(running_version)
         native_edge = "right" if current_edge == "right" else "left"
         overrides = [
             f"tab_bar_edge {native_edge}",

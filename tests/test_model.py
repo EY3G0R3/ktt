@@ -249,95 +249,6 @@ class ModelTests(unittest.TestCase):
         self.assertIsNone(record.parent_window_id)
         self.assertIsNone(record.status)
 
-    def test_embedded_sidebar_is_excluded_from_tab_identity(self) -> None:
-        os_window = {
-            "id": 7,
-            "tabs": [
-                {
-                    "id": 10,
-                    "title": "work",
-                    "windows": [
-                        {"id": 101, "is_active": False, "user_vars": {}},
-                        {
-                            "id": 190,
-                            "is_active": True,
-                            "user_vars": {"ktt_sidebar": "1"},
-                        },
-                    ],
-                },
-                {
-                    "id": 20,
-                    "title": "sidebar only",
-                    "windows": [{
-                        "id": 290,
-                        "user_vars": {"ktt_sidebar": "1"},
-                    }],
-                },
-            ],
-        }
-
-        records = records_for_os_window(os_window)
-
-        self.assertEqual([record.id for record in records], [10])
-        self.assertEqual(records[0].window_ids, (101,))
-
-    def test_active_embedded_sidebar_does_not_replace_content_title(self) -> None:
-        os_window = {
-            "id": 7,
-            "tabs": [{
-                "id": 10,
-                "title": "ktt",
-                "windows": [
-                    {
-                        "id": 101,
-                        "title": "⠋ feature-name",
-                        "is_active": False,
-                        "user_vars": {"workmux_status": "💬"},
-                    },
-                    {
-                        "id": 190,
-                        "title": "ktt",
-                        "is_active": True,
-                        "user_vars": {"ktt_sidebar": "1"},
-                    },
-                ],
-            }],
-        }
-
-        record = records_for_os_window(os_window)[0]
-
-        self.assertEqual(record.title, "feature-name")
-        self.assertEqual(record.status, "💬")
-        self.assertTrue(record.attention_suppressed)
-
-    def test_active_embedded_sidebar_preserves_explicit_tab_title(self) -> None:
-        os_window = {
-            "id": 7,
-            "tabs": [{
-                "id": 10,
-                "title": "[CVX] mutation-capacity",
-                "windows": [
-                    {
-                        "id": 101,
-                        "title": "mutation-capacity",
-                        "is_active": False,
-                        "user_vars": {},
-                    },
-                    {
-                        "id": 190,
-                        "title": "ktt",
-                        "is_active": True,
-                        "user_vars": {"ktt_sidebar": "1"},
-                    },
-                ],
-            }],
-        }
-
-        self.assertEqual(
-            records_for_os_window(os_window)[0].title,
-            "[CVX] mutation-capacity",
-        )
-
     def test_tree_supports_multiple_levels_and_reorders_children(self) -> None:
         records = [
             TabRecord(3, 1, "grandchild", (30,), parent_window_id=20, source_index=0),
@@ -555,7 +466,7 @@ class ModelTests(unittest.TestCase):
         updated = with_active_tab(records, 2)
         self.assertEqual([record.is_active for record in updated], [False, True])
 
-    def test_automatic_target_excludes_sidebar_os_window(self) -> None:
+    def test_automatic_target_excludes_the_calling_os_window(self) -> None:
         snapshot = [
             {"id": 1, "tabs": [{"windows": [{"id": 10}]}]},
             {"id": 2, "tabs": [

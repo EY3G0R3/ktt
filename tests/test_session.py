@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from ktt.cli import _parser
-from ktt.model import PARENT_VAR, SIDEBAR_VAR
+from ktt.model import PARENT_VAR
 from ktt.session import (
     AgentState,
     SessionManifest,
@@ -30,6 +30,7 @@ class FakeRemote:
         self.calls: list[tuple[str, tuple[str, ...]]] = []
         self.focused: list[int] = []
         self.closed: list[int] = []
+        self.native_enabled: list[int] = []
 
     def run(self, subcommand: str, *arguments: str) -> str:
         self.calls.append((subcommand, arguments))
@@ -40,6 +41,9 @@ class FakeRemote:
 
     def close_window(self, window_id: int) -> None:
         self.closed.append(window_id)
+
+    def enable_native_vertical_tabs(self, window_id: int) -> None:
+        self.native_enabled.append(window_id)
 
 
 def content_window(
@@ -61,18 +65,6 @@ def content_window(
         "foreground_processes": [
             {"pid": window_id + 10_000, "cwd": cwd, "cmdline": command}
         ],
-    }
-
-
-def sidebar_window(window_id: int) -> dict[str, object]:
-    return {
-        "id": window_id,
-        "title": "ktt",
-        "cwd": "/tmp",
-        "is_active": False,
-        "is_focused": False,
-        "user_vars": {SIDEBAR_VAR: "1"},
-        "foreground_processes": [],
     }
 
 
@@ -102,7 +94,6 @@ class SessionTests(unittest.TestCase):
                         "is_active": True,
                         "windows": [
                             content_window(1001, "/work/root", ["codex"], focused=True),
-                            sidebar_window(1901),
                         ],
                     },
                     {
@@ -116,7 +107,6 @@ class SessionTests(unittest.TestCase):
                                 ["claude"],
                                 parent=1001,
                             ),
-                            sidebar_window(1902),
                         ],
                     },
                 ],
@@ -452,10 +442,7 @@ class SessionTests(unittest.TestCase):
             remote.run.assert_not_called()
             remote.focus_window.assert_not_called()
 
-    @mock.patch("ktt.session_cli.start_daemon", return_value=1234)
-    def test_restore_embeds_ktt_in_each_recreated_os_window(
-        self, start_daemon: mock.Mock
-    ) -> None:
+    def test_restore_enables_native_tabs(self) -> None:
         manifest = SessionManifest(
             "2026-08-27T12:00:00-07:00",
             "host",
@@ -481,29 +468,13 @@ class SessionTests(unittest.TestCase):
             path = Path(temporary) / "session.json"
             write_manifest(path, manifest)
             remote = FakeRemote([7001])
-            remote.to = "unix:/tmp/kitty"
-            remote.snapshot = mock.Mock(return_value=[{
-                "id": 91,
-                "tabs": [{"id": 101, "windows": [{"id": 7001}]}],
-            }])
-
             result = restore_saved_session(remote, path, dry_run=False)
 
         self.assertEqual(result, 0)
-        start_daemon.assert_called_once_with(
-            91,
-            to="unix:/tmp/kitty",
-            poll_interval=1.0,
-            edge_style="tapered",
-            repository_palette="amber",
-            changed_files_placement="bottom",
-            pane_percent=20,
-            orientation="vertical",
-        )
+        self.assertEqual(remote.native_enabled, [7001])
 
-    @mock.patch("ktt.session_cli.start_daemon", return_value=1234)
     def test_restore_replaces_invoking_tab_instead_of_creating_an_os_window(
-        self, start_daemon: mock.Mock
+        self,
     ) -> None:
         manifest = SessionManifest(
             "2026-08-27T12:00:00-07:00",
@@ -530,12 +501,6 @@ class SessionTests(unittest.TestCase):
             path = Path(temporary) / "session.json"
             write_manifest(path, manifest)
             remote = FakeRemote([7001])
-            remote.to = "unix:/tmp/kitty"
-            remote.snapshot = mock.Mock(return_value=[{
-                "id": 91,
-                "tabs": [{"id": 101, "windows": [{"id": 7001}]}],
-            }])
-
             result = restore_saved_session(
                 remote,
                 path,
@@ -551,7 +516,7 @@ class SessionTests(unittest.TestCase):
         self.assertIn("id:55", launch[1])
         self.assertNotIn("--type=os-window", launch[1])
         self.assertEqual(remote.closed, [55])
-        start_daemon.assert_called_once()
+        self.assertEqual(remote.native_enabled, [7001])
 
 
 if __name__ == "__main__":

@@ -11,8 +11,8 @@ help:
 autoupdate:
 	$(PYTHON) -m unittest discover -s tests -v
 
-# Kitty loads the watcher and navigation kitten from this checkout, and the
-# running TUI reloads changed Python sources. Fast-forwarding the validated
-# checkout is therefore the installation step.
+# Kitty loads the watcher, renderer helpers, and navigation kitten from this
+# checkout. Fast-forwarding the validated checkout is therefore the
+# installation step.
 autoupdate-install:
 	@:

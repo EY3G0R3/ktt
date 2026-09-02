@@ -91,7 +91,7 @@ class TabOrderingTests(unittest.TestCase):
         self.assertIs(manager.active_tab, active)
         self.assertEqual(tuple(manager.active_tab_history), (30, 10))
 
-    def test_live_tree_uses_agent_metadata_and_excludes_sidebar_tabs(self) -> None:
+    def test_live_tree_uses_agent_metadata(self) -> None:
         child = LiveTab(20, [
             FakeWindow(201, ktt_parent_window_id="999"),
             FakeWindow(
@@ -100,9 +100,8 @@ class TabOrderingTests(unittest.TestCase):
                 ktt_parent_window_id="100",
             ),
         ])
-        sidebar = LiveTab(99, [FakeWindow(990, ktt_sidebar="1")])
         root = LiveTab(10, [FakeWindow(100)])
-        manager = LiveTabManager([child, sidebar, root])
+        manager = LiveTabManager([child, root])
 
         self.assertEqual(live_tree_tab_ids(manager), (10, 20))
 
@@ -119,7 +118,6 @@ class TabOrderingTests(unittest.TestCase):
             ),
             FakeWindow(
                 202,
-                ktt_sidebar="1",
                 ktt_parent_window_id="300",
             ),
         ])
@@ -130,7 +128,6 @@ class TabOrderingTests(unittest.TestCase):
         selected = select_content_windows(
             tuple(child),
             user_var=lambda window, key: str(window.user_vars.get(key) or ""),
-            sidebar_var=model.SIDEBAR_VAR,
             role_var=model.COCKPIT_ROLE_VAR,
             agent_role=model.AGENT_ROLE,
             is_active=lambda window: window is child.active_window,
@@ -225,9 +222,7 @@ class TabOrderingTests(unittest.TestCase):
     def test_live_tree_uses_content_title_when_tab_title_is_surf(self) -> None:
         content = FakeWindow(100)
         content.title = "implement auth"
-        sidebar = FakeWindow(101, ktt_sidebar="1")
-        sidebar.title = "surf"
-        tab = LiveTab(10, [content, sidebar])
+        tab = LiveTab(10, [content])
         tab.title = "surf"
         tab.effective_title = "surf"
 

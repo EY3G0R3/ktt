@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .kitty import RemoteControl
-from .model import PARENT_VAR, SIDEBAR_VAR, records_for_os_window
+from .model import PARENT_VAR, records_for_os_window
 
 MANIFEST_VERSION = 1
 SESSION_MATCH_WINDOW_MS = 120_000
@@ -539,18 +539,10 @@ def read_manifest(path: Path) -> SessionManifest:
 
 
 def _content_windows(tab: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    result: list[Mapping[str, Any]] = []
-    for value in tab.get("windows", []):
-        if not isinstance(value, Mapping):
-            continue
-        user_vars = value.get("user_vars")
-        if (
-            isinstance(user_vars, Mapping)
-            and str(user_vars.get(SIDEBAR_VAR) or "") == "1"
-        ):
-            continue
-        result.append(value)
-    return result
+    return [
+        value for value in tab.get("windows", [])
+        if isinstance(value, Mapping)
+    ]
 
 
 def _primary_content_window(windows: Sequence[Mapping[str, Any]]) -> Mapping[str, Any]:

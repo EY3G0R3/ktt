@@ -12,7 +12,6 @@ PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
 VERDICT_VAR = "workmux_verdict"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
-SIDEBAR_VAR = "ktt_sidebar"
 AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
 WAITING_STATUS = "💬"
@@ -137,7 +136,6 @@ def _ordered_windows(tab: dict[str, Any]) -> list[dict[str, Any]]:
         user_var=lambda window, key: str(
             (window.get("user_vars") or {}).get(key) or ""
         ),
-        sidebar_var=SIDEBAR_VAR,
         role_var=COCKPIT_ROLE_VAR,
         agent_role=AGENT_ROLE,
         is_active=lambda window: bool(window.get("is_active")),
@@ -157,7 +155,7 @@ def _metadata_windows(
     ))
 
 
-def _content_title_for_embedded_tab(
+def _effective_tab_title(
     tab: dict[str, Any], windows: list[dict[str, Any]]
 ) -> str:
     title = str(tab.get("title") or "")
@@ -174,14 +172,6 @@ def _content_title_for_embedded_tab(
             ),
             "",
         )
-    active_sidebar_titles = {
-        str(window.get("title") or "")
-        for window in tab.get("windows") or []
-        if window.get("is_active")
-        and str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") == "1"
-    }
-    if title in active_sidebar_titles and windows:
-        return str(windows[0].get("title") or title)
     return title
 
 
@@ -264,7 +254,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
             continue
         metadata_windows = _metadata_windows(windows)
         window_ids = tuple(int(window["id"]) for window in windows)
-        title = _content_title_for_embedded_tab(tab, metadata_windows)
+        title = _effective_tab_title(tab, metadata_windows)
         if title == "surf" or not title:
             title = next(
                 (

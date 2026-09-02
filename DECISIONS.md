@@ -4,12 +4,18 @@ Decided on August 22, 2026 (PDT). These choices replace the open-ended items
 in the original first-slice plan. They can be revisited with evidence, but no
 longer block implementation.
 
-## 0. Native vertical tabs are primary; the sidebar is compatibility-only
+The separate-window sidebar, embedded panes, horizontal TUI, daemon, and
+old-Kitty fallback were removed on September 1, 2026 (PDT), after the native
+parity gate passed. Their final revision is tagged `last-with-legacy`.
+Sidebar/TUI statements below are retained as historical design evidence,
+especially for the dormant changed-files and help surfaces; they no longer
+describe executable runtime paths.
 
-Kitty 0.48 added left/right native tab bars. Bare `ktt` selects that backend
-when the running Kitty process is new enough and falls back to the original
-separate-window sidebar otherwise. `ktt native` requires the new backend, while
-`ktt launch` always exposes the legacy one.
+## 0. Native vertical tabs are the only runtime
+
+Kitty 0.48 added left/right native tab bars. Bare `ktt` and `ktt native` enable
+that surface for the running Kitty process. Kitty 0.48 or newer is required;
+there is no presentation fallback.
 Native selection is a runtime override for the current Kitty process, not a
 persistent config rewrite. Hiding the bar retains that native identity so the
 same toggle can show it again; restarting Kitty restores the configured edge.
@@ -20,10 +26,8 @@ including card gaps, tree indentation, active-tab visibility, and vertical
 centering. Hiding retains these overrides so a show/hide cycle is stable;
 restarting Kitty restores the persistent preset.
 
-The legacy backend remains tested but frozen: compatibility fixes are in scope;
-new vertical presentation features are not. Remove it after the supported
-machines have moved to Kitty 0.48+, rather than carrying permanent dual-backend
-feature work.
+Parity tests and this decision record retain the established visual behavior
+without retaining a second executable backend.
 
 ## 1. Workmux owns launch-time assignment; ktt owns the contract
 

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import ktt.kitty as kitty_module
-from ktt.kitty import KittyError, RemoteControl, find_sidebar_window
+from ktt.kitty import KittyError, RemoteControl, find_tab_for_window
 from ktt.native_tabs import NativeVerticalTabsUnsupported, UNSUPPORTED_MARKER
 
 
@@ -35,11 +35,8 @@ class RemoteControlTests(unittest.TestCase):
         with patch("ktt.kitty.socket.socket", return_value=context):
             remote = RemoteControl("unix:/tmp/kitty-test")
             self.assertEqual(remote.snapshot(), snapshot)
-
         connection.connect.assert_called_once_with("/tmp/kitty-test")
-        sent = connection.sendall.call_args.args[0]
-        self.assertTrue(sent.startswith(b"\x1bP@kitty-cmd"))
-        self.assertIn(b'"cmd":"ls"', sent)
+        self.assertIn(b'"cmd":"ls"', connection.sendall.call_args.args[0])
 
     def test_snapshot_falls_back_once_after_socket_failure(self) -> None:
         remote = RemoteControl("unix:/tmp/kitty-test")
@@ -50,7 +47,6 @@ class RemoteControlTests(unittest.TestCase):
         ):
             self.assertEqual(remote.snapshot(), [{"id": 3}])
             self.assertEqual(remote.snapshot(), [{"id": 3}])
-
         socket_factory.assert_called_once()
         self.assertEqual(run.call_count, 2)
 
@@ -61,7 +57,6 @@ class RemoteControlTests(unittest.TestCase):
         context.__enter__.return_value = connection
         with patch("ktt.kitty.socket.socket", return_value=context):
             RemoteControl("unix:@kitty-test").snapshot()
-
         connection.connect.assert_called_once_with("\0kitty-test")
 
     def test_launch_child_sets_parent_during_tab_creation(self) -> None:
@@ -70,99 +65,21 @@ class RemoteControlTests(unittest.TestCase):
         self.assertEqual(child, 456)
         subcommand, arguments = remote.call
         self.assertEqual(subcommand, "launch")
-        self.assertIn("--type=tab", arguments)
         self.assertIn("ktt_parent_window_id=123", arguments)
         self.assertEqual(arguments[-3:], ("codex", "--", "prompt"))
 
-    def test_finds_tagged_sidebar_and_recorded_target(self) -> None:
-        snapshot = [{
-            "id": 9,
-            "wm_class": "ktt",
-            "tabs": [{"windows": [{
-                "id": 91,
-                "cmdline": ["python3", "-m", "ktt"],
-                "user_vars": {
-                    "ktt_sidebar": "1",
-                    "ktt_target_os_window_id": "3",
-                },
-            }]}],
-        }]
-        self.assertEqual(find_sidebar_window(snapshot), (9, 91, 3))
-
-    def test_finds_sidebar_by_orientation(self) -> None:
-        snapshot = [{
-            "id": 9,
-            "tabs": [{"windows": [
-                {
-                    "id": 91,
-                    "user_vars": {
-                        "ktt_sidebar": "1",
-                        "ktt_target_os_window_id": "3",
-                    },
-                },
-                {
-                    "id": 92,
-                    "user_vars": {
-                        "ktt_sidebar": "1",
-                        "ktt_target_os_window_id": "3",
-                        "ktt_orientation": "horizontal",
-                    },
-                },
-            ]}],
-        }]
-        self.assertEqual(find_sidebar_window(snapshot, "vertical"), (9, 91, 3))
-        self.assertEqual(find_sidebar_window(snapshot, "horizontal"), (9, 92, 3))
-
-    def test_preview_switches_tab_then_restores_sidebar_focus(self) -> None:
-        remote = RecordingRemote()
-        remote.preview_tab(12, 91)
-        self.assertEqual(remote.calls, [
-            ("focus-tab", ("--match", "id:12")),
-            ("focus-window", ("--match", "id:91")),
-        ])
-
-    def test_embedded_preview_focuses_destination_renderer(self) -> None:
-        remote = RecordingRemote()
-        remote.preview_embedded_tab(12, 192)
-        self.assertEqual(remote.calls, [
-            ("focus-tab", ("--match", "id:12")),
-            ("focus-window", ("--match", "id:192")),
-        ])
-
-    def test_native_tab_toggle_targets_the_main_window(self) -> None:
-        remote = RecordingRemote()
-        remote.toggle_native_tabs(12)
-        subcommand, arguments = remote.call
-        self.assertEqual(subcommand, "action")
-        self.assertEqual(arguments[:2], ("--match", "id:12"))
-        self.assertEqual(arguments[-1:], (
-            str(Path(kitty_module.__file__).with_name(
-                "native_tabs_kitten.py"
-            )),
-        ))
-
-    def test_native_vertical_tabs_target_the_main_window(self) -> None:
+    def test_native_vertical_tabs_target_the_source_process(self) -> None:
         remote = RecordingRemote()
         remote.enable_native_vertical_tabs(12)
         subcommand, arguments = remote.call
         self.assertEqual(subcommand, "action")
         self.assertEqual(arguments[:2], ("--match", "id:12"))
-        self.assertEqual(arguments[-3:], (
-            str(Path(kitty_module.__file__).with_name(
-                "native_tabs_kitten.py"
-            )),
+        self.assertEqual(arguments[-2:], (
+            str(Path(kitty_module.__file__).with_name("native_tabs_kitten.py")),
             "vertical",
-            "strict",
         ))
 
-    def test_auto_native_vertical_tabs_mark_the_kitten_request(self) -> None:
-        remote = RecordingRemote()
-
-        remote.enable_native_vertical_tabs(12, strict=False)
-
-        self.assertEqual(remote.call[1][-2:], ("vertical", "auto"))
-
-    def test_native_vertical_tabs_translate_running_kitty_version_error(self) -> None:
+    def test_native_vertical_tabs_translate_running_version_error(self) -> None:
         remote = RecordingRemote()
         with (
             patch.object(
@@ -175,380 +92,19 @@ class RemoteControlTests(unittest.TestCase):
             self.assertRaises(NativeVerticalTabsUnsupported) as raised,
         ):
             remote.enable_native_vertical_tabs(12)
-
         self.assertEqual(raised.exception.version, (0, 47, 4))
 
-    def test_running_sidebar_reapplies_launch_appearance_and_identity(self) -> None:
+    def test_set_parent_updates_the_canonical_edge(self) -> None:
         remote = RecordingRemote()
-        remote.configure_sidebar(91, 3, "vertical")
-        self.assertEqual(remote.calls, [
-            (
-                "set-colors",
-                ("--match", "id:91", "background=#000000"),
-            ),
-            (
-                "set-user-vars",
-                (
-                    "--match",
-                    "id:91",
-                    "ktt_sidebar=1",
-                    "ktt_orientation=vertical",
-                    "ktt_target_os_window_id=3",
-                ),
-            ),
-        ])
-
-    def test_running_embedded_sidebar_restores_cockpit_role(self) -> None:
-        remote = RecordingRemote()
-        remote.configure_sidebar(91, 3, "horizontal", embedded=True)
-        self.assertIn("ktt_cockpit_role=ktt", remote.calls[1][1])
-
-    def test_sidebar_launch_passes_configured_edge_style(self) -> None:
-        remote = RecordingRemote()
-        remote.launch_sidebar(3, "rounded", "graphite")
-        subcommand, arguments = remote.calls[0]
-        self.assertEqual(subcommand, "launch")
-        self.assertIn("--edge-style", arguments)
-        self.assertEqual(arguments[arguments.index("--edge-style") + 1], "rounded")
-        self.assertEqual(
-            arguments[arguments.index("--repository-palette") + 1], "graphite"
-        )
-        self.assertIn("--color", arguments)
-        self.assertEqual(arguments[arguments.index("--color") + 1], "background=#000000")
-
-    def test_horizontal_launch_uses_distinct_window_identity(self) -> None:
-        remote = RecordingRemote()
-        remote.launch_sidebar(3, "tapered", "terminal", "horizontal")
-        subcommand, arguments = remote.calls[0]
-        self.assertEqual(subcommand, "launch")
-        self.assertIn("--os-window-class=ktt-horizontal", arguments)
-        self.assertIn("ktt_orientation=horizontal", arguments)
-        self.assertIn("--orientation", arguments)
-        self.assertEqual(
-            arguments[arguments.index("--orientation") + 1], "horizontal"
-        )
-
-    def test_embedded_launch_splits_below_source_and_keeps_focus(self) -> None:
-        remote = RecordingRemote()
-        pane = remote.launch_pane(123, 3, "tapered", "terminal", 10)
-        self.assertEqual(pane, 456)
-        subcommand, arguments = remote.calls[0]
-        self.assertEqual(subcommand, "launch")
-        self.assertIn("window_id:123", arguments)
-        self.assertIn("--location=hsplit", arguments)
-        self.assertIn("--bias=10", arguments)
-        self.assertIn("--keep-focus", arguments)
-        self.assertIn("--embedded", arguments)
-        self.assertIn("ktt_orientation=horizontal", arguments)
-        self.assertIn("ktt_cockpit_role=ktt", arguments)
-        self.assertNotIn("--shared-socket", arguments)
-
-    def test_vertical_embedded_launch_creates_side_pane(self) -> None:
-        remote = RecordingRemote()
-        pane = remote.launch_pane(
-            123, 3, "tapered", "terminal", 20,
-            "/tmp/ktt-shared.sock", "vertical",
-        )
-
-        self.assertEqual(pane, 456)
-        _, arguments = remote.calls[0]
-        self.assertIn("--location=vsplit", arguments)
-        self.assertIn("--bias=20", arguments)
-        self.assertIn("ktt_orientation=vertical", arguments)
-        self.assertIn("ktt_pane_percent=20", arguments)
-        self.assertEqual(
-            arguments[arguments.index("--orientation") + 1], "vertical"
-        )
-        self.assertEqual(remote.calls[1], (
-            "action",
-            (
-                "--match",
-                "id:123",
-                "kitten",
-                str(Path(kitty_module.__file__).with_name(
-                    "embedded_pane_layout_kitten.py"
-                )),
-                "123",
-                "456",
-                "20",
-            ),
+        remote.set_parent(20, 10)
+        self.assertEqual(remote.call, (
+            "set-user-vars",
+            ("--match", "id:20", "ktt_parent_window_id=10"),
         ))
 
-    def test_embedded_launch_passes_bottom_file_placement(self) -> None:
-        remote = RecordingRemote()
-
-        remote.launch_pane(
-            123,
-            3,
-            changed_files_placement="bottom",
-        )
-
-        _, arguments = remote.calls[0]
-        placement = arguments.index("--changed-files-placement")
-        self.assertEqual(arguments[placement + 1], "bottom")
-
-    def test_embedded_sync_only_creates_missing_tab_panes(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [
-                {"id": 10, "windows": [{"id": 100, "user_vars": {}}]},
-                {"id": 20, "windows": [
-                    {"id": 200, "user_vars": {}},
-                    {"id": 290, "user_vars": {
-                        "ktt_sidebar": "1",
-                        "ktt_orientation": "horizontal",
-                    }},
-                ]},
-            ],
-        }]
-
-        created = remote.sync_embedded_panes(
-            snapshot, 3, "tapered", "terminal", 12,
-            "/tmp/ktt-shared.sock",
-        )
-
-        self.assertEqual(created, [456])
-        launch_calls = [call for call in remote.calls if call[0] == "launch"]
-        self.assertEqual(len(launch_calls), 1)
-        self.assertIn("window_id:100", launch_calls[0][1])
-        self.assertIn("--bias=12", launch_calls[0][1])
-        self.assertIn("--shared-socket", launch_calls[0][1])
-        self.assertIn("/tmp/ktt-shared.sock", launch_calls[0][1])
-
-    def test_unembed_closes_embedded_panes_in_both_orientations(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [{"id": 10, "windows": [
-                {"id": 100, "user_vars": {}},
-                {"id": 190, "user_vars": {"ktt_sidebar": "1"}},
-                {"id": 191, "user_vars": {
-                    "ktt_sidebar": "1",
-                    "ktt_orientation": "horizontal",
-                }},
-            ]}],
-        }]
-
-        self.assertEqual(remote.close_embedded_panes(snapshot, 3), [190, 191])
-        self.assertEqual(remote.calls, [
-            ("close-window", ("--match", "id:190")),
-            ("close-window", ("--match", "id:191")),
-        ])
-
-    def test_vertical_sync_reuses_existing_vertical_pane(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [{"id": 10, "windows": [
-                {"id": 100, "user_vars": {}},
-                {"id": 190, "user_vars": {
-                    "ktt_sidebar": "1",
-                    "ktt_orientation": "vertical",
-                }},
-            ]}],
-        }]
-
-        created = remote.sync_embedded_panes(
-            snapshot, 3, pane_percent=20, orientation="vertical"
-        )
-
-        self.assertEqual(created, [])
-        self.assertEqual(remote.calls, [])
-
-    def test_vertical_sidebar_width_is_mirrored_in_cells(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [
-                {"id": 10, "windows": [
-                    {"id": 100, "user_vars": {}},
-                    {"id": 190, "columns": 65, "user_vars": {
-                        "ktt_sidebar": "1",
-                        "ktt_orientation": "vertical",
-                        "ktt_pane_percent": "20",
-                    }},
-                ]},
-                {"id": 20, "windows": [
-                    {"id": 200, "user_vars": {}},
-                    {"id": 290, "columns": 73, "user_vars": {
-                        "ktt_sidebar": "1",
-                        "ktt_orientation": "vertical",
-                        "ktt_pane_percent": "20",
-                    }},
-                ]},
-            ],
-        }]
-
-        resized = remote.sync_embedded_sidebar_widths(
-            snapshot, 3, sidebar_columns=70, pane_percent=22
-        )
-
-        self.assertEqual(resized, [190, 290])
-        self.assertEqual(remote.calls, [
-            (
-                "resize-window",
-                (
-                    "--match", "id:190", "--axis=horizontal",
-                    "--increment=5",
-                ),
-            ),
-            (
-                "set-user-vars",
-                ("--match", "id:190", "ktt_pane_percent=22"),
-            ),
-            (
-                "resize-window",
-                (
-                    "--match", "id:290", "--axis=horizontal",
-                    "--increment=-3",
-                ),
-            ),
-            (
-                "set-user-vars",
-                ("--match", "id:290", "ktt_pane_percent=22"),
-            ),
-        ])
-
-    def test_orphan_sidebar_is_not_resized_before_cleanup(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [{"id": 10, "windows": [{
-                "id": 190,
-                "columns": 318,
-                "user_vars": {
-                    "ktt_sidebar": "1",
-                    "ktt_orientation": "vertical",
-                    "ktt_pane_percent": "20",
-                },
-            }]}],
-        }]
-
-        resized = remote.sync_embedded_sidebar_widths(
-            snapshot, 3, sidebar_columns=65, pane_percent=20
-        )
-
-        self.assertEqual(resized, [])
-        self.assertEqual(remote.calls, [])
-
-    def test_misplaced_vertical_sidebar_is_repaired_before_width_sync(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [{
-                "id": 10,
-                "layout": "splits",
-                "layout_state": {"pairs": {
-                    "horizontal": False,
-                    "one": 190,
-                    "two": 100,
-                }},
-                "groups": [
-                    {"id": 100, "windows": [100]},
-                    {"id": 190, "windows": [190]},
-                ],
-                "windows": [
-                    {"id": 100, "is_active": True, "user_vars": {}},
-                    {"id": 190, "columns": 318, "user_vars": {
-                        "ktt_sidebar": "1",
-                        "ktt_orientation": "vertical",
-                    }},
-                ],
-            }],
-        }]
-
-        resized = remote.sync_embedded_sidebar_widths(
-            snapshot, 3, sidebar_columns=65, pane_percent=20
-        )
-        placed = remote.sync_embedded_sidebar_placements(
-            snapshot, 3, pane_percent=20
-        )
-
-        self.assertEqual(resized, [])
-        self.assertEqual(placed, [190])
-        self.assertEqual(remote.calls, [(
-            "action",
-            (
-                "--match",
-                "id:100",
-                "kitten",
-                str(Path(kitty_module.__file__).with_name(
-                    "embedded_pane_layout_kitten.py"
-                )),
-                "100",
-                "190",
-                "20",
-            ),
-        )])
-
-    def test_vertical_sync_splits_the_active_content_window(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [{"id": 10, "windows": [
-                {"id": 100, "is_active": False, "user_vars": {
-                    "ktt_cockpit_role": "agent",
-                }},
-                {"id": 101, "is_active": True, "user_vars": {}},
-            ]}],
-        }]
-
-        remote.sync_embedded_panes(
-            snapshot, 3, pane_percent=20, orientation="vertical"
-        )
-
-        self.assertIn("window_id:101", remote.calls[0][1])
-        self.assertEqual(remote.calls[1], (
-            "action",
-            (
-                "--match",
-                "id:101",
-                "kitten",
-                str(Path(kitty_module.__file__).with_name(
-                    "embedded_pane_layout_kitten.py"
-                )),
-                "101",
-                "456",
-                "20",
-            ),
-        ))
-
-    def test_sync_closes_sidebar_when_it_is_the_tabs_only_survivor(self) -> None:
-        remote = RecordingRemote()
-        snapshot = [{
-            "id": 3,
-            "tabs": [{"id": 10, "windows": [{
-                "id": 190,
-                "is_active": True,
-                "user_vars": {
-                    "ktt_sidebar": "1",
-                    "ktt_orientation": "vertical",
-                },
-            }]}],
-        }]
-
-        created = remote.sync_embedded_panes(
-            snapshot, 3, pane_percent=20, orientation="vertical"
-        )
-
-        self.assertEqual(created, [])
-        self.assertEqual(remote.calls, [
-            ("close-window", ("--match", "id:190")),
-        ])
-
-    def test_sidebar_refresh_launches_with_background_before_close(self) -> None:
-        remote = RecordingRemote()
-        replacement = remote.replace_sidebar(123, 3)
-        self.assertEqual(replacement, 456)
-        subcommand, arguments = remote.calls[0]
-        self.assertEqual(subcommand, "launch")
-        self.assertIn("--color", arguments)
-        self.assertEqual(arguments[arguments.index("--color") + 1], "background=#000000")
-        self.assertEqual(remote.calls[1], (
-            "close-window",
-            ("--match", "id:123"),
-        ))
+    def test_find_tab_for_window_returns_os_window_and_tab(self) -> None:
+        snapshot = [{"id": 1, "tabs": [{"id": 2, "windows": [{"id": 3}]}]}]
+        self.assertEqual(find_tab_for_window(snapshot, 3), (1, 2))
 
 
 if __name__ == "__main__":

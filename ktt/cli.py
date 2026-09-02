@@ -2,87 +2,21 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 from pathlib import Path
 
-from .daemon import run_daemon, start_daemon, stop_daemon
-from .kitty import (
-    KittyError,
-    RemoteControl,
-    find_sidebar_window,
-    find_tab_for_window,
-)
+from .kitty import KittyError, RemoteControl, find_tab_for_window
 from .model import choose_os_window, records_for_os_window, tree_rows
 from .native_tabs import NativeVerticalTabsUnsupported, format_version
-from .render import (
-    CHANGED_FILES_PLACEMENTS,
-    DEFAULT_CHANGED_FILES_PLACEMENT,
-    DEFAULT_EDGE_STYLE,
-    DEFAULT_ORIENTATION,
-    EDGE_STYLES,
-    ORIENTATIONS,
-    render_horizontal_screen,
-    render_screen,
-)
-from .repository import DEFAULT_REPOSITORY_PALETTE, REPOSITORY_PALETTES
 from .session import default_manifest_path
 from .session_cli import restore_saved_session, save_current_session
-from .tui import run_tui
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="ktt", description="A tree-shaped tab bar for Kitty"
+        prog="ktt", description="A tree-shaped native tab bar for Kitty"
     )
     parser.add_argument("--to", help="Kitty remote-control socket address")
-    parser.add_argument(
-        "--orientation",
-        choices=ORIENTATIONS,
-        default=os.environ.get("KTT_ORIENTATION", DEFAULT_ORIENTATION),
-        help="tree direction (default: vertical)",
-    )
-    parser.add_argument(
-        "--target-os-window", type=int, help="Kitty OS window ID to display"
-    )
-    parser.add_argument(
-        "--poll-interval", type=float, default=1.0,
-        help="seconds between Kitty state polls (default: 1.0)",
-    )
-    parser.add_argument(
-        "--no-auto-reload", action="store_false", dest="auto_reload",
-        help="do not restart the TUI when its Python sources change",
-    )
-    parser.add_argument(
-        "--edge-style",
-        choices=EDGE_STYLES,
-        default=os.environ.get("KTT_EDGE_STYLE", DEFAULT_EDGE_STYLE),
-        help="tab-card edge treatment (default: tapered)",
-    )
-    parser.add_argument(
-        "--repository-palette",
-        choices=REPOSITORY_PALETTES,
-        default=os.environ.get(
-            "KTT_REPOSITORY_PALETTE", DEFAULT_REPOSITORY_PALETTE
-        ),
-        help="fancylog changed-file palette (default: amber)",
-    )
-    parser.add_argument(
-        "--changed-files-placement",
-        choices=CHANGED_FILES_PLACEMENTS,
-        default=os.environ.get(
-            "KTT_CHANGED_FILES_PLACEMENT",
-            DEFAULT_CHANGED_FILES_PLACEMENT,
-        ),
-        help=(
-            "changed-file details placement: inline after the selected tab "
-            "or centered in the bottom free space (default: bottom)"
-        ),
-    )
-    parser.add_argument(
-        "--embedded", action="store_true", help=argparse.SUPPRESS
-    )
-    parser.add_argument("--shared-socket", help=argparse.SUPPRESS)
     subparsers = parser.add_subparsers(dest="command")
     save_session = subparsers.add_parser(
         "save-session", help="save Kitty tabs, ktt relationships, and resumable agents"
@@ -102,40 +36,13 @@ def _parser() -> argparse.ArgumentParser:
     restore_session.add_argument(
         "path", nargs="?", type=Path, default=default_manifest_path()
     )
-    subparsers.add_parser("list", help="print the current tree once")
+    list_tree = subparsers.add_parser("list", help="print the current tree once")
+    list_tree.add_argument(
+        "--target-os-window", type=int, help="Kitty OS window ID to inspect"
+    )
+    subparsers.add_parser("native", help="enable Kitty's native vertical tab bar")
     subparsers.add_parser(
-        "native", help="use Kitty 0.48+'s native vertical tab bar"
-    )
-    subparsers.add_parser(
-        "launch", help="open the legacy ktt sidebar in a separate Kitty OS window"
-    )
-    launch_pane = subparsers.add_parser(
-        "launch-pane", help="open horizontal ktt beneath the current Kitty window"
-    )
-    launch_pane.add_argument("--source-window", type=int)
-    launch_pane.add_argument(
-        "--pane-percent", type=int, default=10,
-        help="initial percentage of the source window given to ktt (default: 10)",
-    )
-    embed = subparsers.add_parser(
-        "embed", help="run shared ktt panes across every tab in this OS window"
-    )
-    embed.add_argument(
-        "--pane-percent", type=int,
-        help="percentage of each tab given to ktt (default: 10 horizontal, 20 vertical)",
-    )
-    subparsers.add_parser(
-        "unembed", help="stop the shared daemon and close embedded ktt panes"
-    )
-    daemon = subparsers.add_parser(
-        "daemon", help=argparse.SUPPRESS
-    )
-    daemon.add_argument("--pane-percent", type=int, default=10)
-    subparsers.add_parser(
-        "refresh", help="replace the running sidebar inside its current OS window"
-    )
-    subparsers.add_parser(
-        "watcher-path", help="print the global Kitty watcher path"
+        "watcher-path", help="print the native tree-order watcher path"
     )
     subparsers.add_parser(
         "navigation-kitten-path", help="print the tree-navigation kitten path"
@@ -159,52 +66,14 @@ def _self_window_id() -> int | None:
     return int(value) if value.isdigit() else None
 
 
-def _configure_current_sidebar(
-    remote: RemoteControl,
-    target_os_window_id: int | None,
-    orientation: str,
-    embedded: bool,
-) -> None:
-    window_id = _self_window_id()
-    if window_id is not None:
-        remote.configure_sidebar(
-            window_id,
-            target_os_window_id,
-            orientation,
-            embedded,
-        )
-
-
-def _list(remote: RemoteControl, target: int | None, orientation: str) -> int:
+def _list(remote: RemoteControl, target: int | None) -> int:
     snapshot = remote.snapshot()
     os_window = choose_os_window(snapshot, target, _self_window_id())
-    rows = tree_rows(records_for_os_window(os_window))
-    width = shutil.get_terminal_size((80, 24)).columns
-    renderer = render_screen if orientation == "vertical" else render_horizontal_screen
-    print(
-        renderer(
-            rows, -1, int(os_window["id"]), width, len(rows) + 2, ansi=False
-        )
-    )
+    for row in tree_rows(records_for_os_window(os_window)):
+        active = "*" if row.tab.is_active else " "
+        status = f"{row.tab.status} " if row.tab.status else ""
+        print(f"{active} {'    ' * row.depth}{status}{row.tab.title}")
     return 0
-
-
-def _target_for_current(
-    remote: RemoteControl,
-    requested_target: int | None,
-) -> tuple[list[dict], int]:
-    snapshot = remote.snapshot()
-    if requested_target is not None:
-        return snapshot, requested_target
-    self_id = _self_window_id()
-    if self_id is None:
-        raise ValueError(
-            "this command must run inside Kitty or receive --target-os-window"
-        )
-    location = find_tab_for_window(snapshot, self_id)
-    if location is None:
-        raise ValueError("the current Kitty window was not found")
-    return snapshot, location[0]
 
 
 def _validate_link(snapshot: list[dict], child: int, parent: int) -> None:
@@ -246,11 +115,17 @@ def _validate_link(snapshot: list[dict], child: int, parent: int) -> None:
         raise ValueError("link would create a cycle in the tab tree")
 
 
+def _enable_native(remote: RemoteControl) -> int:
+    source = _self_window_id()
+    if source is None:
+        raise ValueError("ktt must run inside Kitty")
+    remote.enable_native_vertical_tabs(source)
+    print("enabled Kitty's native vertical tab bar for this Kitty process")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.poll_interval < 0.1:
-        print("ktt: --poll-interval must be at least 0.1 seconds", file=sys.stderr)
-        return 2
     remote = RemoteControl(args.to)
     try:
         if args.command == "save-session":
@@ -260,78 +135,8 @@ def main(argv: list[str] | None = None) -> int:
                 remote,
                 args.path,
                 dry_run=args.dry_run,
-                poll_interval=args.poll_interval,
-                edge_style=args.edge_style,
-                repository_palette=args.repository_palette,
-                changed_files_placement=args.changed_files_placement,
-                orientation=args.orientation,
                 current_window_id=None if args.new_window else _self_window_id(),
             )
-        if (
-            args.command is None
-            and args.target_os_window is None
-            and not args.embedded
-        ):
-            snapshot = remote.snapshot()
-            self_id = _self_window_id()
-            if self_id is None:
-                raise ValueError(
-                    "ktt must run inside Kitty or receive --target-os-window"
-                )
-            location = find_tab_for_window(snapshot, self_id)
-            if location is None:
-                raise ValueError("the current Kitty window was not found")
-            target = location[0]
-            if args.orientation == "vertical":
-                try:
-                    remote.enable_native_vertical_tabs(self_id, strict=False)
-                except NativeVerticalTabsUnsupported as error:
-                    print(
-                        "ktt: native vertical tabs require Kitty 0.48.0 or "
-                        f"newer (running {format_version(error.version)}); "
-                        "opening the legacy sidebar",
-                        file=sys.stderr,
-                    )
-                except KittyError as error:
-                    print(
-                        "ktt: native vertical tab setup failed "
-                        f"({error}); opening the legacy sidebar",
-                        file=sys.stderr,
-                    )
-                else:
-                    print(
-                        "enabled Kitty's native vertical tab bar for this "
-                        "Kitty process"
-                    )
-                    return 0
-            new_window_id = remote.launch_sidebar(
-                target,
-                args.edge_style,
-                args.repository_palette,
-                args.orientation,
-                args.changed_files_placement,
-            )
-            print(
-                f"opened ktt in Kitty window {new_window_id}, "
-                f"targeting OS window {target}"
-            )
-            return 0
-        if args.command == "native":
-            source = _self_window_id()
-            if source is None:
-                raise ValueError("native must run inside Kitty")
-            try:
-                remote.enable_native_vertical_tabs(source, strict=True)
-            except NativeVerticalTabsUnsupported as error:
-                raise ValueError(
-                    "native vertical tabs require Kitty 0.48.0 or newer "
-                    f"(running {format_version(error.version)}); use "
-                    "`ktt launch` for the legacy sidebar"
-                ) from error
-            print(
-                "enabled Kitty's native vertical tab bar for this Kitty process"
-            )
-            return 0
         if args.command == "watcher-path":
             print(Path(__file__).with_name("kitty_watcher.py"))
             return 0
@@ -339,130 +144,9 @@ def main(argv: list[str] | None = None) -> int:
             print(Path(__file__).with_name("tree_navigation_kitten.py"))
             return 0
         if args.command == "list":
-            return _list(remote, args.target_os_window, args.orientation)
-        if args.command == "daemon":
-            if args.target_os_window is None:
-                raise ValueError("daemon requires --target-os-window")
-            return run_daemon(
-                remote,
-                args.target_os_window,
-                poll_interval=args.poll_interval,
-                edge_style=args.edge_style,
-                repository_palette=args.repository_palette,
-                changed_files_placement=args.changed_files_placement,
-                pane_percent=args.pane_percent,
-                orientation=args.orientation,
-            )
-        if args.command == "launch":
-            snapshot = remote.snapshot()
-            self_id = _self_window_id()
-            target = args.target_os_window
-            if target is None:
-                if self_id is None:
-                    raise ValueError(
-                        "launch must run inside Kitty or receive --target-os-window"
-                    )
-                location = find_tab_for_window(snapshot, self_id)
-                if location is None:
-                    raise ValueError("the current Kitty window was not found")
-                target = location[0]
-            new_window_id = remote.launch_sidebar(
-                target, args.edge_style, args.repository_palette,
-                args.orientation, args.changed_files_placement,
-            )
-            print(f"opened ktt in Kitty window {new_window_id}, targeting OS window {target}")
-            return 0
-        if args.command == "launch-pane":
-            if args.orientation != "horizontal":
-                raise ValueError("launch-pane requires --orientation horizontal")
-            if not 5 <= args.pane_percent <= 30:
-                raise ValueError("--pane-percent must be between 5 and 30")
-            snapshot = remote.snapshot()
-            source = args.source_window or _self_window_id()
-            if source is None:
-                raise ValueError(
-                    "launch-pane must run inside Kitty or receive --source-window"
-                )
-            location = find_tab_for_window(snapshot, source)
-            if location is None:
-                raise ValueError(f"source Kitty window {source} does not exist")
-            target = args.target_os_window or location[0]
-            if target != location[0]:
-                raise ValueError("the target OS window must contain the source window")
-            new_window_id = remote.launch_pane(
-                source, target, args.edge_style, args.repository_palette,
-                args.pane_percent, changed_files_placement=(
-                    args.changed_files_placement
-                ),
-            )
-            print(
-                f"opened embedded ktt in Kitty window {new_window_id}, "
-                f"targeting OS window {target}"
-            )
-            return 0
-        if args.command == "embed":
-            pane_percent = args.pane_percent
-            if pane_percent is None:
-                pane_percent = 10 if args.orientation == "horizontal" else 20
-            if not 5 <= pane_percent <= 30:
-                raise ValueError("--pane-percent must be between 5 and 30")
-            _, target = _target_for_current(
-                remote, args.target_os_window
-            )
-            stop_daemon(target)
-            snapshot = remote.snapshot()
-            remote.close_embedded_panes(snapshot, target)
-            pid = start_daemon(
-                target,
-                to=remote.to,
-                poll_interval=args.poll_interval,
-                edge_style=args.edge_style,
-                repository_palette=args.repository_palette,
-                changed_files_placement=args.changed_files_placement,
-                pane_percent=pane_percent,
-                orientation=args.orientation,
-            )
-            print(
-                f"started shared ktt daemon {pid} for OS window {target}; "
-                "embedded panes will follow its tabs"
-            )
-            return 0
-        if args.command == "unembed":
-            _, target = _target_for_current(
-                remote, args.target_os_window
-            )
-            stop_daemon(target)
-            snapshot = remote.snapshot()
-            closed = remote.close_embedded_panes(snapshot, target)
-            print(
-                f"stopped shared ktt for OS window {target}; "
-                f"closed {len(closed)} embedded pane(s)"
-            )
-            return 0
-        if args.command == "refresh":
-            snapshot = remote.snapshot()
-            sidebar = find_sidebar_window(snapshot, args.orientation)
-            if sidebar is None:
-                raise ValueError("no running ktt sidebar window was found")
-            sidebar_os_window_id, sidebar_window_id, recorded_target = sidebar
-            target = args.target_os_window or recorded_target
-            if target is None:
-                candidates = [
-                    os_window for os_window in snapshot
-                    if int(os_window["id"]) != sidebar_os_window_id
-                ]
-                target = int(choose_os_window(candidates)["id"])
-            new_window_id = remote.replace_sidebar(
-                sidebar_window_id, target, args.edge_style,
-                args.repository_palette,
-                args.orientation,
-                args.changed_files_placement,
-            )
-            print(
-                f"refreshed ktt as Kitty window {new_window_id}, "
-                f"still targeting OS window {target}"
-            )
-            return 0
+            return _list(remote, args.target_os_window)
+        if args.command in (None, "native"):
+            return _enable_native(remote)
         if args.command == "launch-child":
             parent = args.parent_window or _self_window_id()
             if parent is None:
@@ -482,9 +166,7 @@ def main(argv: list[str] | None = None) -> int:
             snapshot = remote.snapshot()
             _validate_link(snapshot, args.child_window, args.parent_window)
             remote.set_parent(args.child_window, args.parent_window)
-            print(
-                f"linked Kitty window {args.child_window} under {args.parent_window}"
-            )
+            print(f"linked Kitty window {args.child_window} under {args.parent_window}")
             return 0
         if args.command == "unlink":
             snapshot = remote.snapshot()
@@ -493,24 +175,14 @@ def main(argv: list[str] | None = None) -> int:
             remote.set_parent(args.child_window, None)
             print(f"unlinked Kitty window {args.child_window}")
             return 0
-        _configure_current_sidebar(
-            remote,
-            args.target_os_window,
-            args.orientation,
-            args.embedded,
+        raise ValueError(f"unknown command: {args.command}")
+    except NativeVerticalTabsUnsupported as error:
+        print(
+            "ktt: native vertical tabs require Kitty 0.48.0 or newer "
+            f"(running {format_version(error.version)})",
+            file=sys.stderr,
         )
-        return run_tui(
-            remote,
-            args.target_os_window,
-            args.poll_interval,
-            auto_reload=args.auto_reload,
-            edge_style=args.edge_style,
-            repository_palette=args.repository_palette,
-            changed_files_placement=args.changed_files_placement,
-            orientation=args.orientation,
-            embedded=args.embedded,
-            shared_socket=args.shared_socket,
-        )
+        return 1
     except (KittyError, ValueError, RuntimeError) as error:
         print(f"ktt: {error}", file=sys.stderr)
         return 1

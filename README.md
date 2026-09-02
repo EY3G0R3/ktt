@@ -1,484 +1,126 @@
 # ktt
 
-`ktt` is a tree-shaped tab bar for Kitty with native vertical and experimental
-horizontal views. On Kitty 0.48 or newer, bare `ktt` enables Kitty's native
-left-side tab bar and keeps tree/status presentation in the custom tab renderer.
-On older Kitty releases, it automatically opens the original separate-window
-sidebar. `ktt launch` keeps that legacy backend explicitly available on every
-supported Kitty version.
+`ktt` renders a parent/child tab tree in Kitty's native vertical tab bar.
+It requires Kitty 0.48 or newer. The separate-window sidebar, embedded panes,
+horizontal TUI, daemon, and old-Kitty fallback were removed after the native
+renderer passed the migration gates in [VISUAL_CONTRACT.md](VISUAL_CONTRACT.md).
+The final revision containing those paths is tagged `last-with-legacy`.
 
-The legacy sidebar watches the tabs in a main Kitty OS window and uses Kitty
-remote control to focus the active tab.
-Both native and legacy vertical cards use three terminal rows
-when the whole tree fits, squeeze to two rows when necessary, and fall back to
-one row under pressure. Expanded native cards use the same tapered silhouette,
-four-cell tree indentation, centered content row, one-row card gap, and centered
-stack as the KTT sidebar. The normal TUI has no diagnostic
-header; target-window details remain available through commands and errors
-without permanently consuming a row. The help block is a centered two-column
-legend with a visible separator between shortcuts and their actions. It stays
-hidden by default; `?` shows or hides it. The legend is vertically centered
-inside otherwise-unused space above the centered tab stack, so toggling it does
-not move cards or mouse targets.
+## Enable native tabs
 
-Horizontal mode gives each root tree a fixed-width column and stacks its
-descendants downward with four-cell indentation. Cards are capped at forty
-terminal cells and the complete group is centered, avoiding an edge-to-edge
-ribbon on wide displays. It uses a compact one-line help legend and falls back
-to an active-centered one-row tab strip when the window is too narrow or short
-to show useful tree lanes.
-
-See [VISION.md](VISION.md) for the original product vision and architecture.
-The resolved product choices are in [DECISIONS.md](DECISIONS.md).
-Native migration and legacy-removal are gated by
-[VISUAL_CONTRACT.md](VISUAL_CONTRACT.md).
-Prioritized follow-up work and the current status-data contract are documented
-in [IMPROVEMENTS.md](IMPROVEMENTS.md).
-
-## Try it from this checkout
-
-Requirements: Python 3.11+, Kitty with `allow_remote_control yes`, and a
-reachable `KITTY_LISTEN_ON` socket. Native vertical tabs require Kitty 0.48+;
-older versions use the legacy backend. Changing a tab's parent interactively
-also requires `rofi`.
+Run this inside the Kitty process you want to configure:
 
 ```bash
-python3 -m ktt list
 python3 -m ktt
-python3 -m ktt launch
 ```
 
-Bare `ktt` uses the current Kitty OS window to select a running Kitty process.
-It enables native vertical tabs process-wide when that Kitty is 0.48+ and
-otherwise opens the legacy tree in a separate sidebar OS window. Use
-`ktt native` to require the native backend; it reports the running version and
-points to `ktt launch` when Kitty is too old.
-Native enablement is a process-local Kitty override: it does not rewrite the
-persistent tab-bar preset. While managed, KTT owns the effective custom style,
-center alignment, edge, visibility, and native width so Kitty invokes the KTT
-card renderer. Those values remain in effect while `t` hides and shows the bar,
-and a Kitty restart returns to the persistent configuration until bare `ktt`
-or `ktt native` enables it again. KTT retains unrelated Kitty `-o` overrides;
-an existing right-side native bar stays on the right.
-The native backend ignores TUI-only presentation and lifecycle flags such as
-`--edge-style`, `--repository-palette`, `--changed-files-placement`,
-`--poll-interval`, and `--no-auto-reload`. If native setup fails, bare `ktt`
-prints the reason to stderr before opening the legacy sidebar with those TUI
-settings.
-Bare auto-selection logs noncritical ordering/layout maintenance failures and
-reports success only after reading back a visible native edge. Explicit
-`ktt native` and the `t` toggle treat those maintenance failures as errors.
-Unmanaged visibility toggles retain Kitty's configured style. If that style is
-exactly `hidden`, the toggle uses a process-local `fade` recovery override so a
-requested visible bar can recover without rewriting the persistent preset.
-The launched legacy TUI receives its target explicitly, so the sidebar never
-treats its own OS window as the tab source.
+Bare `ktt` and `ktt native` both enable a native left-side tab bar for the
+current Kitty process. KTT applies process-local overrides for the custom
+style, center alignment, edge, visibility, and title width. It preserves
+unrelated Kitty overrides and keeps an existing right-side native bar on the
+right. Restarting Kitty restores the persistent configuration until KTT is
+enabled again.
 
-The legacy backend is compatibility-only: it remains tested and usable, but new
-vertical features should target Kitty's native backend. This avoids maintaining
-two evolving renderers while machines transition to Kitty 0.48+.
+KTT uses Kitty remote control. Configure `allow_remote_control yes` and a
+reachable `KITTY_LISTEN_ON` socket. Native cards also require the KTT-aware
+custom `tab_bar.py` already used by this installation.
 
-For immediate external tab-switch updates and continuous native tree-order
-normalization, load ktt's global Kitty watcher.
-Run `ktt watcher-path`, then paste the printed absolute path into `kitty.conf`:
+Kitty older than 0.48 now returns a clear requirement error; there is no
+fallback renderer.
+
+## Tree relationships
+
+`ktt_parent_window_id` is the only hierarchy edge. Launchers should set it on
+the child window while creating a tab. KTT uses exact window IDs, so every
+launch can create another nesting level without family-name inference.
+
+```bash
+python3 -m ktt launch-child --title review -- codex
+python3 -m ktt link --child-window 42 --parent-window 17
+python3 -m ktt unlink --child-window 42
+```
+
+A direct non-Workmux coordinator may publish `ktt_coordinator=HANDLE` so the
+Workmux launch hook can resolve it. This is launch-time routing metadata; KTT
+still renders and persists only `ktt_parent_window_id`.
+
+`python3 -m ktt list` prints the current tree as a diagnostic snapshot.
+
+## Tree ordering and navigation
+
+Load the native ordering watcher in `kitty.conf`:
 
 ```conf
-watcher /absolute/path/printed/by/ktt-watcher-path
+watcher /absolute/path/to/ktt/ktt/kitty_watcher.py
 ```
 
-Ordering is gated by a process-local marker set only when ktt enables or shows
-its native backend. The watcher still emits ordinary tab notifications, but it
-does not reorder a left/right tab bar configured independently of ktt.
+`python3 -m ktt watcher-path` prints the exact path. The watcher normalizes
+Kitty's physical tab order to tree preorder only while KTT's native bar is
+enabled. It has no sidebar notification socket or polling daemon.
 
-The watcher sends the active tab ID and ordered membership in a nonblocking
-local Unix datagram only when either value changes. When membership still
-matches its cache, ktt repaints the active highlight immediately and performs a
-full reconciliation snapshot 100 ms later for repository and window metadata.
-Membership changes and legacy wakeups request an immediate full snapshot; the
-one-second polling interval remains the recovery fallback. Title, spinner, and
-status-only tab-bar redraws are filtered inside Kitty and do not wake ktt. When
-both orientations watch the same Kitty OS window, passive tab-change wake-ups
-are broadcast to both views while one listener remains the owner of external
-tree-navigation commands. Refused socket paths left behind by abruptly closed
-views are removed after an inode check, avoiding repeated failed sends without
-touching live or concurrently replaced listeners.
-
-Snapshot reads use Kitty's documented framed-JSON
-[remote-control protocol](https://sw.kovidgoyal.net/kitty/rc_protocol/)
-directly over a filesystem or Linux abstract `KITTY_LISTEN_ON` Unix socket.
-This avoids starting `kitten @ ls` for every recovery poll. Commands that
-change Kitty state still use the official `kitten` client because they are
-interactive and infrequent. If the direct request fails—for example, because
-the listener requires protocol features ktt does not implement—ktt disables
-that path and falls back to `kitten @ ls` for the rest of the process.
-
-ktt also caches the complete visible render signature. An unchanged recovery
-poll does not rebuild or repaint the screen. With no working spinner, the TUI
-sleeps until the next poll, source check, or input/event wake-up instead of
-waking 20 times per second. Working rows schedule only their 120 ms animation
-boundaries, preserving smooth dots without imposing that cadence while idle.
-
-To make Kitty-wide `Alt-j`/`Alt-k` navigation follow ktt's visible tree order,
-run `ktt navigation-kitten-path`, then map the printed absolute path:
+Map the navigation kitten if you want tree-aware keys:
 
 ```conf
-map alt+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py next
-map alt+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py previous
-map alt+n kitten /absolute/path/to/ktt/tree_navigation_kitten.py attention
-map alt+shift+j kitten /absolute/path/to/ktt/tree_navigation_kitten.py move-next
-map alt+shift+k kitten /absolute/path/to/ktt/tree_navigation_kitten.py move-previous
+map alt+j kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py next
+map alt+k kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py previous
+map alt+n kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py attention
+map alt+shift+j kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py move-next
+map alt+shift+k kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py move-previous
 ```
 
-When the main window is focused, the kitten sends navigation to ktt so folded
-subtrees are honored. ktt also publishes its visible order and folded active
-anchor to a tiny owner-only runtime file only when that value changes. When the
-sidebar itself is focused, the kitten reads that snapshot and changes the main
-tab directly inside Kitty without moving OS-window focus. If the sidebar is
-absent or the publishing process is no longer alive, it falls back to the
-complete tree order inside Kitty. Navigation stays
-bounded at the first and last visible rows, and no path rewrites native tabs.
-Rapid key repeats are drained one transition per repaint at 50 ms intervals, so
-every adjacent row remains visible instead of several queued switches appearing
-as one jump. This cadence exists only while navigation is queued and does not
-change idle polling. `Alt+Shift+j` and `Alt+Shift+k` move the active node among
-its siblings without wrapping. Parent nodes move together with their complete
-subtrees, and Kitty's native tab order is normalized to the same preorder shown
-by ktt. Reordering never changes a tab's parent.
+`next` and `previous` follow complete tree order. `attention` wraps through
+ready, blocked, waiting, and complete tabs. The move actions reorder a node
+among its siblings, moving its descendants as one subtree without changing any
+parent relationship.
 
-`Alt+n` activates the next tab that needs attention: ready to merge, blocked,
-waiting, or complete. It follows tree order, wraps at the end, skips the current
-tab, and includes attention-seeking descendants hidden inside folded subtrees.
-If no other tab needs attention, it leaves the active tab unchanged.
+## Card behavior
 
-Inside the tree:
+Native cards retain the established visual contract:
 
-- left-click any physical row of a card to focus its tab;
-- click a disclosure arrow, right-click a parent, or press Space to fold it;
-- use the mouse wheel, `j`, `k`, or arrow keys to change the active main-window
-  tab while keeping keyboard focus in ktt;
-- Enter transfers keyboard focus into that already-active tab;
-- `p` opens a rofi prompt to choose a new parent for the highlighted tab;
-- `e` cycles the live card-edge style;
-- `t` toggles Kitty's native tab bar while preserving its configured style;
-- `r` refreshes immediately; `q` exits.
+- custom Kitty tab titles and tagged agent ownership;
+- four-cell indentation per tree level;
+- fixed status width, repository identity, and worktree context;
+- active, waiting, working, ready, and blocked treatments;
+- adaptive three-, two-, and one-row density with active-tab overflow handling.
 
-Fold choices persist in an atomic owner-only runtime file keyed by Kitty PID
-and target OS-window ID. They survive ktt source reloads and in-place refreshes
-without becoming cross-session configuration; closed tab IDs are pruned on the
-next snapshot.
+The native renderer reads pending `workmux_verdict` values immediately. A
+seven-second debounce prevents a freshly waiting agent from flashing amber
+while its title still shows a working spinner.
 
-The current main-window tab is the single highlighted/selected state and uses
-bold text plus a brighter card. Agent state keeps its hue, so selecting a ready,
-blocked, or waiting tab brightens its green, red, or amber instead of replacing
-it with the neutral active color. Folding does not create another selection.
-When the active tab is hidden inside a folded subtree, the visible ancestor
-uses a dimmer active background. Every tab has a
-background card; child cards start
-four columns farther right per level against the black panel, so card position
-alone shows the tree. Leaf rows have no decorative dash. Every vertical card
-uses the same left-aligned status, `/repository/`, and title sequence, so
-selecting a card or adding active repository context does not move its middle
-row. Tall cards center that line vertically. Filled themes keep one background
-color
-throughout, while the rounded theme uses a colored outline around the content
-line. A black separator row distinguishes tall cards; every row inside the
-card boundary remains part of the mouse target. Compact one-line mode omits
-separators.
+## Preserved dormant designs
 
-When ktt opens or refreshes its sidebar, it sets only that Kitty window's
-background to the panel's black. This also colors any fractional-cell filler
-left around Kitty's grid by a tiling window manager, avoiding a thin border
-without changing the main terminal or Kitty's configured colors globally.
+Changed-file details and keyboard help do not currently have a native tab-bar
+surface. Their rendering code, tests, and product decisions remain deliberately
+preserved so a future native overlay or companion surface can reuse them
+without redesigning the behavior.
 
-Four edge styles render against the real tree rather than a separate preview:
-`tapered` (the default), `straight`, `rounded`, and `wedge`. Press
-`e` to cycle them in that order; the help block names the active style. Select a
-startup style with:
+The preserved changed-file contract includes selected-repository ownership,
+dirty counts, centered `bottom` placement, attached `inline` placement,
+Fancylog alignment/colors, staged markers, and a ten-file cap. The preserved
+help contract includes hidden-by-default state, independent centering above the
+tab stack, aligned shortcut/action columns, dimmed colors, and edge-style
+labels.
+
+See [VISUAL_CONTRACT.md](VISUAL_CONTRACT.md) for executable gates and exact
+behavior, and [DECISIONS.md](DECISIONS.md) for the historical rationale.
+
+## Sessions
 
 ```bash
-python3 -m ktt --edge-style rounded
-python3 -m ktt --edge-style wedge launch
+python3 -m ktt save-session
+python3 -m ktt restore-session --dry-run
+python3 -m ktt restore-session
 ```
 
-The content line uses `` as the left half-moon and `` as the normal right half-moon.
-Ready-to-merge agents replace the right cap with the waveform/jet-exhaust
-Powerline separator `` (U+E0C8). Its mirrored, left-facing partner is ``
-(U+E0CA). Blocked agents use the flamey separator `` (U+E0C0) on the red
-“dumpster fire” card. Working agents keep the rounded half-circle while their
-braille spinner animates inside the card. Idle and other states also use the
-rounded cap. On tall verdict cards in the filled themes, exhaust or flame
-repeats on every physical row to form one continuous serrated status edge. The
-rounded-outline theme keeps its corner glyphs and shows the verdict cap on the
-content row.
+Restore recreates tabs and hierarchy, then enables native vertical tabs. It no
+longer starts a presentation daemon or embeds renderer panes.
 
-Waiting agents—the Workmux `waiting` state currently projected as `💬`—use a
-muted golden attention card and yellow speech bubble. Selecting that tab adds
-the brighter gold treatment without replacing the attention hue.
-The `💬` icon appears immediately when that user variable changes. If the live
-Kitty title still starts with an animated working spinner, ktt suppresses only
-the amber attention treatment. When a previously working tab loses that spinner
-and changes to `💬`, ktt waits seven seconds before showing the amber card. A
-working update or resumed spinner cancels the pending card; a stable manual
-approval prompt gets the attention treatment after the delay. Other attention
-states remain immediate. The shared daemon owns this decision so every embedded
-view and `Alt+n` use the same debounced attention set.
-
-The status area is a fixed two terminal cells wide. Wide emoji, narrow
-Powerline/braille glyphs, and an empty status therefore leave every root title
-in the same column; only parent-child depth moves a title to the right. ktt no
-longer renders family dots, reserves a family-marker column, or parses
-`workmux_family`. Hierarchy comes exclusively from `ktt_parent_window_id`.
-Each vertical card places a restrained but readable `/repository/` label before
-its other identity fields. Compact horizontal
-cards include it as `title · /repository/`. A deterministic hash of the full
-repository name assigns its base hue without a finite palette. Before rendering,
-ktt shifts any near-collisions around the color wheel so the repositories in the
-current tree remain visibly distinct. The same repository set keeps the same
-colors across launches; adding or removing a repository can move a colliding
-label. The renderer also adjusts brightness when a card background needs more
-contrast. In the normal three-row vertical view, `/repository/` and any linked
-worktree form a left-aligned middle-row sequence on every tab, while the selected tab's
-cached clean/dirty state is right-aligned on that row. Useful branch and nonredundant title form one
-centered group on the bottom. Ordinary `main` and
-`master` branches, branches represented by the title, and branches equivalent
-to the worktree label are omitted. Titles equivalent to the displayed worktree
-are omitted too.
-
-Repository names come from Fancylog rather than a second set of Git or yadm
-rules. Ktt submits each unique tab `cwd` to a two-worker background cache and
-resolves linked-worktree identity in the same one-time task. Tabs sharing a
-directory are deduplicated. Only the selected tab polls status and branch,
-using its existing three-second detailed refresh.
-
-## Active repository context
-
-Every three-row tab card places `/repository/` on the middle-left and appends
-`🌳worktree` only for a linked worktree.
-The selected tab adds cached clean/dirty state on the middle-right. Useful
-branch and nonredundant title share the bottom row. Redundant and default branch labels
-are omitted, as are titles that repeat the worktree. Dirty counts remain on the
-middle row and also become a heading above changed-file rows whenever at least
-one file can remain visible. In the default `bottom` placement, changed-file
-rows remain detached from the spatially stable tab stack and center inside its
-lower free space. In `inline` placement, they attach immediately below the card
-and follow its tree indent. Both modes right-align actions against a shared
-path column. Paths start immediately to the right of the action;
-only staged entries add the literal `staged`, while unstaged is the default.
-Fancylog's ANSI colors distinguish modified, untracked, staged, and conflict
-states. The bottom placement shows up to ten changed files when space permits;
-both placements collapse details when the tree needs those rows. Summary polling
-continues even without spare rows because it renders inside the selected card. Inactive cards retain
-their one-time repository and linked-worktree identity without polling state. The selected
-tab's three-second Fancylog snapshot supplies branch, summary, and file state.
-
-ktt reads the active terminal's `cwd` from the existing Kitty snapshot and
-asks `fancylog --status-only` to render the file column, a width-bounded
-identity/count row, and a branch row. Ktt preserves Fancylog's aligned,
-color-coded file rows and maps the last two rows into the selected tab card.
-The result is cached for three seconds with a 750 ms subprocess timeout.
-A tab, directory, width, or available-height change refreshes immediately. If
-fancylog is unavailable or the directory has no supported repository, the
-panel stays hidden.
-
-Changed-file details default to `bottom`, keeping the tab stack spatially stable
-and centering the details horizontally and vertically inside the free space
-below it. Use `--changed-files-placement inline` to attach them immediately below
-the selected card. `KTT_CHANGED_FILES_PLACEMENT=inline` sets the same override
-through the environment. Status and branch placement inside the selected card
-is unchanged.
-
-These placement modes apply to ktt's terminal TUI backends. Kitty's native
-vertical bar retains tree, repository, status, and verdict labels, but has no
-terminal surface for the detailed Fancylog changed-file rows.
-
-Fancylog exclusively owns ordinary Git, linked-worktree, yadm, branch,
-worktree-status, file-row palette, and truncation policy. Ktt parses only the
-two summary rows for presentation; it carries no second Git/yadm
-implementation.
-
-ktt defaults changed-file details to Fancylog's warm `amber` palette. The
-`terminal` palette instead follows Kitty scheme changes and inactive-window
-fading, while `dracula` is available as a fixed truecolor reference. Choose
-another palette without changing standalone Fancylog configuration:
+## Verification
 
 ```bash
-ktt --repository-palette terminal launch
-KTT_REPOSITORY_PALETTE=quiet ktt refresh
+make autoupdate
 ```
 
-During development, changes to `ktt/*.py` restart the TUI automatically after
-restoring terminal input mode. To replace a sidebar started by an older version
-without replacing its top-level Kitty window, run:
-
-```bash
-python3 -m ktt refresh
-```
-
-Launch it in a separate Kitty OS window:
-
-```bash
-python3 -m ktt launch
-```
-
-Launch the experimental bottom-bar view without replacing the vertical view:
-
-```bash
-python3 -m ktt --orientation horizontal launch
-```
-
-The separate OS-window launcher remains available for comparison. The current
-direction is a fixed-height bottom pane inside an agent's Kitty tab, documented
-in [COCKPIT.md](COCKPIT.md).
-
-Launch that bottom pane beneath the current Kitty window with an initial ten
-percent height:
-
-```bash
-python3 -m ktt --orientation horizontal launch-pane
-```
-
-Set a different initial split percentage when testing density:
-
-```bash
-python3 -m ktt --orientation horizontal launch-pane --pane-percent 12
-```
-
-Prototype a persistent bottom bar in every tab of the current Kitty OS window:
-
-```bash
-python3 -m ktt --orientation horizontal embed --pane-percent 10
-```
-
-Prototype the same shared tree as a side pane in every tab:
-
-```bash
-python3 -m ktt --orientation vertical embed --pane-percent 20
-```
-
-`embed` starts one daemon for the target OS window and reconciles one small
-renderer pane into every current and newly created tab. Horizontal renderers
-use a bottom split and default to ten percent height; vertical renderers use a
-root-level left-edge split and default to twenty percent width. If the content
-side of any vertical tab is resized, that tab's sidebar width becomes the
-shared width for every current tab and the starting width for new tabs. If the
-content windows in a tab all close, the daemon closes that tab's renderer too,
-allowing Kitty to remove the empty tab instead of expanding ktt to fill it. The
-daemon owns Kitty
-snapshots, tree construction, repository identities, folds, visible-order
-publishing, and watcher navigation. Each pane consumes the shared snapshot and
-only performs geometry-dependent rendering. The daemon also owns the single
-selected-repository Fancylog refresh and broadcasts its summary, branch, and
-changed-file rows; inactive renderer panes never launch duplicate Fancylog
-polls. Keyboard navigation follows focus into the renderer in the destination
-tab; Enter or a left click transfers focus back to that tab's content window.
-Embedded renderer windows are excluded from tab identity and
-repository-context selection.
-
-Stop the daemon and close only its horizontal renderer panes with:
-
-```bash
-python3 -m ktt unembed
-```
-
-This is an experimental comparison path. `launch-pane` remains the simpler
-single-tab prototype, and the separate OS-window modes are unchanged.
-
-For a future three-column cockpit, create the bottom pane while the tab still
-has a single top window, then split that top window into the equal-width
-fancylog and scratch-shell rails. This allows ktt's split to span the full tab.
-
-The horizontal window uses the distinct `ktt-horizontal` window class so dwm
-or another window manager can assign it a shallow bottom region independently
-of the vertical `ktt` sidebar. Both views share folds, active-tab state,
-statuses, repository context, mouse switching, and visible tree order. Refresh
-only the horizontal instance with:
-
-```bash
-python3 -m ktt --orientation horizontal refresh
-```
-
-Install an editable `ktt` command with `uv`:
-
-```bash
-uv tool install --editable .
-ktt launch
-```
-
-This creates `~/.local/bin/ktt` through uv's managed tool environment while
-keeping imports pointed at the current checkout, so source changes take effect
-without reinstalling the command.
-
-## Create a parent-child relationship
-
-The child and parent values are Kitty terminal-window IDs, available inside a
-Kitty terminal as `$KITTY_WINDOW_ID` and in `kitten @ ls` output.
-
-```bash
-ktt link --child-window 456 --parent-window 123
-ktt unlink --child-window 456
-```
-
-`link` writes `ktt_parent_window_id=123` to window 456. The renderer then puts
-the child tab below the tab containing window 123. The installed Workmux agent
-wrappers set this automatically for dispatched children.
-
-For an existing tab, highlight it in ktt and press `p`. The rofi prompt lists
-the other tabs in tree order. Descendants are omitted because choosing one
-would create a cycle; cancelling rofi leaves the hierarchy unchanged.
-
-### Workmux integration contract
-
-The yadm-managed Workmux configuration uses
-`~/.config/workmux/hooks/assign-parent`, called by both configured Claude and
-Codex wrappers before the agent sandbox starts. It reads the dispatched
-prompt's exact `Coordinator: HANDLE`, resolves that handle within the same Git
-repository, selects its sole status-bearing Kitty agent window, and writes that
-window ID to the child as `ktt_parent_window_id`.
-
-Those wrappers also mark their exact launch-time Kitty window with
-`ktt_cockpit_role=agent`. Once that marker exists, ktt treats the agent window
-as the tab's exclusive source for title, working directory, parent, lifecycle
-status, and verdict. Missing agent metadata stays missing instead of falling
-back to a companion shell, editor, or embedded view that may carry stale state.
-
-The adapter fails closed when the coordinator, repository, Kitty session, or
-agent window is missing or ambiguous. It never writes `workmux_family`, and it
-does not modify or depend on Workmux source or binary internals. A plain
-`workmux add` without the coordinator contract remains an independent root.
-
-The equivalent direct Kitty launch contract is:
-
-```bash
-kitten @ launch --type=tab \
-  --source-window "id:$KITTY_WINDOW_ID" \
-  --location=after --cwd=current \
-  --var "ktt_parent_window_id=$KITTY_WINDOW_ID" \
-  child-agent-command
-```
-
-Each child repeats the same operation with its immediate coordinator, which
-produces arbitrary nesting depth. If another launcher cannot attach the
-variable during launch, call `ktt link --child-window CHILD --parent-window
-PARENT` immediately after Kitty returns the new child window ID. No renderer
-change is needed.
-
-For launchers that can call `ktt` directly, create and tag the child in one
-operation:
-
-```bash
-ktt launch-child --title child-agent -- codex -- "child prompt"
-```
-
-This uses the current `$KITTY_WINDOW_ID` as the parent and passes the parent
-variable to Kitty as the new tab is created.
-
-Use `--target-os-window ID` to pin any command to one Kitty OS window and
-`--to unix:/path/to/socket` when `KITTY_LISTEN_ON` is unavailable.
-Pass `--no-auto-reload` before the command to disable source watching. Pass
-`--edge-style STYLE` before the command to choose the initial edge theme.
-
-## Test
-
-```bash
-python3 -m unittest discover -s tests -v
-```
+Kitty loads the watcher and kittens directly from this checkout, so the
+validated checkout is the installation. `make autoupdate-install` therefore
+performs no copy step.

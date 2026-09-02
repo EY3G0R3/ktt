@@ -103,18 +103,6 @@ class FailSecondResizeManager(FakeManager):
             raise RuntimeError("rollback resize failed")
 
 
-class FakeLayout:
-    def __init__(self, events) -> None:
-        self.events = events
-
-    def capture_embedded_left_edge_placements(self, managers, **_kwargs):
-        self.events.append("capture")
-        return ("placement",)
-
-    def restore_embedded_left_edge_placements(self, placements) -> None:
-        self.events.append("restore")
-
-
 class FakeTabs:
     def __init__(self, boss, events, *, order_error=None) -> None:
         self.boss = boss
@@ -158,7 +146,6 @@ class NativeTabsRuntimeTests(unittest.TestCase):
     def run_action(
         self,
         *,
-        strict=True,
         current_options=None,
         apply_config=True,
         order_error=None,
@@ -170,26 +157,21 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         plan = run_native_tabs_action(
             boss=boss,
             action="enable",
-            strict=strict,
             running_version=(0, 48, 2),
             options=current_options,
             read_options=lambda: current_options,
             left_edge=LEFT_EDGE,
             right_edge=RIGHT_EDGE,
-            kitty_layout=FakeLayout(events),
             kitty_tabs=FakeTabs(boss, events, order_error=order_error),
             log_error=logs.append,
         )
         return plan, boss, events, logs
 
-    def test_argv_action_parsing_distinguishes_auto_and_strict(self) -> None:
-        self.assertEqual(parse_action_args(()), ("toggle", True))
-        self.assertEqual(parse_action_args(("vertical",)), ("enable", True))
-        self.assertEqual(
-            parse_action_args(("vertical", "auto")), ("enable", False)
-        )
+    def test_argv_action_parsing_accepts_toggle_or_vertical_enable(self) -> None:
+        self.assertEqual(parse_action_args(()), "toggle")
+        self.assertEqual(parse_action_args(("vertical",)), "enable")
         with self.assertRaises(ValueError):
-            parse_action_args(("vertical", "unknown"))
+            parse_action_args(("vertical", "strict"))
 
     def test_hidden_and_edge_mapping_share_runtime_contract(self) -> None:
         self.assertTrue(options_hidden(options(tab_bar_style="hidden")))
@@ -208,32 +190,25 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             "horizontal",
         )
 
-    def test_old_kitty_key_toggle_uses_legacy_visibility_only(self) -> None:
+    def test_old_kitty_toggle_is_unsupported(self) -> None:
         events = []
         current_options = options(tab_bar_edge=object())
         boss = FakeBoss(current_options, events)
-        action, strict = parse_action_args(())
+        action = parse_action_args(())
 
-        plan = run_native_tabs_action(
-            boss=boss,
-            action=action,
-            strict=strict,
-            running_version=(0, 47, 4),
-            options=current_options,
-            read_options=lambda: current_options,
-            left_edge=None,
-            right_edge=None,
-            kitty_layout=FakeLayout(events),
-            kitty_tabs=FakeTabs(boss, events),
-            log_error=lambda _message: None,
-        )
-
-        self.assertTrue(plan.expected_hidden)
-        self.assertFalse(plan.native_managed)
-        self.assertEqual(current_edge_name(
-            current_options, (0, 47, 4), None, None
-        ), "horizontal")
-        self.assertEqual(events, ["capture", "load", "resize", "restore"])
+        with self.assertRaises(NativeVerticalTabsUnsupported):
+            run_native_tabs_action(
+                boss=boss,
+                action=action,
+                running_version=(0, 47, 4),
+                options=current_options,
+                read_options=lambda: current_options,
+                left_edge=None,
+                right_edge=None,
+                kitty_tabs=FakeTabs(boss, events),
+                log_error=lambda _message: None,
+            )
+        self.assertEqual(events, [])
 
     def test_old_kitty_explicit_enable_fails_before_capture(self) -> None:
         events = []
@@ -244,13 +219,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             run_native_tabs_action(
                 boss=boss,
                 action="enable",
-                strict=True,
                 running_version=(0, 47, 4),
                 options=current_options,
                 read_options=lambda: current_options,
                 left_edge=None,
                 right_edge=None,
-                kitty_layout=FakeLayout(events),
                 kitty_tabs=FakeTabs(boss, events),
                 log_error=lambda _message: None,
             )
@@ -262,7 +235,7 @@ class NativeTabsRuntimeTests(unittest.TestCase):
 
         self.assertEqual(
             events,
-            ["capture", "plan-order", "load", "order", "resize", "restore"],
+            ["plan-order", "load", "order", "resize"],
         )
         self.assertTrue(getattr(boss, NATIVE_MANAGED_ATTRIBUTE))
         self.assertTrue(getattr(boss, NATIVE_MARKER_ATTRIBUTE))
@@ -279,13 +252,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         run_native_tabs_action(
             boss=boss,
             action="enable",
-            strict=True,
             running_version=(0, 48, 2),
             options=current_options,
             read_options=lambda: current_options,
             left_edge=LEFT_EDGE,
             right_edge=RIGHT_EDGE,
-            kitty_layout=FakeLayout(events),
             kitty_tabs=FakeTabs(boss, events),
             log_error=lambda _message: None,
         )
@@ -293,7 +264,7 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         self.assertLess(events.index("card-close"), events.index("load"))
         self.assertFalse(hasattr(boss, NATIVE_CARD_STATE_ATTRIBUTE))
 
-    def test_strict_maintenance_failure_logs_cleans_up_then_raises(self) -> None:
+    def test_maintenance_failure_logs_cleans_up_then_raises(self) -> None:
         events = []
         current_options = options()
         boss = FakeBoss(current_options, events)
@@ -303,13 +274,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             run_native_tabs_action(
                 boss=boss,
                 action="enable",
-                strict=True,
                 running_version=(0, 48, 2),
                 options=current_options,
                 read_options=lambda: current_options,
                 left_edge=LEFT_EDGE,
                 right_edge=RIGHT_EDGE,
-                kitty_layout=FakeLayout(events),
                 kitty_tabs=FakeTabs(
                     boss, events, order_error=RuntimeError("order failed")
                 ),
@@ -317,19 +286,9 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             )
 
         self.assertIn("resize", events)
-        self.assertIn("restore", events)
         self.assertIn("order failed", logs[0])
         self.assertEqual(current_options.config_overrides, ("font_size 14",))
         self.assertFalse(getattr(boss, NATIVE_MARKER_ATTRIBUTE, False))
-
-    def test_auto_maintenance_failure_logs_but_keeps_verified_backend(self) -> None:
-        plan, boss, _events, logs = self.run_action(
-            strict=False, order_error=RuntimeError("order failed")
-        )
-
-        self.assertTrue(plan.native_visible)
-        self.assertTrue(getattr(boss, NATIVE_MARKER_ATTRIBUTE))
-        self.assertIn("order failed", logs[0])
 
     def test_failed_postcondition_clears_marker_and_never_succeeds(self) -> None:
         events = []
@@ -347,13 +306,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             run_native_tabs_action(
                 boss=boss,
                 action="enable",
-                strict=True,
                 running_version=(0, 48, 2),
                 options=current_options,
                 read_options=lambda: current_options,
                 left_edge=LEFT_EDGE,
                 right_edge=RIGHT_EDGE,
-                kitty_layout=FakeLayout(events),
                 kitty_tabs=FakeTabs(boss, events),
                 log_error=logs.append,
             )
@@ -382,13 +339,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
             run_native_tabs_action(
                 boss=boss,
                 action="enable",
-                strict=True,
                 running_version=(0, 48, 2),
                 options=current_options,
                 read_options=lambda: current_options,
                 left_edge=LEFT_EDGE,
                 right_edge=RIGHT_EDGE,
-                kitty_layout=FakeLayout(events),
                 kitty_tabs=FakeTabs(boss, events),
                 log_error=logs.append,
             )
@@ -408,13 +363,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         plan = run_native_tabs_action(
             boss=boss,
             action="toggle",
-            strict=True,
             running_version=(0, 48, 2),
             options=current_options,
             read_options=lambda: current_options,
             left_edge=LEFT_EDGE,
             right_edge=RIGHT_EDGE,
-            kitty_layout=FakeLayout(events),
             kitty_tabs=FakeTabs(boss, events),
             log_error=lambda _message: None,
         )
@@ -427,17 +380,14 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         events = []
         current_options = options()
         boss = FakeBoss(current_options, events)
-        layout = FakeLayout(events)
         tabs = FakeTabs(boss, events)
         common = {
             "boss": boss,
-            "strict": True,
             "running_version": (0, 48, 2),
             "options": current_options,
             "read_options": lambda: current_options,
             "left_edge": LEFT_EDGE,
             "right_edge": RIGHT_EDGE,
-            "kitty_layout": layout,
             "kitty_tabs": tabs,
             "log_error": lambda _message: None,
         }
@@ -459,13 +409,11 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         boss = FakeBoss(current_options, events)
         common = {
             "boss": boss,
-            "strict": True,
             "running_version": (0, 48, 2),
             "options": current_options,
             "read_options": lambda: current_options,
             "left_edge": LEFT_EDGE,
             "right_edge": RIGHT_EDGE,
-            "kitty_layout": FakeLayout(events),
             "kitty_tabs": FakeTabs(boss, events),
             "log_error": lambda _message: None,
         }

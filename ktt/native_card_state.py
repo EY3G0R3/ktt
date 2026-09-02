@@ -1,4 +1,4 @@
-"""Live Kitty adapter for KTT's canonical legacy card renderer."""
+"""Live Kitty adapter for KTT's canonical native card renderer."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ STATUS_ALIASES = {
 
 
 class NativeCardState:
-    """Cache live metadata and render native rows with legacy semantics."""
+    """Cache live metadata and render native rows with established semantics."""
 
     def __init__(
         self,

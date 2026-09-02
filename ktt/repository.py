@@ -9,7 +9,7 @@ import subprocess
 import time
 from typing import Any, Iterable
 
-from .model import SIDEBAR_VAR, TabRecord, content_window_cwd
+from .model import TabRecord
 
 
 REPOSITORY_PALETTES = (
@@ -156,36 +156,6 @@ def repository_name_from_status(lines: list[str] | None) -> str | None:
     if match is None:
         return None
     return match.group("parenthesized") or match.group("slashed")
-
-
-def active_window_cwd(os_window: dict[str, Any]) -> str | None:
-    tabs = os_window.get("tabs") or []
-    tab = next((item for item in tabs if item.get("is_active")), None)
-    if tab is None:
-        return None
-    windows = [
-        window
-        for window in tab.get("windows") or []
-        if str((window.get("user_vars") or {}).get(SIDEBAR_VAR) or "") != "1"
-    ]
-    history = tab.get("active_window_history") or []
-    active_id = int(history[0]) if history else None
-    window = next(
-        (
-            item
-            for item in windows
-            if active_id is not None and int(item["id"]) == active_id
-        ),
-        None,
-    )
-    window = window or next(
-        (item for item in windows if item.get("is_focused") or item.get("is_active")),
-        None,
-    )
-    window = window or (windows[0] if windows else None)
-    if window is None:
-        return None
-    return content_window_cwd(window)
 
 
 class FancylogMonitor:

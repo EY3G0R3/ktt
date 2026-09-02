@@ -8,14 +8,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from .daemon import start_daemon
-from .kitty import KittyError, RemoteControl, find_tab_for_window
-from .render import (
-    DEFAULT_CHANGED_FILES_PLACEMENT,
-    DEFAULT_EDGE_STYLE,
-    DEFAULT_ORIENTATION,
-)
-from .repository import DEFAULT_REPOSITORY_PALETTE
+from .kitty import KittyError, RemoteControl
 from .session import (
     SessionManifestError,
     capture_session,
@@ -47,12 +40,6 @@ def restore_saved_session(
     path: Path,
     *,
     dry_run: bool,
-    poll_interval: float = 1.0,
-    edge_style: str = DEFAULT_EDGE_STYLE,
-    repository_palette: str = DEFAULT_REPOSITORY_PALETTE,
-    changed_files_placement: str = DEFAULT_CHANGED_FILES_PLACEMENT,
-    orientation: str = DEFAULT_ORIENTATION,
-    pane_percent: int | None = None,
     current_window_id: int | None = None,
 ) -> int:
     manifest = read_manifest(path)
@@ -63,8 +50,8 @@ def restore_saved_session(
         print(operation.describe())
     if dry_run:
         print(
-            f"would restore {len(operations)} tabs from {path} and embed ktt in "
-            f"{len(manifest.os_windows)} OS windows"
+            f"would restore {len(operations)} tabs from {path} and enable "
+            "native vertical tabs"
         )
         return 0
     runtime_ids = execute_restore(
@@ -72,35 +59,12 @@ def restore_saved_session(
         operations,
         first_os_window_source_id=current_window_id,
     )
-    snapshot = remote.snapshot()
-    restored_os_window_ids: list[int] = []
-    for operation in operations:
-        if operation.source is not None:
-            continue
-        location = find_tab_for_window(snapshot, runtime_ids[operation.logical_id])
-        if location is None:
-            raise RuntimeError(
-                f"restored Kitty window {runtime_ids[operation.logical_id]} disappeared"
-            )
-        restored_os_window_ids.append(location[0])
-
-    resolved_pane_percent = pane_percent
-    if resolved_pane_percent is None:
-        resolved_pane_percent = 10 if orientation == "horizontal" else 20
-    for os_window_id in restored_os_window_ids:
-        start_daemon(
-            os_window_id,
-            to=remote.to,
-            poll_interval=poll_interval,
-            edge_style=edge_style,
-            repository_palette=repository_palette,
-            changed_files_placement=changed_files_placement,
-            pane_percent=resolved_pane_percent,
-            orientation=orientation,
-        )
+    source_window_id = next(iter(runtime_ids.values()), None)
+    if source_window_id is None:
+        raise RuntimeError("the restored session contains no Kitty windows")
+    remote.enable_native_vertical_tabs(source_window_id)
     print(
-        f"restored {len(operations)} tabs from {path}; embedded ktt in "
-        f"{len(restored_os_window_ids)} OS windows"
+        f"restored {len(operations)} tabs from {path}; enabled native vertical tabs"
     )
     if current_window_id is not None:
         sys.stdout.flush()

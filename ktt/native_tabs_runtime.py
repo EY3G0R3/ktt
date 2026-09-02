@@ -44,17 +44,13 @@ def temporary_sys_path(path: str):
                 pass
 
 
-def parse_action_args(arguments: Sequence[str]) -> tuple[Action, bool]:
-    """Return action and strictness from arguments after the kitten path."""
+def parse_action_args(arguments: Sequence[str]) -> Action:
+    """Return the native-tab action from arguments after the kitten path."""
     if not arguments:
-        return "toggle", True
-    if arguments[0] != "vertical":
+        return "toggle"
+    if tuple(arguments) != ("vertical",):
         raise ValueError(f"unknown native-tabs action: {arguments[0]}")
-    if len(arguments) > 2 or (
-        len(arguments) == 2 and arguments[1] not in {"auto", "strict"}
-    ):
-        raise ValueError("vertical accepts only an optional auto|strict mode")
-    return "enable", len(arguments) < 2 or arguments[1] == "strict"
+    return "enable"
 
 
 def options_hidden(options: Any) -> bool:
@@ -146,13 +142,11 @@ def run_native_tabs_action(
     *,
     boss: Any,
     action: Action,
-    strict: bool,
     running_version: tuple[int, int, int],
     options: Any,
     read_options: Callable[[], Any],
     left_edge: object,
     right_edge: object,
-    kitty_layout: Any,
     kitty_tabs: Any,
     log_error: Callable[[str], None],
 ) -> NativeTabsActionPlan:
@@ -185,13 +179,6 @@ def run_native_tabs_action(
     previous_managed = _attribute_snapshot(boss, NATIVE_MANAGED_ATTRIBUTE)
     previous_style_recovery = _attribute_snapshot(
         boss, NATIVE_STYLE_RECOVERY_ATTRIBUTE
-    )
-    placements = kitty_layout.capture_embedded_left_edge_placements(
-        boss.all_tab_managers,
-        sidebar_var="ktt_sidebar",
-        orientation_var="ktt_orientation",
-        pane_percent_var="ktt_pane_percent",
-        cockpit_role_var="ktt_cockpit_role",
     )
     pending_orders = (
         tuple(
@@ -254,12 +241,6 @@ def run_native_tabs_action(
                 f"resize for OS window {tab_manager.os_window_id}",
                 tab_manager.resize,
             )
-        attempt(
-            "embedded-pane placement",
-            lambda: kitty_layout.restore_embedded_left_edge_placements(
-                placements
-            ),
-        )
 
         try:
             restored = read_options()
@@ -337,11 +318,6 @@ def run_native_tabs_action(
             f"resize for OS window {tab_manager.os_window_id}",
             tab_manager.resize,
         )
-    maintain(
-        "embedded-pane restore",
-        lambda: kitty_layout.restore_embedded_left_edge_placements(placements),
-    )
-
     try:
         _verify_postcondition(
             read_options(), plan, running_version, left_edge, right_edge
@@ -349,7 +325,7 @@ def run_native_tabs_action(
     except Exception as error:
         log_error(f"ktt native tabs: postcondition failed: {error}")
         rollback(error)
-    if strict and failures:
+    if failures:
         rollback(NativeTabsRuntimeError(
             f"native tab maintenance failed: {failures[0]}"
         ))

@@ -21,7 +21,6 @@ def _content_windows(tab: Any) -> list[Any]:
     return list(select_content_windows(
         tuple(tab),
         user_var=_user_var,
-        sidebar_var=model.SIDEBAR_VAR,
         role_var=model.COCKPIT_ROLE_VAR,
         agent_role=model.AGENT_ROLE,
         is_active=lambda window: window is getattr(tab, "active_window", None),
@@ -144,7 +143,6 @@ def tree_topology_signature(tab_manager: Any) -> tuple[Any, ...]:
                 (
                     window.id,
                     window is getattr(tab, "active_window", None),
-                    _user_var(window, model.SIDEBAR_VAR),
                     _user_var(window, model.COCKPIT_ROLE_VAR),
                     _user_var(window, model.PARENT_VAR),
                 )

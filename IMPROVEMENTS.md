@@ -4,6 +4,10 @@ This is the prioritized follow-up backlog. `VISION.md` describes the product
 direction and `DECISIONS.md` records settled choices; this file tracks work that
 is desirable but not required for the current prototype.
 
+Entries that mention the retired sidebar, embedded panes, horizontal TUI, or
+daemon are historical backlog evidence only. The native-only runtime does not
+carry those paths; see `last-with-legacy` for their final implementation.
+
 ## Current status contract
 
 ktt does not infer agent state from a tab title. Status flows through one Kitty

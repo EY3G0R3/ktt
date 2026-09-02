@@ -1,4 +1,4 @@
-"""Kitty-side native tab-bar toggle that preserves embedded ktt panes."""
+"""Kitty-side native tab-bar enable and visibility toggle."""
 
 from __future__ import annotations
 
@@ -31,7 +31,6 @@ def handle_result(
     try:
         import ktt.tab_bar_geometry as tab_bar_geometry
         tab_bar_geometry = importlib.reload(tab_bar_geometry)
-        import ktt.kitty_layout as kitty_layout
         import ktt.model as model
         import ktt.kitty_tabs as kitty_tabs
         import ktt.native_tabs as native_tabs
@@ -42,7 +41,6 @@ def handle_result(
         tab_bar_renderer = importlib.reload(tab_bar_renderer)
         model = importlib.reload(model)
         kitty_tabs = importlib.reload(kitty_tabs)
-        kitty_layout = importlib.reload(kitty_layout)
         native_tabs_runtime = importlib.reload(native_tabs_runtime)
     finally:
         if added:
@@ -51,7 +49,7 @@ def handle_result(
             except ValueError:
                 pass
 
-    action, strict = native_tabs_runtime.parse_action_args(args[1:])
+    action = native_tabs_runtime.parse_action_args(args[1:])
     from kitty.constants import version as kitty_version
     from kitty.fast_data_types import get_options
     from kitty.utils import log_error
@@ -69,13 +67,11 @@ def handle_result(
         native_tabs_runtime.run_native_tabs_action(
             boss=boss,
             action=action,
-            strict=strict,
             running_version=running_version,
             options=get_options(),
             read_options=get_options,
             left_edge=left_edge,
             right_edge=right_edge,
-            kitty_layout=kitty_layout,
             kitty_tabs=kitty_tabs,
             log_error=log_error,
         )

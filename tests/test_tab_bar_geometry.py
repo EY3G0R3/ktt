@@ -40,20 +40,19 @@ class TabBarGeometryTests(unittest.TestCase):
     def test_content_window_selection_is_agent_first_without_active_bias(
         self,
     ) -> None:
-        sidebar = {"id": 1, "sidebar": "1", "role": ""}
-        active = {"id": 2, "sidebar": "", "role": ""}
-        agent = {"id": 3, "sidebar": "", "role": "agent"}
+        utility = {"id": 1, "role": ""}
+        active = {"id": 2, "role": ""}
+        agent = {"id": 3, "role": "agent"}
 
         selected = select_content_windows(
-            (sidebar, active, agent),
+            (utility, active, agent),
             user_var=lambda window, key: window[key],
-            sidebar_var="sidebar",
             role_var="role",
             agent_role="agent",
             is_active=lambda window: window is active,
         )
 
-        self.assertEqual([window["id"] for window in selected], [3, 2])
+        self.assertEqual([window["id"] for window in selected], [3, 2, 1])
 
     def test_vertical_branch_uses_running_edge_constants(self) -> None:
         self.assertTrue(is_vertical_edge(1, 1, 2))

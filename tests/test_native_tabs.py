@@ -276,7 +276,7 @@ class NativeTabsTests(unittest.TestCase):
         self.assertFalse(plan.native_visible)
         self.assertFalse(plan.native_managed)
 
-    def test_toggle_on_horizontal_bar_keeps_legacy_behavior(self) -> None:
+    def test_unmanaged_horizontal_toggle_changes_only_visibility(self) -> None:
         plan = plan_native_tabs_action(
             "toggle",
             running_version=(0, 48, 2),
@@ -287,7 +287,7 @@ class NativeTabsTests(unittest.TestCase):
 
         self.assertEqual(plan.overrides, ("tab_bar_min_tabs 1000000",))
 
-    def test_legacy_toggle_does_not_claim_native_edge_or_width(self) -> None:
+    def test_unmanaged_toggle_does_not_claim_native_edge_or_width(self) -> None:
         plan = plan_native_tabs_action(
             "toggle",
             running_version=(0, 48, 2),
@@ -313,16 +313,15 @@ class NativeTabsTests(unittest.TestCase):
             ),
         )
 
-    def test_old_kitty_toggle_keeps_legacy_behavior(self) -> None:
-        plan = plan_native_tabs_action(
-            "toggle",
-            running_version=(0, 45, 0),
-            currently_hidden=True,
-            current_edge="horizontal",
-            current_style="custom",
-        )
-
-        self.assertEqual(plan.overrides, ("tab_bar_min_tabs 1",))
+    def test_old_kitty_toggle_is_unsupported(self) -> None:
+        with self.assertRaises(NativeVerticalTabsUnsupported):
+            plan_native_tabs_action(
+                "toggle",
+                running_version=(0, 45, 0),
+                currently_hidden=True,
+                current_edge="horizontal",
+                current_style="custom",
+            )
 
     def test_explicit_native_enable_rejects_old_running_kitty(self) -> None:
         with self.assertRaises(NativeVerticalTabsUnsupported):
