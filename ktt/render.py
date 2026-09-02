@@ -961,9 +961,10 @@ def render_row(
     show_tab_title: bool = True,
     prefer_repository_metadata: bool = False,
     center_content: bool = False,
+    background_override: str | None = None,
 ) -> str:
     tab = row.tab
-    background = card_background(row)
+    background = background_override or card_background(row)
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
     indent = " " * (TREE_INDENT_WIDTH * row.depth)
     orphan = "?" if row.orphaned else " "
@@ -1250,12 +1251,13 @@ def render_card_blank(
     edge_style: str = DEFAULT_EDGE_STYLE,
     line_index: int = 0,
     card_height: int = 3,
+    background_override: str | None = None,
 ) -> str:
     left = " " * (TREE_INDENT_WIDTH * row.depth)
     card_width = max(1, width - len(left) - 1)
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width
-    background = card_background(row)
+    background = background_override or card_background(row)
     base = _bg(background, ansi)
     reset = "\x1b[0m" if ansi else ""
     if not show_caps:
@@ -1311,6 +1313,7 @@ def render_card_context_row(
     card_height: int,
     alignment: str,
     right_segments: list[tuple[str, str, bool]] | None = None,
+    background_override: str | None = None,
 ) -> str:
     right_segments = right_segments or []
     if not segments and not right_segments:
@@ -1321,12 +1324,13 @@ def render_card_context_row(
             edge_style=edge_style,
             line_index=line_index,
             card_height=card_height,
+            background_override=background_override,
         )
     left = " " * (TREE_INDENT_WIDTH * row.depth)
     card_width = max(1, width - len(left) - 1)
     show_caps = card_width >= 3
     body_width = card_width - 2 if show_caps else card_width
-    background = card_background(row)
+    background = background_override or card_background(row)
     base = _bg(background, ansi)
     reset = "\x1b[0m" if ansi else ""
     text_width = max(0, body_width - 2)
@@ -1450,6 +1454,7 @@ def render_card(
     repository_location: RepositoryLocation | None = None,
     repository_lines: list[str] | None = None,
     hide_dirty_state: bool = False,
+    background_override: str | None = None,
 ) -> list[str]:
     del hide_dirty_state
     content_line = card_content_line(card_height)
@@ -1540,6 +1545,7 @@ def render_card(
             show_tab_title=not secondary_context_is_separate,
             prefer_repository_metadata=status_squeezes_repository,
             center_content=False,
+            background_override=background_override,
         )
         if line == content_line
         else render_card_context_row(
@@ -1551,6 +1557,7 @@ def render_card(
             line_index=line,
             card_height=card_height,
             alignment="center",
+            background_override=background_override,
         )
         if secondary_segments and line == card_height - 1
         else render_card_blank(
@@ -1560,6 +1567,7 @@ def render_card(
             edge_style=edge_style,
             line_index=line,
             card_height=card_height,
+            background_override=background_override,
         )
         for line in range(card_height)
     ]

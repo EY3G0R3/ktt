@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import replace
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from . import kitty_tabs, model, render
 from .repository import (
@@ -47,7 +47,13 @@ class NativeCardState:
         ] = {}
         self._redraw_frames: dict[
             int,
-            tuple[object, int, int, dict[int, tuple[str, ...]]],
+            tuple[
+                object,
+                int,
+                int,
+                tuple[tuple[int, str], ...],
+                dict[int, tuple[str, ...]],
+            ],
         ] = {}
 
     def render(
@@ -58,8 +64,11 @@ class NativeCardState:
         card_height: int,
         now: float | None = None,
         frame_token: object | None = None,
+        background_overrides: Mapping[int, str] | None = None,
     ) -> dict[int, tuple[str, ...]]:
         os_window_id = int(tab_manager.os_window_id)
+        background_overrides = background_overrides or {}
+        background_override_key = tuple(sorted(background_overrides.items()))
         cached_redraw = self._redraw_frames.get(os_window_id)
         if (
             frame_token is not None
@@ -67,8 +76,9 @@ class NativeCardState:
             and cached_redraw[0] is frame_token
             and cached_redraw[1] == width
             and cached_redraw[2] == card_height
+            and cached_redraw[3] == background_override_key
         ):
-            return cached_redraw[3]
+            return cached_redraw[4]
         current = time.monotonic() if now is None else now
         records = [
             replace(record, status=STATUS_ALIASES.get(record.status, record.status))
@@ -102,6 +112,7 @@ class NativeCardState:
             tuple(rows),
             width,
             card_height,
+            background_override_key,
             tuple(repository_lines),
             active_location,
             (
@@ -114,7 +125,11 @@ class NativeCardState:
         if frame_key == self._frame_key:
             if frame_token is not None:
                 self._redraw_frames[os_window_id] = (
-                    frame_token, width, card_height, self._frame
+                    frame_token,
+                    width,
+                    card_height,
+                    background_override_key,
+                    self._frame,
                 )
             return self._frame
         frame_cache = self._frame_cache.setdefault(
@@ -137,6 +152,7 @@ class NativeCardState:
                     repository_lines=(
                         repository_lines if row.tab.is_active else None
                     ),
+                    background_override=background_overrides.get(row.tab.id),
                 ))
                 for row in rows
             }
@@ -146,7 +162,11 @@ class NativeCardState:
             frame_cache.popitem(last=False)
         if frame_token is not None:
             self._redraw_frames[os_window_id] = (
-                frame_token, width, card_height, self._frame
+                frame_token,
+                width,
+                card_height,
+                background_override_key,
+                self._frame,
             )
         return self._frame
 

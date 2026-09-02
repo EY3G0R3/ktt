@@ -193,6 +193,45 @@ class NativeCardStateTests(unittest.TestCase):
         self.assertIsNot(changed, first)
         self.assertTrue(any("renamed tab" in line for line in changed[1]))
 
+    def test_background_override_recolors_existing_card_and_cache_key(self):
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+        manager = FakeManager([
+            FakeTab(
+                1,
+                "closing tab",
+                FakeWindow(100, "/work/first"),
+                active=True,
+            )
+        ])
+        frame_token = object()
+
+        normal = state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=20.0,
+            frame_token=frame_token,
+        )
+        closing = state.render(
+            manager,
+            width=40,
+            card_height=3,
+            now=20.0,
+            frame_token=frame_token,
+            background_overrides={1: "ff5555"},
+        )
+
+        self.assertIsNot(closing, normal)
+        self.assertTrue(
+            all("\x1b[48;2;255;85;85m" in line for line in closing[1])
+        )
+        self.assertEqual(
+            [strip_ansi(line) for line in closing[1]],
+            [strip_ansi(line) for line in normal[1]],
+        )
+
     def test_custom_title_waiting_card_is_debounced_after_work_stops(self):
         active = FakeTab(
             1,
