@@ -193,6 +193,34 @@ class NativeCardStateTests(unittest.TestCase):
         self.assertIsNot(changed, first)
         self.assertTrue(any("renamed tab" in line for line in changed[1]))
 
+    def test_custom_title_waiting_card_is_debounced_after_work_stops(self):
+        active = FakeTab(
+            1,
+            "shell",
+            FakeWindow(100, "/work/first"),
+            active=True,
+        )
+        waiting = FakeTab(
+            2,
+            "⠼ review",
+            FakeWindow(200, "/work/second", workmux_status="waiting"),
+            effective_title="Review agent",
+        )
+        manager = FakeManager([active, waiting])
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+
+        working = state.render(manager, width=40, card_height=3, now=0.0)
+        waiting.title = "review"
+        pending = state.render(manager, width=40, card_height=3, now=1.0)
+        elapsed = state.render(manager, width=40, card_height=3, now=8.0)
+
+        for frame in (working, pending):
+            self.assertIn("\x1b[48;2;32;35;42m", frame[2][0])
+            self.assertNotIn("\x1b[48;2;85;80;46m", frame[2][0])
+        self.assertIn("\x1b[48;2;85;80;46m", elapsed[2][0])
+
     def test_native_cards_reuse_repository_status_and_verdict_rendering(self):
         root_window = FakeWindow(
             100,

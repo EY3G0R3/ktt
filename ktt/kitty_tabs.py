@@ -69,6 +69,15 @@ def _window_cwd(window: Any) -> str | None:
     return None
 
 
+def _title_signals_working(tab: Any, windows: Sequence[Any]) -> bool:
+    """Read activity from live titles without replacing the display title."""
+    titles = (
+        getattr(tab, "title", ""),
+        *(getattr(window, "title", "") for window in windows),
+    )
+    return any(model.title_is_working(str(title or "")) for title in titles)
+
+
 def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
     """Build tree records from Kitty's live tabs without a process snapshot."""
     records = []
@@ -121,7 +130,7 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             cwd=cwd,
             attention_suppressed=(
                 status in model.WAITING_STATUSES
-                and model.title_is_working(title)
+                and _title_signals_working(tab, metadata_windows)
             ),
         ))
     return tuple(records)

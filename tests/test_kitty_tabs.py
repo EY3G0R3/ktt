@@ -241,6 +241,18 @@ class TabOrderingTests(unittest.TestCase):
 
         self.assertEqual(record.title, "Hirayama supervisor")
 
+    def test_custom_effective_title_keeps_raw_working_signal(self) -> None:
+        content = FakeWindow(100, workmux_status="waiting")
+        content.title = "⠼ qri-apps"
+        tab = LiveTab(10, [content])
+        tab.title = content.title
+        tab.effective_title = "Hirayama supervisor"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "Hirayama supervisor")
+        self.assertTrue(record.attention_suppressed)
+
     def test_live_tree_suppresses_fresh_waiting_spinner_attention(self) -> None:
         active = LiveTab(10, [FakeWindow(100)])
         waiting = LiveTab(20, [FakeWindow(200, workmux_status="waiting")])
