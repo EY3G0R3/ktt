@@ -47,6 +47,7 @@ class FakeBoss:
             options.tab_bar_style,
             options.tab_bar_align,
             options.tab_bar_min_tabs,
+            options.drag_threshold,
         )
         self.all_tab_managers = [FakeManager(events)]
 
@@ -59,6 +60,7 @@ class FakeBoss:
             self.options.tab_bar_style,
             self.options.tab_bar_align,
             self.options.tab_bar_min_tabs,
+            self.options.drag_threshold,
         ) = self.persistent
         self.options.config_overrides = tuple(overrides)
         for override in overrides:
@@ -75,6 +77,8 @@ class FakeBoss:
                 self.options.tab_bar_style = value
             elif key == "tab_bar_align":
                 self.options.tab_bar_align = value
+            elif key == "drag_threshold":
+                self.options.drag_threshold = int(value)
 
 
 class BadFirstPostconditionBoss(FakeBoss):
@@ -129,6 +133,7 @@ def options(**overrides):
         "tab_bar_style": "custom",
         "tab_bar_align": "start",
         "tab_bar_min_tabs": 2,
+        "drag_threshold": 5,
         "config_overrides": ("font_size 14",),
     }
     values.update(overrides)
@@ -240,6 +245,7 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         self.assertTrue(getattr(boss, NATIVE_MANAGED_ATTRIBUTE))
         self.assertTrue(getattr(boss, NATIVE_MARKER_ATTRIBUTE))
         self.assertTrue(plan.native_visible)
+        self.assertEqual(boss.options.drag_threshold, 0)
         self.assertEqual(logs, [])
 
     def test_reload_closes_background_renderer_state_before_config_load(self) -> None:
@@ -320,6 +326,7 @@ class NativeTabsRuntimeTests(unittest.TestCase):
         self.assertEqual(current_options.tab_bar_edge, BOTTOM_EDGE)
         self.assertEqual(current_options.tab_bar_style, "custom")
         self.assertEqual(current_options.tab_bar_min_tabs, 2)
+        self.assertEqual(current_options.drag_threshold, 5)
         self.assertIn("postcondition failed", logs[-1])
 
     def test_rollback_failure_is_explicit_after_user_overrides_restore(self) -> None:

@@ -26,6 +26,13 @@ including card gaps, tree indentation, active-tab visibility, and vertical
 centering. Hiding retains these overrides so a show/hide cycle is stable;
 restarting Kitty restores the persistent preset.
 
+KTT sets Kitty's process-local `drag_threshold` to zero while it owns the
+native bar. Native drag-and-drop mutates Kitty's flat tab order, while KTT's
+watcher normalizes that order back to tree preorder; allowing both produces
+ambiguous sibling and subtree movement. Kitty has no tab-only drag switch, so
+window-title-bar dragging is disabled in the same process. Tree-aware keyboard
+reordering remains available.
+
 Parity tests and this decision record retain the established visual behavior
 without retaining a second executable backend.
 

@@ -21,6 +21,11 @@ unrelated Kitty overrides and keeps an existing right-side native bar on the
 right. Restarting Kitty restores the persistent configuration until KTT is
 enabled again.
 
+KTT disables Kitty drag-and-drop for the current process while it owns the
+native tab bar. Kitty exposes one global `drag_threshold` setting rather than
+a tab-only switch, so this also disables dragging window title bars. Clicks
+and KTT's tree-aware keyboard reordering continue to work.
+
 KTT uses Kitty remote control. Configure `allow_remote_control yes` and a
 reachable `KITTY_LISTEN_ON` socket. Native cards also require the KTT-aware
 custom `tab_bar.py` already used by this installation.

@@ -124,6 +124,14 @@ def _verify_postcondition(
             "Kitty tab bar alignment is "
             f"{options.tab_bar_align}, expected {plan.expected_alignment}"
         )
+    if (
+        plan.expected_drag_threshold is not None
+        and options.drag_threshold != plan.expected_drag_threshold
+    ):
+        raise NativeTabsRuntimeError(
+            "Kitty drag threshold is "
+            f"{options.drag_threshold}, expected {plan.expected_drag_threshold}"
+        )
 
 
 def _attribute_snapshot(value: Any, name: str) -> tuple[bool, Any]:
@@ -175,6 +183,7 @@ def run_native_tabs_action(
     previous_style = options.tab_bar_style
     previous_alignment = options.tab_bar_align
     previous_min_tabs = options.tab_bar_min_tabs
+    previous_drag_threshold = options.drag_threshold
     previous_marker = _attribute_snapshot(boss, NATIVE_MARKER_ATTRIBUTE)
     previous_managed = _attribute_snapshot(boss, NATIVE_MANAGED_ATTRIBUTE)
     previous_style_recovery = _attribute_snapshot(
@@ -258,6 +267,7 @@ def run_native_tabs_action(
                 or restored.tab_bar_style != previous_style
                 or restored.tab_bar_align != previous_alignment
                 or restored.tab_bar_min_tabs != previous_min_tabs
+                or restored.drag_threshold != previous_drag_threshold
                 or _attribute_snapshot(boss, NATIVE_MARKER_ATTRIBUTE)
                 != previous_marker
                 or _attribute_snapshot(boss, NATIVE_MANAGED_ATTRIBUTE)

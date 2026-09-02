@@ -14,6 +14,7 @@ UNSUPPORTED_MARKER = "KTT_NATIVE_VERTICAL_TABS_UNSUPPORTED="
 TabBarEdge = Literal["horizontal", "left", "right"]
 VISIBLE_FALLBACK_STYLE = "fade"
 HIDDEN_MIN_TABS = 1_000_000
+DISABLED_DRAG_THRESHOLD = 0
 NATIVE_MARKER_ATTRIBUTE = "_ktt_native_vertical_tabs_enabled"
 NATIVE_MANAGED_ATTRIBUTE = "_ktt_native_vertical_tabs_managed"
 NATIVE_STYLE_RECOVERY_ATTRIBUTE = "_ktt_native_tabs_style_recovery"
@@ -24,6 +25,7 @@ KTT_OVERRIDE_KEYS = frozenset({
     "tab_bar_min_tabs",
     "tab_bar_style",
     "tab_title_max_length",
+    "drag_threshold",
 })
 
 
@@ -69,6 +71,7 @@ class NativeTabsActionPlan:
     expected_edge: TabBarEdge = "horizontal"
     expected_style: str | None = None
     expected_alignment: str | None = None
+    expected_drag_threshold: int | None = None
     style_recovery: bool = False
 
 
@@ -126,6 +129,7 @@ def plan_native_tabs_action(
             "tab_bar_min_tabs 1",
             "tab_bar_style custom",
             "tab_title_max_length 60",
+            f"drag_threshold {DISABLED_DRAG_THRESHOLD}",
         ]
         return NativeTabsActionPlan(
             tuple(overrides),
@@ -136,6 +140,7 @@ def plan_native_tabs_action(
             expected_edge=native_edge,
             expected_style="custom",
             expected_alignment="center",
+            expected_drag_threshold=DISABLED_DRAG_THRESHOLD,
         )
     if action != "toggle":
         raise ValueError(f"unknown native tab action: {action}")
@@ -153,6 +158,7 @@ def plan_native_tabs_action(
             f"tab_bar_min_tabs {tab_bar_min_tabs}",
             "tab_bar_style custom",
             "tab_title_max_length 60",
+            f"drag_threshold {DISABLED_DRAG_THRESHOLD}",
         ]
         return NativeTabsActionPlan(
             tuple(overrides),
@@ -164,6 +170,7 @@ def plan_native_tabs_action(
             expected_edge=current_edge,
             expected_style="custom",
             expected_alignment="center",
+            expected_drag_threshold=DISABLED_DRAG_THRESHOLD,
         )
     overrides = [f"tab_bar_min_tabs {tab_bar_min_tabs}"]
     if currently_hidden and current_style == "hidden":
