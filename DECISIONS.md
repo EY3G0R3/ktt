@@ -47,6 +47,11 @@ ktt_parent_window_id=PARENT`; the manual alternative is `ktt link` after Kitty
 returns the child window ID. Repeating this at each launch creates multiple
 indentation levels without additional renderer logic.
 
+A direct non-Workmux coordinator may publish `ktt_coordinator=HANDLE` for that
+launch-time lookup. This is routing metadata only: the resolver still writes
+only `ktt_parent_window_id` to the child, and ktt never renders or persists a
+second family relationship.
+
 This keeps process ancestry at the only layer that reliably knows it and keeps
 the renderer independent of repository paths or prompt parsing.
 
