@@ -47,6 +47,9 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "navigation-kitten-path", help="print the tree-navigation kitten path"
     )
+    subparsers.add_parser(
+        "parent-chooser-kitten-path", help="print the parent chooser kitten path"
+    )
     launch_child = subparsers.add_parser(
         "launch-child", help="launch a child tab linked to the current Kitty window"
     )
@@ -142,6 +145,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "navigation-kitten-path":
             print(Path(__file__).with_name("tree_navigation_kitten.py"))
+            return 0
+        if args.command == "parent-chooser-kitten-path":
+            print(Path(__file__).with_name("parent_chooser_kitten.py"))
             return 0
         if args.command == "list":
             return _list(remote, args.target_os_window)

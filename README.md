@@ -71,12 +71,18 @@ map alt+k kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py previous
 map alt+n kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py attention
 map alt+shift+j kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py move-next
 map alt+shift+k kitten /absolute/path/to/ktt/ktt/tree_navigation_kitten.py move-previous
+map alt+p kitten /absolute/path/to/ktt/ktt/parent_chooser_kitten.py
 ```
 
 `next` and `previous` follow complete tree order. `attention` wraps through
 ready, blocked, waiting, and complete tabs. The move actions reorder a node
 among its siblings, moving its descendants as one subtree without changing any
 parent relationship.
+
+`Alt+p` treats the active tab as the child and opens a rofi prompt containing
+only parents that cannot create a cycle. Choosing a parent updates the tree
+immediately. `python3 -m ktt parent-chooser-kitten-path` prints the exact kitten
+path for the mapping.
 
 ## Card behavior
 

@@ -100,7 +100,8 @@ latest blocker or readiness reason.
   and restores focus to ktt. This active tab is the only selection highlight.
   Enter or left-click transfers keyboard focus into the main window.
 - The disclosure arrow, right-click, or Space folds a subtree.
-- Reparenting stays an explicit `ktt link` command; there is no drag-to-reparent.
+- Reparenting uses either the explicit `ktt link` command or the native-mode
+  `Alt+p` rofi chooser. Both reject cycles; there is no drag-to-reparent.
 - Closing tabs is not part of the main row click surface. A later close action
   must be explicit and confirm tabs containing running processes.
 

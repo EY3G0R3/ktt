@@ -1,5 +1,6 @@
 from contextlib import redirect_stderr
 from io import StringIO
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -18,6 +19,13 @@ class CliTests(unittest.TestCase):
     def test_legacy_launch_command_is_removed(self) -> None:
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
             _parser().parse_args(["launch"])
+
+    def test_parent_chooser_path_command_prints_existing_kitten(self) -> None:
+        with patch("sys.stdout", new_callable=StringIO) as stdout:
+            self.assertEqual(main(["parent-chooser-kitten-path"]), 0)
+        path = Path(stdout.getvalue().strip())
+        self.assertEqual(path.name, "parent_chooser_kitten.py")
+        self.assertTrue(path.is_file())
 
     @patch("ktt.cli.RemoteControl")
     def test_bare_command_enables_native_tabs(self, remote_class) -> None:
