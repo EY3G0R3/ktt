@@ -26,6 +26,14 @@ including card gaps, tree indentation, active-tab visibility, and vertical
 centering. Hiding retains these overrides so a show/hide cycle is stable;
 restarting Kitty restores the persistent preset.
 
+The versioned `kitty_watcher.py` is the startup seam. Once installed in
+`kitty.conf`, it enables KTT after Kitty creates its first window. If activation
+fails on Kitty 0.48 or newer, the same watcher removes KTT-owned process
+overrides and selects Kitty's built-in vertical tabs. Kitty versions without
+native vertical tabs retain the persistent horizontal preset. Keeping startup
+activation beside KTT's runtime prevents a copied dotfile watcher from drifting
+across internal API changes.
+
 KTT sets Kitty's process-local `drag_threshold` to zero while it owns the
 native bar. Native drag-and-drop mutates Kitty's flat tab order, while KTT's
 watcher normalizes that order back to tree preorder; allowing both produces

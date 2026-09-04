@@ -21,6 +21,19 @@ unrelated Kitty overrides and keeps an existing right-side native bar on the
 right. Restarting Kitty restores the persistent configuration until KTT is
 enabled again.
 
+To enable KTT automatically for every new Kitty process, load its versioned
+watcher in `kitty.conf`:
+
+```conf
+watcher /absolute/path/to/ktt/ktt/kitty_watcher.py
+```
+
+`python3 -m ktt watcher-path` prints the exact path. The watcher enables KTT
+once Kitty has constructed its first window and waits until tab 2 to show the
+bar. If KTT cannot activate on Kitty 0.48 or newer, it selects Kitty's regular
+vertical tabs instead. Older Kitty versions retain the persistent horizontal
+configuration.
+
 KTT disables Kitty drag-and-drop for the current process while it owns the
 native tab bar. Kitty exposes one global `drag_threshold` setting rather than
 a tab-only switch, so this also disables dragging window title bars. Clicks
@@ -53,15 +66,9 @@ still renders and persists only `ktt_parent_window_id`.
 
 ## Tree ordering and navigation
 
-Load the native ordering watcher in `kitty.conf`:
-
-```conf
-watcher /absolute/path/to/ktt/ktt/kitty_watcher.py
-```
-
-`python3 -m ktt watcher-path` prints the exact path. The watcher normalizes
-Kitty's physical tab order to tree preorder only while KTT's native bar is
-enabled. It has no sidebar notification socket or polling daemon.
+The startup watcher also normalizes Kitty's physical tab order to tree preorder
+only while KTT's native bar is enabled. It has no sidebar notification socket
+or polling daemon.
 
 Map the navigation kitten if you want tree-aware keys:
 
