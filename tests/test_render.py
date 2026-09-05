@@ -210,12 +210,13 @@ class RenderTests(unittest.TestCase):
             index for index, line in enumerate(lines)
             if "✓ clean" in line
         )
-        self.assertEqual(title_index, status_index)
+        self.assertEqual(title_index, status_index - 1)
         self.assertNotIn(" main", screen)
         self.assertIn("/ktt/", lines[status_index])
+        self.assertNotIn("one", lines[status_index])
         self.assertGreater(
             lines[status_index].index("✓ clean"),
-            lines[status_index].index("one"),
+            lines[status_index].index("/ktt/"),
         )
 
     def test_repository_status_uses_middle_right_in_compact_width(self) -> None:
@@ -237,7 +238,7 @@ class RenderTests(unittest.TestCase):
             index for index, line in enumerate(lines)
             if "✓ clean" in line
         )
-        self.assertEqual(title_index, status_index)
+        self.assertEqual(title_index, status_index - 1)
         self.assertGreater(lines[status_index].index("✓ clean"), 20)
 
     def test_long_active_state_keeps_repository_identity_visible(self) -> None:
@@ -290,9 +291,10 @@ class RenderTests(unittest.TestCase):
         state = next(index for index, line in enumerate(lines) if "✓ clean" in line)
         second = next(index for index, line in enumerate(lines) if "two" in line)
 
-        self.assertEqual(first, state)
-        self.assertEqual(second, state + 4)
-        self.assertIn("/ktt/", lines[second])
+        self.assertEqual(first, state - 1)
+        self.assertEqual(second, state + 3)
+        self.assertIn("two", lines[second])
+        self.assertIn("/ktt/", lines[second + 1])
 
     def test_bottom_repository_context_keeps_tab_stack_spatially_stable(self) -> None:
         rows = [
@@ -679,8 +681,10 @@ class RenderTests(unittest.TestCase):
         )
 
         self.assertNotIn(" topic/branch", screen)
-        middle = next(line for line in screen.split("\n") if "/quiver/" in line)
-        self.assertIn("push topic branch", middle)
+        lines = screen.split("\n")
+        middle = next(line for line in lines if "/quiver/" in line)
+        self.assertNotIn("push topic branch", middle)
+        self.assertIn("push topic branch", lines[lines.index(middle) - 1])
 
     def test_selected_status_does_not_move_main_checkout_title(self) -> None:
         row = TreeRow(
@@ -714,13 +718,16 @@ class RenderTests(unittest.TestCase):
             repository_location=RepositoryLocation(),
         )
 
-        self.assertIn("/yadm/ · igorandr rework", inactive[1])
-        self.assertIn("/yadm/ · igorandr rework", selected[1])
+        self.assertIn("/yadm/", inactive[1])
+        self.assertIn("igorandr rework", inactive[0])
+        self.assertIn("/yadm/", selected[1])
+        self.assertIn("igorandr rework", selected[0])
         self.assertEqual(
-            inactive[1].index("igorandr rework"),
-            selected[1].index("igorandr rework"),
+            inactive[0].index("igorandr rework"),
+            selected[0].index("igorandr rework"),
         )
         self.assertIn("2 unstaged", selected[1])
+        self.assertNotIn("igorandr rework", selected[1])
         self.assertNotIn("igorandr rework", selected[2])
 
     def test_narrow_tab_keeps_worktree_and_middle_right_state(self) -> None:
@@ -1317,6 +1324,12 @@ class RenderTests(unittest.TestCase):
             repository_lines=["quiver  ✓ working tree clean", "feature-branch"],
         )
 
+    def test_lifted_title_starts_at_the_middle_row_text_column(self) -> None:
+        card = self._card(self._worktree_row("in_review"))
+        self.assertEqual(
+            card[0].index("pi bundle gate"), card[1].index("/quiver/")
+        )
+
     def test_phase_takes_the_bottom_row_and_lifts_the_title(self) -> None:
         card = self._card(self._worktree_row("in_review"))
         self.assertIn("pi bundle gate", card[0])
@@ -1616,7 +1629,7 @@ class RenderTests(unittest.TestCase):
         child_column = display_width(child.split("fixed-title", 1)[0])
         self.assertEqual(child_column - root_column, 8)
 
-    def test_status_only_context_keeps_title_on_middle_row(self) -> None:
+    def test_status_only_context_still_heads_the_card_with_its_title(self) -> None:
         row = TreeRow(
             TabRecord(1, 1, "fixed-title", (10,), repository="ktt"), 0, None
         )
@@ -1632,7 +1645,8 @@ class RenderTests(unittest.TestCase):
             ],
         )
 
-        self.assertIn("/ktt/ · fixed-title", contextual[1])
+        self.assertIn("/ktt/", contextual[1])
+        self.assertIn("fixed-title", contextual[0])
         self.assertIn("✓ clean", contextual[1])
         self.assertNotIn("fixed-title", contextual[2])
 

@@ -39,6 +39,8 @@ CHANGED_FILES_PLACEMENTS = ("inline", "bottom")
 DEFAULT_CHANGED_FILES_PLACEMENT = "bottom"
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
+# Disclosure, orphan marker, status cell, and the space before the text.
+CARD_PREFIX_WIDTH = 1 + 1 + STATUS_CELL_WIDTH + 1
 HORIZONTAL_MIN_CARD_WIDTH = 14
 HORIZONTAL_MAX_CARD_WIDTH = 40
 HORIZONTAL_TREE_INDENT = 4
@@ -68,6 +70,14 @@ CONTROL_SEPARATOR_FOREGROUND = "3f4552"
 CONTROL_ACTION_FOREGROUND = "777d89"
 REPOSITORY_BACKGROUND = "20232a"
 REPOSITORY_NAME_FOREGROUND = "f8f8f2"
+# The card title heads its own row now, so it gets its own color rather than
+# the repository summary's neutral white. Pale and cool rather than saturated:
+# the card already spends cyan on branch, green on worktree and clean state,
+# yellow on dirty state, and red on trouble, so a saturated accent reads as one
+# more alert rather than as a name. Orange and pale peach both failed that way
+# in review, and sage was passed over for sitting in the green the worktree
+# glyph and clean state already own.
+CARD_TITLE_FOREGROUND = "cddcec"
 REPOSITORY_META_FOREGROUND = "777d89"
 REPOSITORY_WORKTREE_FOREGROUND = "77b255"
 REPOSITORY_WORKTREE_GLYPH_FOREGROUND = "77b255"
@@ -193,6 +203,39 @@ def _adaptive_accent_foreground(foreground: str, background: str) -> str:
             key=lambda candidate: abs(candidate[0] - lightness),
         )[1]
     return max(candidates, key=lambda candidate: candidate[2])[1]
+
+
+def card_title_foreground(background: str) -> str:
+    """Keep the card title readable without ever inverting it to dark text.
+
+    The shared accent helper reaches contrast by moving to the nearer readable
+    lightness, which for a pale hue on the active card's light slate is the
+    dark end -- a title that flips to near-black on exactly the card being
+    looked at. A title is the card's name and must stay light on every card,
+    so it only ever brightens, settling for the lightest shade available when
+    4.5:1 is out of reach.
+    """
+    foreground = CARD_TITLE_FOREGROUND
+    if _contrast_ratio(foreground, background) >= 4.5:
+        return foreground
+    red, green, blue = (
+        int(foreground[offset:offset + 2], 16) / 255
+        for offset in (0, 2, 4)
+    )
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+    best = foreground
+    best_ratio = _contrast_ratio(foreground, background)
+    for step in range(int(lightness * 100), 100):
+        channels = colorsys.hls_to_rgb(hue, step / 100, saturation)
+        candidate = "".join(
+            f"{round(channel * 255):02x}" for channel in channels
+        )
+        ratio = _contrast_ratio(candidate, background)
+        if ratio >= 4.5:
+            return candidate
+        if ratio > best_ratio:
+            best, best_ratio = candidate, ratio
+    return best
 
 
 def worktree_foreground(background: str) -> str:
@@ -1423,6 +1466,8 @@ def render_card_context_row(
         )
         if alignment == "right":
             left_padding = max(0, body_width - content_width - 1)
+        elif alignment == "content":
+            left_padding = min(CARD_PREFIX_WIDTH, body_width)
         elif alignment == "left":
             left_padding = min(1, body_width)
         else:
@@ -1515,7 +1560,7 @@ def render_card(
     indent_width = TREE_INDENT_WIDTH * row.depth
     card_width = max(1, width - indent_width - 1)
     body_width = card_width - 2 if card_width >= 3 else card_width
-    prefix_width = 1 + 1 + STATUS_CELL_WIDTH + 1
+    prefix_width = CARD_PREFIX_WIDTH
     minimum_worktree_width = min(
         5,
         display_width(f" {WORKTREE_GLYPH}{worktree}") if worktree else 0,
@@ -1551,18 +1596,30 @@ def render_card(
         secondary_segments.append((
             useful_branch, REPOSITORY_BRANCH_FOREGROUND, False
         ))
-    title_is_displaced = (
-        secondary_context_is_separate
-        and not worktree_matches_title(worktree, row.tab.title)
+    # A title that only repeats the worktree name is not shown at all.
+    title_is_displaced = not worktree_matches_title(worktree, row.tab.title)
+    # A three-row card always heads itself with its title, leaving the middle
+    # row to repository identity and the bottom row to branch and phase. A card
+    # too short for three rows has no top row, so there the title shares the
+    # bottom row, and only when worktree context displaced it from the middle.
+    # A card with no repository identity has nothing to put on the middle row,
+    # so its title stays there rather than leaving a lone status glyph behind.
+    title_moves_to_top = (
+        title_is_displaced
+        and card_height >= 3
+        and bool(row.tab.repository or worktree)
     )
-    # A title displaced by worktree context gets the top row to itself, leaving
-    # the bottom row for branch and phase. A card too short for three rows has
-    # no top row to move it to, so there the title shares the bottom row.
-    title_moves_to_top = title_is_displaced and card_height >= 3
+    title_is_displaced = title_is_displaced and (
+        secondary_context_is_separate or title_moves_to_top
+    )
     top_segments: list[tuple[str, str, bool]] = []
     if title_moves_to_top:
         top_segments.append((
-            row.tab.title, REPOSITORY_NAME_FOREGROUND, False
+            row.tab.title,
+            card_title_foreground(
+                background_override or card_background(row)
+            ),
+            False,
         ))
     elif title_is_displaced:
         if secondary_segments:
@@ -1587,7 +1644,9 @@ def render_card(
             repository_state=state or None,
             show_repository_metadata=True,
             show_worktree_metadata=True,
-            show_tab_title=not secondary_context_is_separate,
+            show_tab_title=not (
+                secondary_context_is_separate or title_moves_to_top
+            ),
             prefer_repository_metadata=status_squeezes_repository,
             center_content=False,
             background_override=background_override,
@@ -1613,7 +1672,7 @@ def render_card(
             edge_style=edge_style,
             line_index=line,
             card_height=card_height,
-            alignment="center",
+            alignment="content",
             background_override=background_override,
         )
         if top_segments and line == 0
