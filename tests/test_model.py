@@ -121,6 +121,41 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(record.status, "ready_to_merge")
         self.assertEqual(record.cwd, "/work/quiver__worktrees/feature")
 
+    def test_record_reads_worktree_phase_user_var(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "child",
+                "windows": [
+                    {
+                        "id": 101,
+                        "is_active": True,
+                        "cwd": "/work/quiver__worktrees/feature",
+                        "user_vars": {
+                            "workmux_status": "working",
+                            "workmux_phase": "in_review",
+                        },
+                    },
+                ],
+            }],
+        }
+        record = records_for_os_window(os_window)[0]
+        self.assertEqual(record.phase, "in_review")
+
+    def test_record_without_phase_user_var_has_no_phase(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "child",
+                "windows": [
+                    {"id": 101, "is_active": True, "user_vars": {}},
+                ],
+            }],
+        }
+        self.assertIsNone(records_for_os_window(os_window)[0].phase)
+
     def test_null_foreground_cmdline_falls_back_to_process_cwd(self) -> None:
         self.assertEqual(
             content_window_cwd(

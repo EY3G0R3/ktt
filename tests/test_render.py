@@ -30,6 +30,7 @@ from ktt.render import (
     horizontal_layout,
     horizontal_disclosure_column,
     panel_style,
+    phase_label,
     next_edge_style,
     render_control_line,
     render_card,
@@ -267,7 +268,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("/ktt/", card[1])
         self.assertIn("9 unstaged", card[1])
         self.assertNotIn("~/src/ktt", card[1])
-        self.assertIn("~/src/ktt", card[2])
+        self.assertIn("~/src/ktt", card[0])
 
     def test_embedded_repository_context_keeps_lower_tabs_in_the_group(self) -> None:
         rows = [
@@ -585,7 +586,11 @@ class RenderTests(unittest.TestCase):
         summary = next(line for line in lines if "✓ clean" in line)
 
         self.assertIn(f"/quiver/ {WORKTREE_GLYPH}feature", middle)
-        self.assertIn(" topic/branch · runner", secondary)
+        self.assertIn("runner", secondary)
+        self.assertLess(lines.index(secondary), lines.index(middle))
+        self.assertIn(
+            "topic/branch", lines[lines.index(middle) + 1]
+        )
         self.assertEqual(summary, middle)
         self.assertGreater(
             middle.index("✓ clean"),
@@ -1258,7 +1263,11 @@ class RenderTests(unittest.TestCase):
                     card[1].index(f"{WORKTREE_GLYPH}feature"),
                 )
                 self.assertNotIn("✓ clean", card[2])
-                self.assertIn("runner", card[2])
+                self.assertIn("runner", card[0])
+                # `main` is not useful branch context here, so the title's move
+                # to the top row leaves the bottom row empty.
+                self.assertNotIn("runner", card[2])
+                self.assertNotIn("main", card[2])
                 self.assertTrue(all(display_width(line) == 47 for line in card))
 
     def test_three_line_card_centers_content_inside_background(self) -> None:
@@ -1281,6 +1290,91 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("blocked-child", card[2])
         self.assertTrue(card[0].startswith("     "))
         self.assertTrue(card[1].startswith(f"    {LEFT_CAP}"))
+
+    def _worktree_row(self, phase: str | None = None) -> TreeRow:
+        return TreeRow(
+            TabRecord(
+                1,
+                1,
+                "pi bundle gate",
+                (10,),
+                status="working",
+                repository="quiver",
+                repository_worktree="gate-001-pi",
+                phase=phase,
+            ),
+            0,
+            None,
+        )
+
+    def _card(self, row: TreeRow, card_height: int = 3) -> list[str]:
+        return render_card(
+            row,
+            selected=True,
+            width=44,
+            card_height=card_height,
+            ansi=False,
+            repository_lines=["quiver  ✓ working tree clean", "feature-branch"],
+        )
+
+    def test_phase_takes_the_bottom_row_and_lifts_the_title(self) -> None:
+        card = self._card(self._worktree_row("in_review"))
+        self.assertIn("pi bundle gate", card[0])
+        self.assertIn(WORKTREE_GLYPH, card[1])
+        self.assertIn("in review", card[2])
+        self.assertNotIn("pi bundle gate", card[2])
+
+    def test_worktree_card_lifts_the_title_without_a_phase_too(self) -> None:
+        card = self._card(self._worktree_row())
+        self.assertIn("pi bundle gate", card[0])
+        self.assertIn("feature-branch", card[2])
+        self.assertNotIn("pi bundle gate", card[2])
+
+    def test_title_matching_the_worktree_is_not_repeated_on_top(self) -> None:
+        row = TreeRow(
+            TabRecord(
+                1,
+                1,
+                "gate-001-pi",
+                (10,),
+                status="working",
+                repository="quiver",
+                repository_worktree="gate-001-pi",
+            ),
+            0,
+            None,
+        )
+        self.assertNotIn("gate-001-pi", self._card(row)[0])
+
+    def test_phase_leaves_an_undisplaced_title_on_the_content_row(self) -> None:
+        row = TreeRow(
+            TabRecord(2, 1, "ktt cards", (20,), status="working", phase="building"),
+            0,
+            None,
+        )
+        card = render_card(
+            row, selected=False, width=44, card_height=3, ansi=False
+        )
+        self.assertNotIn("ktt cards", card[0])
+        self.assertIn("ktt cards", card[card_content_line(3)])
+        self.assertIn("building", card[2])
+
+    def test_two_row_card_shares_its_bottom_row_with_the_phase(self) -> None:
+        card = self._card(self._worktree_row("in_review"), card_height=2)
+        self.assertIn(WORKTREE_GLYPH, card[0])
+        self.assertIn("in review", card[1])
+        self.assertIn("pi bundle", card[1])
+
+    def test_one_row_card_hides_the_phase(self) -> None:
+        card = self._card(self._worktree_row("in_review"), card_height=1)
+        self.assertEqual(len(card), 1)
+        self.assertNotIn("in review", card[0])
+
+    def test_phase_label_normalizes_separators(self) -> None:
+        for raw in ("in_review", "in review", "In-Review"):
+            with self.subTest(raw=raw):
+                self.assertEqual(phase_label(raw), "in review")
+        self.assertEqual(phase_label(None), "")
 
     def test_tall_card_uses_one_background_color(self) -> None:
         card = render_card(

@@ -11,6 +11,7 @@ from .tab_bar_geometry import select_content_windows, select_metadata_windows
 PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
 VERDICT_VAR = "workmux_verdict"
+PHASE_VAR = "workmux_phase"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
 AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
@@ -48,6 +49,7 @@ class TabRecord:
     repository: str | None = None
     repository_worktree: str | None = None
     attention_suppressed: bool = False
+    phase: str | None = None
 
 
 @dataclass(frozen=True)
@@ -265,6 +267,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 title,
             )
         status = _first_user_var(metadata_windows, STATUS_VAR)
+        phase = _first_user_var(metadata_windows, PHASE_VAR)
         cwd = _first_cwd(metadata_windows)
         records.append(
             TabRecord(
@@ -282,6 +285,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 attention_suppressed=(
                     status in WAITING_STATUSES and title_is_working(title)
                 ),
+                phase=phase,
             )
         )
     return records

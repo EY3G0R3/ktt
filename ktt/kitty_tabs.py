@@ -110,6 +110,7 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         ) or _first_user_var(
             metadata_windows, model.STATUS_VAR
         )
+        phase = _first_user_var(metadata_windows, model.PHASE_VAR)
         cwd = next(
             (
                 value
@@ -132,6 +133,7 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
                 status in model.WAITING_STATUSES
                 and _title_signals_working(tab, metadata_windows)
             ),
+            phase=phase,
         ))
     return tuple(records)
 

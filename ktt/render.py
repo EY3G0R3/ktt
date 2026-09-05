@@ -874,6 +874,32 @@ def horizontal_index_at_mouse(
     )
 
 
+PHASE_FOREGROUNDS = {
+    "building": REPOSITORY_DIRTY_FOREGROUND,
+    "in_review": REPOSITORY_BRANCH_FOREGROUND,
+    "fixing_review": REPOSITORY_DIRTY_FOREGROUND,
+    "review_passed": REPOSITORY_CLEAN_FOREGROUND,
+    "final_verification": REPOSITORY_BRANCH_FOREGROUND,
+    "ready_to_merge": REPOSITORY_CLEAN_FOREGROUND,
+    "needs_human_design": REPOSITORY_CONFLICT_FOREGROUND,
+    "blocked": REPOSITORY_CONFLICT_FOREGROUND,
+}
+
+
+def phase_key(phase: str | None) -> str:
+    """Normalize `in review`, `in-review`, and `in_review` to one key."""
+    return re.sub(r"[\s_-]+", "_", (phase or "").strip().casefold())
+
+
+def phase_label(phase: str | None) -> str:
+    """Spell a phase for the card without its wire-format underscores."""
+    return phase_key(phase).replace("_", " ")
+
+
+def phase_foreground(phase: str | None) -> str:
+    return PHASE_FOREGROUNDS.get(phase_key(phase), REPOSITORY_META_FOREGROUND)
+
+
 def adaptive_card_height(row_count: int, height: int) -> int:
     available = content_height(height)
     if row_count > 0 and cards_height(row_count, 3) <= available:
@@ -1511,15 +1537,34 @@ def render_card(
     secondary_context_is_separate = card_height >= 2 and bool(
         worktree or useful_branch or status_squeezes_repository
     )
+    phase = phase_label(row.tab.phase) if card_height >= 2 else ""
     secondary_segments: list[tuple[str, str, bool]] = []
+    if phase:
+        secondary_segments.append((
+            phase, phase_foreground(row.tab.phase), False
+        ))
     if secondary_context_is_separate and useful_branch:
+        if secondary_segments:
+            secondary_segments.append((
+                " · ", REPOSITORY_META_FOREGROUND, False
+            ))
         secondary_segments.append((
             useful_branch, REPOSITORY_BRANCH_FOREGROUND, False
         ))
-    if (
+    title_is_displaced = (
         secondary_context_is_separate
         and not worktree_matches_title(worktree, row.tab.title)
-    ):
+    )
+    # A title displaced by worktree context gets the top row to itself, leaving
+    # the bottom row for branch and phase. A card too short for three rows has
+    # no top row to move it to, so there the title shares the bottom row.
+    title_moves_to_top = title_is_displaced and card_height >= 3
+    top_segments: list[tuple[str, str, bool]] = []
+    if title_moves_to_top:
+        top_segments.append((
+            row.tab.title, REPOSITORY_NAME_FOREGROUND, False
+        ))
+    elif title_is_displaced:
         if secondary_segments:
             secondary_segments.append((
                 " · ", REPOSITORY_META_FOREGROUND, False
@@ -1560,6 +1605,18 @@ def render_card(
             background_override=background_override,
         )
         if secondary_segments and line == card_height - 1
+        else render_card_context_row(
+            row,
+            top_segments,
+            width=width,
+            ansi=ansi,
+            edge_style=edge_style,
+            line_index=line,
+            card_height=card_height,
+            alignment="center",
+            background_override=background_override,
+        )
+        if top_segments and line == 0
         else render_card_blank(
             row,
             width=width,

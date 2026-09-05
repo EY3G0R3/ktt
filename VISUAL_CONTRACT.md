@@ -58,6 +58,14 @@ design.
 - Every card shows repository identity before other labels. Tall cards place
   repository/worktree/state on the middle row and useful branch/title on the
   bottom row, omitting redundant labels.
+- On a three-row card whose middle row is taken by worktree context, the
+  displaced tab title always takes the top row to itself, leaving branch and
+  phase to the bottom row, which may then be empty. A title that merely repeats
+  the worktree name is still omitted, and a title not displaced at all stays on
+  the middle row. Two-row cards have no top row, so their title shares the
+  bottom row as before.
+- A worktree agent's reported phase (`workmux_phase`) leads the bottom row on
+  two- and three-row cards. One-row cards omit the phase.
 - Active, active-descendant, working, waiting, ready, and blocked treatments
   retain the established colors, brightness, caps, and attention debounce.
 - Cards adapt from three rows to two and then one without changing their field
