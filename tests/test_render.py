@@ -30,7 +30,9 @@ from ktt.render import (
     horizontal_layout,
     horizontal_disclosure_column,
     panel_style,
+    phase_foreground,
     phase_label,
+    phase_progress,
     next_edge_style,
     render_control_line,
     render_card,
@@ -1375,8 +1377,10 @@ class RenderTests(unittest.TestCase):
     def test_two_row_card_shares_its_bottom_row_with_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=2)
         self.assertIn(WORKTREE_GLYPH, card[0])
-        self.assertIn("in review", card[1])
-        self.assertIn("pi bundle", card[1])
+        self.assertIn("[2/6] in review", card[1])
+        # The step counter spends six columns, so the title that shares the
+        # row survives only as its truncated head at this width.
+        self.assertIn("· pi", card[1])
 
     def test_one_row_card_hides_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=1)
@@ -1388,6 +1392,29 @@ class RenderTests(unittest.TestCase):
             with self.subTest(raw=raw):
                 self.assertEqual(phase_label(raw), "in review")
         self.assertEqual(phase_label(None), "")
+
+    def test_pipeline_phase_carries_its_step_counter(self) -> None:
+        card = self._card(self._worktree_row("fixing_review"))
+        self.assertIn("[3/6] fixing review", card[2])
+        card = self._card(self._worktree_row("in review"))
+        self.assertIn("[2/6] in review", card[2])
+
+    def test_off_pipeline_phase_has_no_counter(self) -> None:
+        card = self._card(self._worktree_row("needs_human_design"))
+        self.assertIn("needs human design", card[2])
+        self.assertNotIn("[", card[2])
+
+    def test_phase_progress_counts_from_building_to_ready_to_merge(self) -> None:
+        self.assertEqual(phase_progress("building"), "[1/6]")
+        self.assertEqual(phase_progress("Ready-To-Merge"), "[6/6]")
+        self.assertEqual(phase_progress("landed"), "")
+        self.assertEqual(phase_progress("blocked"), "")
+        self.assertEqual(phase_progress(None), "")
+
+    def test_building_and_fixing_review_have_distinct_colors(self) -> None:
+        self.assertNotEqual(
+            phase_foreground("building"), phase_foreground("fixing_review")
+        )
 
     def test_tall_card_uses_one_background_color(self) -> None:
         card = render_card(

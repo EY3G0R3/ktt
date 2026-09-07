@@ -917,10 +917,29 @@ def horizontal_index_at_mouse(
     )
 
 
+# A worktree agent's phases in the order the worktree skill walks them, from
+# first code to merge-ready branch. The bottom row counts a phase against this
+# list as `[3/6] fixing review`, so a glance tells how far along the agent is rather
+# than only what it is doing now. Review can loop between in-review and fixing
+# review, so the counter may step back; that is honest, not a glitch. Terminal
+# and off-pipeline phases (needs human design, blocked, cancelled, the failure
+# handoffs) are not on the list and carry no counter.
+PHASE_PIPELINE = (
+    "building",
+    "in_review",
+    "fixing_review",
+    "review_passed",
+    "final_verification",
+    "ready_to_merge",
+)
+# Remediation sits between building's yellow and trouble's red: a fix batch is
+# neither fresh work nor a stop, and the two phases used to share one yellow,
+# which hid whether a review had found anything at all.
+PHASE_FIXING_FOREGROUND = "ffb86c"
 PHASE_FOREGROUNDS = {
     "building": REPOSITORY_DIRTY_FOREGROUND,
     "in_review": REPOSITORY_BRANCH_FOREGROUND,
-    "fixing_review": REPOSITORY_DIRTY_FOREGROUND,
+    "fixing_review": PHASE_FIXING_FOREGROUND,
     "review_passed": REPOSITORY_CLEAN_FOREGROUND,
     "final_verification": REPOSITORY_BRANCH_FOREGROUND,
     "ready_to_merge": REPOSITORY_CLEAN_FOREGROUND,
@@ -937,6 +956,14 @@ def phase_key(phase: str | None) -> str:
 def phase_label(phase: str | None) -> str:
     """Spell a phase for the card without its wire-format underscores."""
     return phase_key(phase).replace("_", " ")
+
+
+def phase_progress(phase: str | None) -> str:
+    """`[1/6]` for a pipeline phase, empty for one off the pipeline."""
+    key = phase_key(phase)
+    if key not in PHASE_PIPELINE:
+        return ""
+    return f"[{PHASE_PIPELINE.index(key) + 1}/{len(PHASE_PIPELINE)}]"
 
 
 def phase_foreground(phase: str | None) -> str:
@@ -1585,6 +1612,11 @@ def render_card(
     phase = phase_label(row.tab.phase) if card_height >= 2 else ""
     secondary_segments: list[tuple[str, str, bool]] = []
     if phase:
+        progress = phase_progress(row.tab.phase)
+        if progress:
+            secondary_segments.append((
+                f"{progress} ", REPOSITORY_META_FOREGROUND, False
+            ))
         secondary_segments.append((
             phase, phase_foreground(row.tab.phase), False
         ))
