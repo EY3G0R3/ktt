@@ -56,8 +56,10 @@ design.
 - Tree depth shifts a child card four cells per level. Status always occupies
   two cells, so titles remain aligned across spinner, emoji, and empty states.
 - Every card shows repository identity before other labels. Tall cards place
-  repository/worktree/state on the middle row and useful branch/title on the
-  bottom row, omitting redundant labels.
+  repository/worktree on the middle row and useful branch/title on the bottom
+  row, omitting redundant labels. On a three-row card the working-tree state
+  sits at the right end of the top row, beside the title; two-row cards keep
+  it at the right end of the middle row.
 - A three-row card always heads itself with its tab title, on the top row, in
   its own pale cool color, starting at the same column as the middle row's
   text rather than centered. The middle row is then repository identity and the
@@ -69,16 +71,20 @@ design.
 - The title color only ever brightens to reach contrast. The shared accent
   helper moves to the nearer readable lightness, which on the active card's
   light slate is the dark end; a title must stay light on every card.
-- A worktree agent's reported phase (`workmux_phase`) sits at the right end
-  of the bottom row on two- and three-row cards, as the label followed by a
-  six-cell track, `fixing review ■■■□□□` by default. One-row cards omit the
-  phase. Done cells take the phase color, the rest meta gray, both passed
-  through the shared accent helper so they stay visible on the active card's
-  light slate. The right edge is the one column every card shares regardless
-  of tree depth, so labels and tracks line up and the bar reads as a progress
-  column. The phase group claims its width first; branch and, on two-row
-  cards, title center in what remains. A phase off the pipeline, such as
-  `needs human design`, shows its label with no track. Building is
+- A worktree agent's reported phase (`workmux_phase`) stacks the right edge
+  of a three-row card: working-tree state on the top row, the six-cell track
+  (`■■■□□□` for fixing review by default) on the middle row, and the phase
+  label on the bottom row, each at the same right column. A two-row card has
+  no top row, so its state stays on the middle row and label and track share
+  the bottom row as `fixing review ■■■□□□`. One-row cards omit the phase.
+  Done cells take the phase color, the rest meta gray, both passed through
+  the shared accent helper so they stay visible on the active card's light
+  slate. The right edge is the one column every card shares regardless of
+  tree depth, so state, tracks, and labels each line up down the bar. The
+  right-edge group claims its width first; branch and, on two-row cards,
+  title center in what remains, and a lifted title starts at the middle
+  row's text column even with the state beside it. A phase off the pipeline,
+  such as `needs human design`, shows its label with no track. Building is
   yellow and fixing review orange, so the two in-progress phases never share
   a color. The track's form and coloring are user-configurable (see README,
   "Configuration"); the contract fixes the placement, not the glyphs.

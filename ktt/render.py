@@ -1143,6 +1143,16 @@ def tab_labels(
     return truncate_cells(tab.title, title_width), repository, worktree_label
 
 
+def repository_state_foreground(state: str | None) -> str:
+    return (
+        REPOSITORY_CONFLICT_FOREGROUND
+        if state and state.startswith("✗")
+        else REPOSITORY_CLEAN_FOREGROUND
+        if state and state.startswith("✓")
+        else REPOSITORY_DIRTY_FOREGROUND
+    )
+
+
 def render_row(
     row: TreeRow,
     *,
@@ -1156,6 +1166,7 @@ def render_row(
     repository_hue: float | None = None,
     repository_location: RepositoryLocation | None = None,
     repository_state: str | None = None,
+    trailing_segments: list[tuple[str, str, bool]] | None = None,
     show_repository_metadata: bool = True,
     show_worktree_metadata: bool = True,
     show_tab_title: bool = True,
@@ -1194,14 +1205,16 @@ def render_row(
         5,
         display_width(f" {WORKTREE_GLYPH}{worktree_name}") if worktree_name else 0,
     )
-    state_color = (
-        REPOSITORY_CONFLICT_FOREGROUND
-        if repository_state and repository_state.startswith("✗")
-        else REPOSITORY_CLEAN_FOREGROUND
-        if repository_state and repository_state.startswith("✓")
-        else REPOSITORY_DIRTY_FOREGROUND
+    # The trailing segments take the state's slot at the row's right end when
+    # given; render_card uses that to put the phase track there on tall cards.
+    state_segments = (
+        list(trailing_segments)
+        if trailing_segments is not None
+        else [(repository_state or "", repository_state_foreground(repository_state), False)]
     )
-    full_state_width = display_width(repository_state or "")
+    full_state_width = display_width(
+        "".join(text for text, _, _ in state_segments)
+    )
     state_width = min(
         full_state_width,
         max(
@@ -1351,9 +1364,8 @@ def render_row(
         if inline_context_segments
         else ""
     )
-    state_segments = [(
-        repository_state or "", state_color, False
-    )] if state_width else []
+    if not state_width:
+        state_segments = []
     state_label = (
         f"{_render_repository_text(state_segments, state_width, ansi=ansi)}"
         f"{restore}"
@@ -1577,7 +1589,15 @@ def render_card_context_row(
                 ),
             )
             gap = 2 if segments and text_width - right_width >= 3 else 0
-            left_width = max(0, text_width - right_width - gap)
+            # "content" alignment starts the left text at the middle row's
+            # text column, so a lifted title still lines up under the
+            # repository identity when the state shares its row.
+            left_offset = (
+                max(0, min(CARD_PREFIX_WIDTH, body_width) - 1)
+                if alignment == "content" and segments
+                else 0
+            )
+            left_width = max(0, text_width - right_width - gap - left_offset)
             left_content = _render_repository_text(
                 segments, left_width, ansi=ansi
             )
@@ -1587,11 +1607,11 @@ def render_card_context_row(
             left_drawn = display_width(strip_ansi(left_content))
             right_drawn = display_width(strip_ansi(right_content))
             middle_padding = max(
-                0, text_width - left_drawn - right_drawn
+                0, text_width - left_offset - left_drawn - right_drawn
             )
             body = (
-                f"{base} {left_content}{base}{' ' * middle_padding}"
-                f"{right_content}{base} "
+                f"{base} {' ' * left_offset}{left_content}{base}"
+                f"{' ' * middle_padding}{right_content}{base} "
             )
     else:
         content_width = min(
@@ -1699,8 +1719,28 @@ def render_card(
         5,
         display_width(f" {WORKTREE_GLYPH}{worktree}") if worktree else 0,
     )
+    phase = phase_label(row.tab.phase) if card_height >= 2 else ""
+    track = (
+        phase_progress_segments(
+            row.tab.phase, background_override or card_background(row)
+        )
+        if phase
+        else []
+    )
+    # A three-row card stacks its right edge: working-tree state on the top
+    # row, the phase track on the middle row, the phase label on the bottom,
+    # so each of the three lines up in its own column down the bar. A two-row
+    # card has no top row; its state stays on the middle row and label and
+    # track share the bottom.
+    state_on_top = card_height >= 3
+    middle_trailing = track if state_on_top else None
+    middle_trailing_width = (
+        display_width("".join(text for text, _, _ in track))
+        if state_on_top
+        else display_width(state)
+    )
     state_width = min(
-        display_width(state),
+        middle_trailing_width,
         max(0, body_width - prefix_width - minimum_worktree_width - 3),
     )
     label_width = max(
@@ -1716,23 +1756,23 @@ def render_card(
     secondary_context_is_separate = card_height >= 2 and bool(
         worktree or useful_branch or status_squeezes_repository
     )
-    phase = phase_label(row.tab.phase) if card_height >= 2 else ""
     secondary_segments: list[tuple[str, str, bool]] = []
-    # The phase label and its track sit together at the right edge, the one
-    # column every card shares, so both the labels and the tracks line up
-    # down the bar. Branch and, on two-row cards, title keep the centered
-    # left part of the row.
+    # The phase label sits at the right edge, the one column every card
+    # shares, so labels line up down the bar. Branch and, on two-row cards,
+    # title keep the centered left part of the row.
     progress_segments: list[tuple[str, str, bool]] = []
     if phase:
         progress_segments.append((
             phase, phase_foreground(row.tab.phase), False
         ))
-        track = phase_progress_segments(
-            row.tab.phase, background_override or card_background(row)
-        )
-        if track:
+        if track and not state_on_top:
             progress_segments.append((" ", REPOSITORY_META_FOREGROUND, False))
             progress_segments.extend(track)
+    top_right_segments: list[tuple[str, str, bool]] = (
+        [(state, repository_state_foreground(state), False)]
+        if state_on_top and state
+        else []
+    )
     if secondary_context_is_separate and useful_branch:
         secondary_segments.append((
             useful_branch, REPOSITORY_BRANCH_FOREGROUND, False
@@ -1782,7 +1822,8 @@ def render_card(
             card_height=card_height,
             repository_hue=repository_hue,
             repository_location=effective_repository_location,
-            repository_state=state or None,
+            repository_state=None if state_on_top else state or None,
+            trailing_segments=middle_trailing,
             show_repository_metadata=True,
             show_worktree_metadata=True,
             show_tab_title=not (
@@ -1815,9 +1856,10 @@ def render_card(
             line_index=line,
             card_height=card_height,
             alignment="content",
+            right_segments=top_right_segments,
             background_override=background_override,
         )
-        if top_segments and line == 0
+        if (top_segments or top_right_segments) and line == 0
         else render_card_blank(
             row,
             width=width,

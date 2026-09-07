@@ -287,7 +287,7 @@ class NativeCardStateTests(unittest.TestCase):
 
         self.assertIn("/repo/", root[1])
         self.assertIn("🌳feature", root[1])
-        self.assertIn("✓ clean", root[1])
+        self.assertIn("✓ clean", root[0])
         self.assertIn("implement auth", root[0])
         self.assertIn("topic", root[2])
         self.assertNotIn("implement auth", root[2])
