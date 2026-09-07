@@ -8,6 +8,7 @@ import re
 import time
 import unicodedata
 
+from .config import load_config
 from .model import TabRecord, TreeRow, seeks_attention
 from .repository import RepositoryLocation, repository_summary_parts
 
@@ -934,8 +935,32 @@ PHASE_PIPELINE = (
     "final_verification",
     "ready_to_merge",
 )
-PHASE_STEP_DONE = "●"
-PHASE_STEP_TODO = "○"
+# Track styles, selectable in `~/.config/ktt/config.toml` under
+# `[phase_track]` as `form` and `color`; see ktt/config.py for the vocabulary
+# and the defaults. `form` is (done glyph, todo glyph) or, for a per-step
+# form, a tuple of six glyphs where done steps use the glyph at their index.
+# `color` picks how done steps are painted: "phase" in the current phase's
+# color, "two_tone" yellow until the last step turns the whole track green,
+# "gradient" walking from yellow to green across the steps, "rainbow" each in
+# the color of the phase it stands for, "accent" earlier steps dim with the
+# current one bright, "fixed" one progress green regardless of phase. Squares
+# in the phase color won a live comparison of all of them; the rest stay
+# because the choice is taste, and taste is what the config file is for.
+PHASE_TRACK_FORMS = {
+    "dots": ("●", "○"),
+    "blocks": ("▰", "▱"),
+    "squares": ("■", "□"),
+    "bar": ("━", "─"),
+    "thick": ("▮", "▯"),
+    "stairs": (("▁", "▂", "▃", "▄", "▅", "▆"), "▁"),
+    "braille": ("⣿", "⣀"),
+    "full": ("█", "░"),
+}
+CONFIG = load_config()
+PHASE_TRACK_FORM = CONFIG.phase_track_form
+PHASE_TRACK_COLOR = CONFIG.phase_track_color
+PHASE_TRACK_TODO_FOREGROUND = REPOSITORY_META_FOREGROUND
+PHASE_TRACK_DIM_FOREGROUND = "4f5563"
 # Remediation sits between building's yellow and trouble's red: a fix batch is
 # neither fresh work nor a stop, and the two phases used to share one yellow,
 # which hid whether a review had found anything at all.
@@ -968,31 +993,81 @@ def phase_step(phase: str | None) -> int:
     return PHASE_PIPELINE.index(key) + 1 if key in PHASE_PIPELINE else 0
 
 
-def phase_progress(phase: str | None) -> str:
-    """`●●○○○○` for a pipeline phase, empty for one off the pipeline."""
-    step = phase_step(phase)
-    if not step:
-        return ""
-    return PHASE_STEP_DONE * step + PHASE_STEP_TODO * (
-        len(PHASE_PIPELINE) - step
+def _blend_hex(start: str, end: str, position: float) -> str:
+    """Interpolate two hex colors in HLS so the hue walks, not the gray."""
+    a = colorsys.rgb_to_hls(*(int(start[i:i + 2], 16) / 255 for i in (0, 2, 4)))
+    b = colorsys.rgb_to_hls(*(int(end[i:i + 2], 16) / 255 for i in (0, 2, 4)))
+    h, l, s = (x + (y - x) * position for x, y in zip(a, b))
+    return "".join(f"{round(c * 255):02x}" for c in colorsys.hls_to_rgb(h, l, s))
+
+
+def _track_glyphs(form: str) -> tuple[tuple[str, ...], str]:
+    done, todo = PHASE_TRACK_FORMS[form]
+    if isinstance(done, str):
+        done = (done,) * len(PHASE_PIPELINE)
+    return done, todo
+
+
+def phase_progress(phase: str | None, *, form: str | None = None) -> str:
+    """The track as plain text, empty for a phase off the pipeline."""
+    return "".join(
+        text for text, _, _ in phase_progress_segments(phase, form=form)
     )
 
 
 def phase_progress_segments(
     phase: str | None,
+    background: str = INACTIVE_BACKGROUND,
+    *,
+    form: str | None = None,
+    color: str | None = None,
 ) -> list[tuple[str, str, bool]]:
-    """The dot track as colored segments: done in the phase color, rest dim."""
+    """The track as colored segments, one per step, readable on `background`.
+
+    The undone steps are meta gray, which sits at 1.3:1 on the active card's
+    light slate and simply vanished there, so every step's color goes through
+    the shared accent helper for the card it is drawn on.
+    """
     step = phase_step(phase)
     if not step:
         return []
-    return [
-        (PHASE_STEP_DONE * step, phase_foreground(phase), False),
-        (
-            PHASE_STEP_TODO * (len(PHASE_PIPELINE) - step),
-            REPOSITORY_META_FOREGROUND,
+    form = form or PHASE_TRACK_FORM
+    color_mode = color or PHASE_TRACK_COLOR
+    done_glyphs, todo_glyph = _track_glyphs(form)
+    segments: list[tuple[str, str, bool]] = []
+    todo_color = _adaptive_accent_foreground(
+        PHASE_TRACK_TODO_FOREGROUND, background
+    )
+    for index in range(len(PHASE_PIPELINE)):
+        if index >= step:
+            segments.append((todo_glyph, todo_color, False))
+            continue
+        if color_mode == "rainbow":
+            color = PHASE_FOREGROUNDS[PHASE_PIPELINE[index]]
+        elif color_mode == "gradient":
+            color = _blend_hex(
+                REPOSITORY_DIRTY_FOREGROUND,
+                REPOSITORY_CLEAN_FOREGROUND,
+                index / (len(PHASE_PIPELINE) - 1),
+            )
+        elif color_mode == "two_tone":
+            color = (
+                REPOSITORY_CLEAN_FOREGROUND
+                if step == len(PHASE_PIPELINE)
+                else REPOSITORY_DIRTY_FOREGROUND
+            )
+        elif color_mode == "fixed":
+            color = REPOSITORY_CLEAN_FOREGROUND
+        elif color_mode == "accent" and index < step - 1:
+            color = PHASE_TRACK_DIM_FOREGROUND
+        else:
+            color = phase_foreground(phase)
+        segments.append((
+            done_glyphs[index],
+            _adaptive_accent_foreground(color, background),
             False,
-        ),
-    ]
+        ))
+    return segments
 
 
 def phase_foreground(phase: str | None) -> str:
@@ -1644,7 +1719,11 @@ def render_card(
     phase = phase_label(row.tab.phase) if card_height >= 2 else ""
     secondary_segments: list[tuple[str, str, bool]] = []
     progress_segments = (
-        phase_progress_segments(row.tab.phase) if phase else []
+        phase_progress_segments(
+            row.tab.phase, background_override or card_background(row)
+        )
+        if phase
+        else []
     )
     if phase:
         secondary_segments.append((

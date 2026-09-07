@@ -71,14 +71,17 @@ design.
   light slate is the dark end; a title must stay light on every card.
 - A worktree agent's reported phase (`workmux_phase`) leads the bottom row on
   two- and three-row cards. One-row cards omit the phase. A phase on the
-  pipeline from `building` to `ready to merge` also draws a six-dot track,
-  `●●●○○○` for fixing review, pinned to the card's right edge: filled dots in
-  the phase color, the rest in meta gray. The right edge is the one column
-  every card shares regardless of tree depth, so the tracks line up and the
-  bar reads as a progress column. The track claims its width before the
-  centered label. Terminal and off-pipeline phases such as `needs human
-  design` draw no track. Building is yellow and fixing review orange, so the
-  two in-progress phases never share a color.
+  pipeline from `building` to `ready to merge` also draws a six-cell track,
+  `■■■□□□` for fixing review by default, pinned to the card's right edge: done
+  cells in the phase color, the rest in meta gray, both passed through the
+  shared accent helper so they stay visible on the active card's light slate.
+  The right edge is the one column every card shares regardless of tree
+  depth, so the tracks line up and the bar reads as a progress column. The
+  track claims its width before the centered label. Terminal and
+  off-pipeline phases such as `needs human design` draw no track. Building is
+  yellow and fixing review orange, so the two in-progress phases never share
+  a color. The track's form and coloring are user-configurable (see README,
+  "Configuration"); the contract fixes the placement, not the glyphs.
 - Active, active-descendant, working, waiting, ready, and blocked treatments
   retain the established colors, brightness, caps, and attention debounce.
 - Cards adapt from three rows to two and then one without changing their field

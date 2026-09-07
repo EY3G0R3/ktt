@@ -122,6 +122,27 @@ labels.
 See [VISUAL_CONTRACT.md](VISUAL_CONTRACT.md) for executable gates and exact
 behavior, and [DECISIONS.md](DECISIONS.md) for the historical rationale.
 
+## Configuration
+
+KTT reads an optional `~/.config/ktt/config.toml` (or under
+`$XDG_CONFIG_HOME`). Every key has a default, and an unknown or mistyped value
+falls back to it rather than breaking the tab bar. Apply a change with
+`kitty @ load-config` twice.
+
+```toml
+[phase_track]
+# form:  dots ●○  blocks ▰▱  squares ■□  bar ━─  thick ▮▯  stairs ▁▂▃
+#        braille ⣿⣀  full █░
+form = "squares"
+# color: phase     done cells in the current phase's color (default)
+#        two_tone  yellow until ready to merge turns the track green
+#        gradient  yellow shading to green across the six steps
+#        rainbow   each done cell in the color of its own phase
+#        accent    earlier steps dim, the current step bright
+#        fixed     one progress green regardless of phase
+color = "phase"
+```
+
 ## Sessions
 
 ```bash

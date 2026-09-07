@@ -12,8 +12,12 @@ from ktt.render import (
     FLAME_RIGHT_CAP,
     INACTIVE_BACKGROUND,
     LEFT_CAP,
+    PHASE_PIPELINE,
+    PHASE_TRACK_FORMS,
     READY_RIGHT_CAP,
     REPOSITORY_BACKGROUND,
+    REPOSITORY_CLEAN_FOREGROUND,
+    REPOSITORY_DIRTY_FOREGROUND,
     REPOSITORY_WORKTREE_FOREGROUND,
     RIGHT_CAP,
     WAITING_BACKGROUNDS,
@@ -33,6 +37,9 @@ from ktt.render import (
     phase_foreground,
     phase_label,
     phase_progress,
+    phase_progress_segments,
+    phase_step,
+    _contrast_ratio,
     next_edge_style,
     render_control_line,
     render_card,
@@ -1381,7 +1388,7 @@ class RenderTests(unittest.TestCase):
         # The dot track keeps its six columns, so the title that shares the
         # row survives only as its truncated head at this width.
         self.assertIn("· p", card[1])
-        self.assertTrue(card[1].rstrip().endswith("●●○○○○"))
+        self.assertTrue(card[1].rstrip().endswith("■■□□□□"))
 
     def test_one_row_card_hides_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=1)
@@ -1394,32 +1401,87 @@ class RenderTests(unittest.TestCase):
                 self.assertEqual(phase_label(raw), "in review")
         self.assertEqual(phase_label(None), "")
 
-    def test_pipeline_phase_draws_its_dot_track(self) -> None:
+    def test_pipeline_phase_draws_its_track(self) -> None:
         card = self._card(self._worktree_row("fixing_review"))
         self.assertIn("fixing review", card[2])
-        self.assertTrue(card[2].rstrip().endswith("●●●○○○"))
+        self.assertTrue(card[2].rstrip().endswith("■■■□□□"))
         card = self._card(self._worktree_row("in review"))
-        self.assertTrue(card[2].rstrip().endswith("●●○○○○"))
+        self.assertTrue(card[2].rstrip().endswith("■■□□□□"))
 
-    def test_dot_tracks_end_at_one_column_across_tree_depth(self) -> None:
+    def test_tracks_end_at_one_column_across_tree_depth(self) -> None:
         shallow = self._card(self._worktree_row("building"))[2]
         deep_row = TreeRow(self._worktree_row("ready_to_merge").tab, 2, None)
         deep = self._card(deep_row)[2]
-        self.assertEqual(shallow.rindex("○"), deep.rindex("●"))
+        self.assertEqual(shallow.rindex("□"), deep.rindex("■"))
         self.assertEqual(len(shallow), len(deep))
 
     def test_off_pipeline_phase_has_no_track(self) -> None:
         card = self._card(self._worktree_row("needs_human_design"))
         self.assertIn("needs human design", card[2])
-        self.assertNotIn("●", card[2])
-        self.assertNotIn("○", card[2])
+        self.assertNotIn("■", card[2])
+        self.assertNotIn("□", card[2])
 
     def test_phase_progress_fills_from_building_to_ready_to_merge(self) -> None:
-        self.assertEqual(phase_progress("building"), "●○○○○○")
-        self.assertEqual(phase_progress("Ready-To-Merge"), "●●●●●●")
+        self.assertEqual(phase_progress("building"), "■□□□□□")
+        self.assertEqual(phase_progress("Ready-To-Merge"), "■■■■■■")
         self.assertEqual(phase_progress("landed"), "")
         self.assertEqual(phase_progress("blocked"), "")
         self.assertEqual(phase_progress(None), "")
+
+    def test_every_track_form_spans_six_cells(self) -> None:
+        for form in PHASE_TRACK_FORMS:
+            with self.subTest(form=form):
+                for phase in PHASE_PIPELINE:
+                    self.assertEqual(
+                        len(phase_progress(phase, form=form)), 6
+                    )
+
+    def test_track_color_modes(self) -> None:
+        def done_colors(phase: str, color: str) -> list[str]:
+            segments = phase_progress_segments(phase, color=color)
+            return [c for _, c, _ in segments[: phase_step(phase)]]
+
+        self.assertEqual(
+            done_colors("fixing_review", "phase"),
+            [phase_foreground("fixing_review")] * 3,
+        )
+        self.assertEqual(
+            done_colors("fixing_review", "two_tone"),
+            [REPOSITORY_DIRTY_FOREGROUND] * 3,
+        )
+        self.assertEqual(
+            done_colors("ready_to_merge", "two_tone"),
+            [REPOSITORY_CLEAN_FOREGROUND] * 6,
+        )
+        gradient = done_colors("ready_to_merge", "gradient")
+        self.assertEqual(gradient[0], REPOSITORY_DIRTY_FOREGROUND)
+        self.assertEqual(gradient[-1], REPOSITORY_CLEAN_FOREGROUND)
+        self.assertEqual(len(set(gradient)), 6)
+        self.assertEqual(
+            done_colors("fixing_review", "rainbow"),
+            [phase_foreground(p) for p in PHASE_PIPELINE[:3]],
+        )
+        accent = done_colors("fixing_review", "accent")
+        self.assertEqual(accent[-1], phase_foreground("fixing_review"))
+        self.assertNotEqual(accent[0], accent[-1])
+        self.assertEqual(
+            done_colors("fixing_review", "fixed"),
+            [REPOSITORY_CLEAN_FOREGROUND] * 3,
+        )
+
+    def test_track_stays_readable_on_the_active_card(self) -> None:
+        # The accent helper settles for the best lightness available when
+        # 4.5:1 is out of reach, as it is for green on the active slate, so
+        # the check is that every cell beats its raw color and clears 3:1,
+        # which is what the undone gray failed at 1.3:1 before.
+        raw = phase_progress_segments("fixing_review", INACTIVE_BACKGROUND)
+        adjusted = phase_progress_segments("fixing_review", ACTIVE_BACKGROUND)
+        for (_, before, _), (_, after, _) in zip(raw, adjusted):
+            self.assertGreaterEqual(
+                _contrast_ratio(after, ACTIVE_BACKGROUND),
+                min(4.5, _contrast_ratio(before, ACTIVE_BACKGROUND)),
+            )
+            self.assertGreaterEqual(_contrast_ratio(after, ACTIVE_BACKGROUND), 3.0)
 
     def test_building_and_fixing_review_have_distinct_colors(self) -> None:
         self.assertNotEqual(
