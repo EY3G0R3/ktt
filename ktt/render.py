@@ -1718,22 +1718,22 @@ def render_card(
     )
     phase = phase_label(row.tab.phase) if card_height >= 2 else ""
     secondary_segments: list[tuple[str, str, bool]] = []
-    progress_segments = (
-        phase_progress_segments(
-            row.tab.phase, background_override or card_background(row)
-        )
-        if phase
-        else []
-    )
+    # The phase label and its track sit together at the right edge, the one
+    # column every card shares, so both the labels and the tracks line up
+    # down the bar. Branch and, on two-row cards, title keep the centered
+    # left part of the row.
+    progress_segments: list[tuple[str, str, bool]] = []
     if phase:
-        secondary_segments.append((
+        progress_segments.append((
             phase, phase_foreground(row.tab.phase), False
         ))
+        track = phase_progress_segments(
+            row.tab.phase, background_override or card_background(row)
+        )
+        if track:
+            progress_segments.append((" ", REPOSITORY_META_FOREGROUND, False))
+            progress_segments.extend(track)
     if secondary_context_is_separate and useful_branch:
-        if secondary_segments:
-            secondary_segments.append((
-                " · ", REPOSITORY_META_FOREGROUND, False
-            ))
         secondary_segments.append((
             useful_branch, REPOSITORY_BRANCH_FOREGROUND, False
         ))
@@ -1805,7 +1805,7 @@ def render_card(
             right_segments=progress_segments,
             background_override=background_override,
         )
-        if secondary_segments and line == card_height - 1
+        if (secondary_segments or progress_segments) and line == card_height - 1
         else render_card_context_row(
             row,
             top_segments,

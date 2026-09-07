@@ -1403,8 +1403,7 @@ class RenderTests(unittest.TestCase):
 
     def test_pipeline_phase_draws_its_track(self) -> None:
         card = self._card(self._worktree_row("fixing_review"))
-        self.assertIn("fixing review", card[2])
-        self.assertTrue(card[2].rstrip().endswith("■■■□□□"))
+        self.assertTrue(card[2].rstrip().endswith("fixing review ■■■□□□"))
         card = self._card(self._worktree_row("in review"))
         self.assertTrue(card[2].rstrip().endswith("■■□□□□"))
 
@@ -1415,9 +1414,27 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(shallow.rindex("□"), deep.rindex("■"))
         self.assertEqual(len(shallow), len(deep))
 
+    def test_phase_labels_end_at_one_column_too(self) -> None:
+        short = self._card(self._worktree_row("building"))[2]
+        long = self._card(self._worktree_row("final_verification"))[2]
+        self.assertEqual(len(short.rstrip()), len(long.rstrip()))
+        self.assertTrue(short.rstrip().endswith("building ■□□□□□"))
+        self.assertTrue(long.rstrip().endswith("final verification ■■■■■□"))
+
+    def test_phase_alone_still_fills_the_bottom_row(self) -> None:
+        row = TreeRow(
+            TabRecord(2, 1, "ktt cards", (20,), status="working", phase="building"),
+            0,
+            None,
+        )
+        card = render_card(
+            row, selected=False, width=44, card_height=3, ansi=False
+        )
+        self.assertTrue(card[2].rstrip().endswith("building ■□□□□□"))
+
     def test_off_pipeline_phase_has_no_track(self) -> None:
         card = self._card(self._worktree_row("needs_human_design"))
-        self.assertIn("needs human design", card[2])
+        self.assertTrue(card[2].rstrip().endswith("needs human design"))
         self.assertNotIn("■", card[2])
         self.assertNotIn("□", card[2])
 
