@@ -918,12 +918,14 @@ def horizontal_index_at_mouse(
 
 
 # A worktree agent's phases in the order the worktree skill walks them, from
-# first code to merge-ready branch. The bottom row counts a phase against this
-# list as `[3/6] fixing review`, so a glance tells how far along the agent is rather
-# than only what it is doing now. Review can loop between in-review and fixing
-# review, so the counter may step back; that is honest, not a glitch. Terminal
-# and off-pipeline phases (needs human design, blocked, cancelled, the failure
-# handoffs) are not on the list and carry no counter.
+# first code to merge-ready branch. The bottom row draws a phase's position on
+# this list as a dot track, `●●●○○○` for fixing review, pinned to the card's
+# right edge. The right edge is the one column every card shares whatever its
+# tree depth, so the tracks line up and a glance down the bar shows who is
+# farther along. Review can loop between in-review and fixing review, so the
+# fill may retreat; that is honest, not a glitch. Terminal and off-pipeline
+# phases (needs human design, blocked, cancelled, the failure handoffs) are not
+# on the list and draw no track.
 PHASE_PIPELINE = (
     "building",
     "in_review",
@@ -932,6 +934,8 @@ PHASE_PIPELINE = (
     "final_verification",
     "ready_to_merge",
 )
+PHASE_STEP_DONE = "●"
+PHASE_STEP_TODO = "○"
 # Remediation sits between building's yellow and trouble's red: a fix batch is
 # neither fresh work nor a stop, and the two phases used to share one yellow,
 # which hid whether a review had found anything at all.
@@ -958,12 +962,37 @@ def phase_label(phase: str | None) -> str:
     return phase_key(phase).replace("_", " ")
 
 
-def phase_progress(phase: str | None) -> str:
-    """`[1/6]` for a pipeline phase, empty for one off the pipeline."""
+def phase_step(phase: str | None) -> int:
+    """1-based pipeline position of a phase, or 0 for one off the pipeline."""
     key = phase_key(phase)
-    if key not in PHASE_PIPELINE:
+    return PHASE_PIPELINE.index(key) + 1 if key in PHASE_PIPELINE else 0
+
+
+def phase_progress(phase: str | None) -> str:
+    """`●●○○○○` for a pipeline phase, empty for one off the pipeline."""
+    step = phase_step(phase)
+    if not step:
         return ""
-    return f"[{PHASE_PIPELINE.index(key) + 1}/{len(PHASE_PIPELINE)}]"
+    return PHASE_STEP_DONE * step + PHASE_STEP_TODO * (
+        len(PHASE_PIPELINE) - step
+    )
+
+
+def phase_progress_segments(
+    phase: str | None,
+) -> list[tuple[str, str, bool]]:
+    """The dot track as colored segments: done in the phase color, rest dim."""
+    step = phase_step(phase)
+    if not step:
+        return []
+    return [
+        (PHASE_STEP_DONE * step, phase_foreground(phase), False),
+        (
+            PHASE_STEP_TODO * (len(PHASE_PIPELINE) - step),
+            REPOSITORY_META_FOREGROUND,
+            False,
+        ),
+    ]
 
 
 def phase_foreground(phase: str | None) -> str:
@@ -1432,20 +1461,23 @@ def render_card_context_row(
     text_width = max(0, body_width - 2)
     if right_segments:
         if alignment == "center":
-            center_width = min(
-                text_width,
-                display_width("".join(text for text, _, _ in segments)),
-            )
-            center_start = max(0, (text_width - center_width) // 2)
-            right_available = max(
-                0, text_width - center_start - center_width - 2
-            )
+            # The right segments are the phase track, whose whole point is to
+            # sit at one column on every card, so they claim their width first
+            # and the centered text fits in what remains.
             right_width = min(
-                right_available,
+                text_width,
                 display_width(
                     "".join(text for text, _, _ in right_segments)
                 ),
             )
+            center_available = max(
+                0, text_width - right_width - (2 if right_width else 0)
+            )
+            center_width = min(
+                center_available,
+                display_width("".join(text for text, _, _ in segments)),
+            )
+            center_start = max(0, (center_available - center_width) // 2)
             center_content = _render_repository_text(
                 segments, center_width, ansi=ansi
             )
@@ -1611,12 +1643,10 @@ def render_card(
     )
     phase = phase_label(row.tab.phase) if card_height >= 2 else ""
     secondary_segments: list[tuple[str, str, bool]] = []
+    progress_segments = (
+        phase_progress_segments(row.tab.phase) if phase else []
+    )
     if phase:
-        progress = phase_progress(row.tab.phase)
-        if progress:
-            secondary_segments.append((
-                f"{progress} ", REPOSITORY_META_FOREGROUND, False
-            ))
         secondary_segments.append((
             phase, phase_foreground(row.tab.phase), False
         ))
@@ -1693,6 +1723,7 @@ def render_card(
             line_index=line,
             card_height=card_height,
             alignment="center",
+            right_segments=progress_segments,
             background_override=background_override,
         )
         if secondary_segments and line == card_height - 1

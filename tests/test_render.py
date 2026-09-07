@@ -1377,10 +1377,11 @@ class RenderTests(unittest.TestCase):
     def test_two_row_card_shares_its_bottom_row_with_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=2)
         self.assertIn(WORKTREE_GLYPH, card[0])
-        self.assertIn("[2/6] in review", card[1])
-        # The step counter spends six columns, so the title that shares the
+        self.assertIn("in review", card[1])
+        # The dot track keeps its six columns, so the title that shares the
         # row survives only as its truncated head at this width.
-        self.assertIn("· pi", card[1])
+        self.assertIn("· p", card[1])
+        self.assertTrue(card[1].rstrip().endswith("●●○○○○"))
 
     def test_one_row_card_hides_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=1)
@@ -1393,20 +1394,29 @@ class RenderTests(unittest.TestCase):
                 self.assertEqual(phase_label(raw), "in review")
         self.assertEqual(phase_label(None), "")
 
-    def test_pipeline_phase_carries_its_step_counter(self) -> None:
+    def test_pipeline_phase_draws_its_dot_track(self) -> None:
         card = self._card(self._worktree_row("fixing_review"))
-        self.assertIn("[3/6] fixing review", card[2])
+        self.assertIn("fixing review", card[2])
+        self.assertTrue(card[2].rstrip().endswith("●●●○○○"))
         card = self._card(self._worktree_row("in review"))
-        self.assertIn("[2/6] in review", card[2])
+        self.assertTrue(card[2].rstrip().endswith("●●○○○○"))
 
-    def test_off_pipeline_phase_has_no_counter(self) -> None:
+    def test_dot_tracks_end_at_one_column_across_tree_depth(self) -> None:
+        shallow = self._card(self._worktree_row("building"))[2]
+        deep_row = TreeRow(self._worktree_row("ready_to_merge").tab, 2, None)
+        deep = self._card(deep_row)[2]
+        self.assertEqual(shallow.rindex("○"), deep.rindex("●"))
+        self.assertEqual(len(shallow), len(deep))
+
+    def test_off_pipeline_phase_has_no_track(self) -> None:
         card = self._card(self._worktree_row("needs_human_design"))
         self.assertIn("needs human design", card[2])
-        self.assertNotIn("[", card[2])
+        self.assertNotIn("●", card[2])
+        self.assertNotIn("○", card[2])
 
-    def test_phase_progress_counts_from_building_to_ready_to_merge(self) -> None:
-        self.assertEqual(phase_progress("building"), "[1/6]")
-        self.assertEqual(phase_progress("Ready-To-Merge"), "[6/6]")
+    def test_phase_progress_fills_from_building_to_ready_to_merge(self) -> None:
+        self.assertEqual(phase_progress("building"), "●○○○○○")
+        self.assertEqual(phase_progress("Ready-To-Merge"), "●●●●●●")
         self.assertEqual(phase_progress("landed"), "")
         self.assertEqual(phase_progress("blocked"), "")
         self.assertEqual(phase_progress(None), "")
