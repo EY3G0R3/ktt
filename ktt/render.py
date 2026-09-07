@@ -79,6 +79,8 @@ REPOSITORY_NAME_FOREGROUND = "f8f8f2"
 # in review, and sage was passed over for sitting in the green the worktree
 # glyph and clean state already own.
 CARD_TITLE_FOREGROUND = "cddcec"
+# Cells of left text a row keeps when right-pinned segments compete for it.
+RIGHT_SEGMENTS_LEFT_RESERVE = 12
 REPOSITORY_META_FOREGROUND = "777d89"
 REPOSITORY_WORKTREE_FOREGROUND = "77b255"
 REPOSITORY_WORKTREE_GLYPH_FOREGROUND = "77b255"
@@ -1588,16 +1590,31 @@ def render_card_context_row(
                     "".join(text for text, _, _ in right_segments)
                 ),
             )
-            gap = 2 if segments and text_width - right_width >= 3 else 0
             # "content" alignment starts the left text at the middle row's
             # text column, so a lifted title still lines up under the
-            # repository identity when the state shares its row.
+            # repository identity when the state shares its row. The offset
+            # comes out of the row's budget before either side is measured;
+            # a state as wide as the row once spilled past the card by
+            # exactly this offset.
             left_offset = (
                 max(0, min(CARD_PREFIX_WIDTH, body_width) - 1)
                 if alignment == "content" and segments
                 else 0
             )
-            left_width = max(0, text_width - right_width - gap - left_offset)
+            available = max(0, text_width - left_offset)
+            # The right side truncates before it squeezes the left text
+            # below a readable head, so a wide working-tree state never
+            # hides the title it shares the row with.
+            left_reserve = min(
+                display_width("".join(text for text, _, _ in segments)),
+                RIGHT_SEGMENTS_LEFT_RESERVE,
+            ) if segments else 0
+            right_width = min(
+                right_width,
+                max(0, available - left_reserve - (2 if left_reserve else 0)),
+            )
+            gap = 2 if segments and available - right_width >= 3 else 0
+            left_width = max(0, available - right_width - gap)
             left_content = _render_repository_text(
                 segments, left_width, ansi=ansi
             )
@@ -1607,7 +1624,7 @@ def render_card_context_row(
             left_drawn = display_width(strip_ansi(left_content))
             right_drawn = display_width(strip_ansi(right_content))
             middle_padding = max(
-                0, text_width - left_offset - left_drawn - right_drawn
+                0, available - left_drawn - right_drawn
             )
             body = (
                 f"{base} {' ' * left_offset}{left_content}{base}"
@@ -1626,8 +1643,15 @@ def render_card_context_row(
             left_padding = min(1, body_width)
         else:
             left_padding = max(0, (body_width - content_width) // 2)
+        # The prefix-aligned and left-aligned rows start their text past the
+        # left padding, so the text budget is what remains after it, less the
+        # trailing cell every row keeps. Capping at text_width alone let a
+        # long title spill one to three cells past the card's right edge.
+        content_width = min(
+            content_width, max(0, body_width - left_padding - 1)
+        )
         right_padding = max(0, body_width - content_width - left_padding)
-        content = _render_repository_text(segments, text_width, ansi=ansi)
+        content = _render_repository_text(segments, content_width, ansi=ansi)
         body = (
             f"{base}{' ' * left_padding}{content}{base}"
             f"{' ' * right_padding}"

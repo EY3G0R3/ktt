@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from ktt.model import TabRecord
 from ktt.repository import (
+    repository_summary_parts,
     AsyncFancylogMonitor,
     FancylogIdentityCache,
     FancylogMonitor,
@@ -226,3 +227,20 @@ class RepositoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SummaryPartsTests(unittest.TestCase):
+    def test_worktree_header_drops_the_padded_path_from_the_state(self) -> None:
+        identity, branch, state = repository_summary_parts(
+            ["/ktt/    ~/src/ktt" + " " * 120 + "◈ 1 unstaged", " main"]
+        )
+        self.assertEqual(identity, "/ktt/")
+        self.assertEqual(branch, "main")
+        self.assertEqual(state, "◈ 1 unstaged")
+
+    def test_two_space_separators_inside_the_state_survive(self) -> None:
+        _, _, state = repository_summary_parts(
+            [" (quiver) /path  ◈ 1 unstaged  ·  2 untracked ", "  topic "]
+        )
+        self.assertEqual(state, "◈ 1 unstaged  ·  2 untracked")
+

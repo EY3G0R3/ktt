@@ -49,6 +49,13 @@ def repository_summary_parts(
     header_parts = re.split(r"\s{2,}", header, maxsplit=1)
     identity = header_parts[0]
     state = header_parts[1].strip() if len(header_parts) > 1 else ""
+    # Inside a worktree the header reads `/ktt/    ~/src/ktt    <pad>  ◈ 1
+    # unstaged`: identity, the relative path, then the state pushed to the
+    # right edge by a wide run of padding. The state is the last field after
+    # such a run. A state's own separators are two spaces (`◈ 1 unstaged  ·
+    # 2 untracked`), so only a run of three or more splits it.
+    if re.search(r"\s{3,}", state):
+        state = re.split(r"\s{3,}", state)[-1].strip()
     if state == "✓ working tree clean":
         state = "✓ clean"
     return identity, branch, state

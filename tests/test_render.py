@@ -1437,6 +1437,48 @@ class RenderTests(unittest.TestCase):
             end_column(shallow[1], "□"), end_column(shallow[2], "building")
         )
 
+    def test_every_row_keeps_the_card_width_under_a_long_title(self) -> None:
+        # A lifted title starts four cells in; it used to be measured against
+        # the full text width and spill past the card's right edge.
+        row = TreeRow(
+            TabRecord(
+                1,
+                1,
+                "Kitty environment declaration for Workmux Remote",
+                (10,),
+                repository="qri-apps",
+                repository_worktree="5-qri-apps-outpost-env",
+            ),
+            1,
+            None,
+        )
+        for width in (30, 44, 58, 59):
+            with self.subTest(width=width):
+                card = render_card(
+                    row, selected=False, width=width, card_height=3, ansi=True
+                )
+                self.assertEqual(
+                    len({display_width(strip_ansi(line)) for line in card}), 1
+                )
+
+    def test_every_row_keeps_the_card_width_under_a_wide_state(self) -> None:
+        row = TreeRow(
+            TabRecord(1, 1, "~/src/ktt", (10,), repository="ktt"), 0, None
+        )
+        card = render_card(
+            row,
+            selected=True,
+            width=60,
+            card_height=3,
+            ansi=True,
+            repository_lines=["ktt  " + "x" * 80, "main"],
+            repository_location=RepositoryLocation(),
+        )
+        self.assertEqual(
+            len({display_width(strip_ansi(line)) for line in card}), 1
+        )
+        self.assertIn("~/src/ktt", strip_ansi(card[0]))
+
     def test_phase_alone_still_fills_the_bottom_row(self) -> None:
         row = TreeRow(
             TabRecord(2, 1, "ktt cards", (20,), status="working", phase="building"),
