@@ -187,17 +187,30 @@ def _first_user_var(windows: Iterable[dict[str, Any]], key: str) -> str | None:
 
 def content_window_cwd(window: dict[str, Any]) -> str | None:
     processes = window.get("foreground_processes") or []
-    for process in processes:
-        command = process.get("cmdline") or []
-        executable = str(command[0]).rsplit("/", 1)[-1] if command else ""
-        cwd = process.get("cwd")
-        if executable.casefold() in AGENT_COMMANDS and cwd:
-            return str(cwd)
-    for process in processes:
-        cwd = process.get("cwd")
-        if cwd and str(cwd) != "/":
-            return str(cwd)
+    agent_owned = str(
+        (window.get("user_vars") or {}).get(COCKPIT_ROLE_VAR) or ""
+    ) == AGENT_ROLE
+    if agent_owned:
+        for process in processes:
+            command = process.get("cmdline") or []
+            executable = (
+                str(command[0]).rsplit("/", 1)[-1] if command else ""
+            )
+            cwd = process.get("cwd")
+            if executable.casefold() in AGENT_COMMANDS and cwd:
+                return str(cwd)
+        for process in processes:
+            cwd = process.get("cwd")
+            if cwd and str(cwd) != "/":
+                return str(cwd)
     cwd = window.get("cwd")
+    if cwd and str(cwd) != "/":
+        return str(cwd)
+    if not agent_owned:
+        for process in processes:
+            cwd = process.get("cwd")
+            if cwd and str(cwd) != "/":
+                return str(cwd)
     if cwd:
         return str(cwd)
     for process in processes:

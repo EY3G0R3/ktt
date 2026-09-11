@@ -32,6 +32,21 @@ class CwdWindow(FakeWindow):
         return self.cwd
 
 
+class RootAwareCwdWindow(FakeWindow):
+    def __init__(
+        self, window_id: int, root_cwd: str, child_cwd: str, **user_vars: str
+    ) -> None:
+        super().__init__(window_id, **user_vars)
+        self.root_cwd = root_cwd
+        self.child_cwd = child_cwd
+
+    def get_cwd_of_root_child(self) -> str:
+        return self.root_cwd
+
+    def get_cwd_of_child(self) -> str:
+        return self.child_cwd
+
+
 class LiveTab:
     def __init__(
         self, tab_id: int, windows: list[FakeWindow], active: int = 0
@@ -207,6 +222,29 @@ class TabOrderingTests(unittest.TestCase):
         record = live_tree_records(LiveTabManager([tab]))[0]
 
         self.assertEqual(record.cwd, "/work/project")
+
+    def test_live_tree_prefers_root_cwd_for_ordinary_window(self) -> None:
+        tab = LiveTab(10, [RootAwareCwdWindow(
+            100,
+            "/home/member",
+            "/work/transient-probe",
+        )])
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.cwd, "/home/member")
+
+    def test_live_tree_prefers_child_cwd_for_tagged_agent_window(self) -> None:
+        tab = LiveTab(10, [RootAwareCwdWindow(
+            100,
+            "/home/member",
+            "/work/agent-worktree",
+            ktt_cockpit_role="agent",
+        )])
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.cwd, "/work/agent-worktree")
 
     def test_live_tree_verdict_overrides_working_status(self) -> None:
         tab = LiveTab(10, [FakeWindow(

@@ -57,7 +57,21 @@ def _first_user_var(windows: Sequence[Any], key: str) -> str | None:
 
 
 def _window_cwd(window: Any) -> str | None:
-    for name in ("get_cwd_of_child", "get_cwd_of_root_child"):
+    # Ordinary tabs belong to their root process.  A daemon or manager can
+    # spawn logically background helpers in the terminal's foreground process
+    # group; Kitty's get_cwd_of_child() chooses the highest PID in that group,
+    # so using it first makes a tab's repository follow every short-lived
+    # helper.  Workmux-tagged agent windows are the exception: their wrapper
+    # can remain at a launch cwd while the agent child owns the worktree.
+    agent_owned = (
+        _user_var(window, model.COCKPIT_ROLE_VAR) == model.AGENT_ROLE
+    )
+    getters = (
+        ("get_cwd_of_child", "get_cwd_of_root_child")
+        if agent_owned
+        else ("get_cwd_of_root_child", "get_cwd_of_child")
+    )
+    for name in getters:
         getter = getattr(window, name, None)
         if callable(getter):
             try:

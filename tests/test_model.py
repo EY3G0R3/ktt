@@ -156,20 +156,37 @@ class ModelTests(unittest.TestCase):
         }
         self.assertIsNone(records_for_os_window(os_window)[0].phase)
 
-    def test_null_foreground_cmdline_falls_back_to_process_cwd(self) -> None:
+    def test_ordinary_window_prefers_root_cwd_to_foreground_process(self) -> None:
         self.assertEqual(
             content_window_cwd(
                 {
-                    "cwd": "/stale-launch-directory",
+                    "cwd": "/home/member",
                     "foreground_processes": [
                         {
                             "cmdline": None,
-                            "cwd": "/worktree",
+                            "cwd": "/work/transient-probe",
                         }
                     ],
                 }
             ),
-            "/worktree",
+            "/home/member",
+        )
+
+    def test_tagged_agent_with_unknown_command_uses_process_cwd(self) -> None:
+        self.assertEqual(
+            content_window_cwd(
+                {
+                    "cwd": "/home/member",
+                    "foreground_processes": [
+                        {
+                            "cmdline": None,
+                            "cwd": "/work/agent-worktree",
+                        }
+                    ],
+                    "user_vars": {"ktt_cockpit_role": "agent"},
+                }
+            ),
+            "/work/agent-worktree",
         )
 
     def test_agent_foreground_cwd_overrides_stale_launch_cwd(self) -> None:
@@ -192,7 +209,7 @@ class ModelTests(unittest.TestCase):
                             "cwd": "/",
                         },
                     ],
-                    "user_vars": {},
+                    "user_vars": {"ktt_cockpit_role": "agent"},
                 }],
             }],
         }
