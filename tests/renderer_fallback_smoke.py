@@ -67,7 +67,7 @@ def mocked_kitty(*, vertical_api: bool = True):
     saved = {name: sys.modules.get(name) for name in modules}
     sys.modules.update(modules)
     try:
-        yield
+        yield boss
     finally:
         for name, previous in saved.items():
             if previous is None:
@@ -104,12 +104,39 @@ def load_without_ktt(tab_bar_path: Path, home: Path) -> dict:
 
 
 def verify_with_ktt(tab_bar_path: Path) -> None:
-    with mocked_kitty():
+    with mocked_kitty() as boss:
         module = runpy.run_path(str(tab_bar_path), run_name="kitty_tab_bar")
     assert module["KTT_RENDERER_HELPERS_AVAILABLE"]
     assert getattr(
         module["TabBar"].update_vertical, "_ktt_vertical_layout", False
     )
+
+    class Manager(list):
+        def __init__(self, visible: bool) -> None:
+            window = SimpleNamespace(user_vars={"workmux_status": "🤖"})
+            super().__init__([[window]])
+            self.os_window_id = 1
+            self.tab_bar_hidden = False
+            self.tab_bar_should_be_visible = visible
+            self.updates = 0
+            self.dirties = 0
+
+        def update_tab_bar_data(self) -> None:
+            self.updates += 1
+
+        def mark_tab_bar_dirty(self) -> None:
+            self.dirties += 1
+
+    hidden = Manager(False)
+    boss.os_window_map = {hidden.os_window_id: hidden}
+    module["refresh_working_tab_bars"]()
+    assert (hidden.updates, hidden.dirties) == (0, 0)
+
+    visible = Manager(True)
+    boss.os_window_map = {visible.os_window_id: visible}
+    boss._workmux_tab_animation_last_refresh = 0.0
+    module["refresh_working_tab_bars"]()
+    assert (visible.updates, visible.dirties) == (1, 1)
 
 
 def verify_pre_vertical_kitty(tab_bar_path: Path) -> None:
