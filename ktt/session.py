@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import sqlite3
 import subprocess
@@ -218,6 +219,71 @@ def default_manifest_path() -> Path:
     return state_home / "ktt" / "session.json"
 
 
+def default_recovery_path() -> Path:
+    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+    return state_home / "ktt" / "recovery.json"
+
+
+def previous_recovery_path(path: Path | None = None) -> Path:
+    current = path or default_recovery_path()
+    return current.with_name(f"{current.stem}.previous{current.suffix}")
+
+
+def autosave_sessions_dir(path: Path | None = None) -> Path:
+    current = path or default_recovery_path()
+    return current.parent / "autosaves"
+
+
+def autosave_session_path(created_at: str, path: Path | None = None) -> Path:
+    saved_at = datetime.fromisoformat(created_at).astimezone()
+    bucket = saved_at.replace(minute=0, second=0, microsecond=0)
+    timezone = re.sub(r"[^A-Za-z0-9._-]", "", bucket.tzname() or "local")
+    name = f"autosave-{bucket.strftime('%Y-%m-%d-%H00')}-{timezone}.json"
+    return autosave_sessions_dir(path) / name
+
+
+def named_autosave_path(name: str) -> Path:
+    if not name.startswith("autosave-") or SESSION_NAME_PATTERN.fullmatch(name) is None:
+        raise ValueError(f"invalid autosave session name: {name!r}")
+    return autosave_sessions_dir() / f"{name}.json"
+
+
+def recovery_restore_path() -> Path:
+    previous = previous_recovery_path()
+    return previous if previous.exists() else default_recovery_path()
+
+
+SESSION_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+
+def named_sessions_dir() -> Path:
+    return default_manifest_path().with_name("sessions")
+
+
+def named_session_path(name: str) -> Path:
+    if (
+        name in {"autosave", "latest"}
+        or name.startswith("autosave-")
+        or SESSION_NAME_PATTERN.fullmatch(name) is None
+    ):
+        raise ValueError(
+            "session name must be 1-64 letters, numbers, dots, dashes, or underscores; "
+            "'autosave' and 'latest' are reserved"
+        )
+    return named_sessions_dir() / f"{name}.json"
+
+
+def generated_session_path(now: datetime | None = None) -> Path:
+    timestamp = now or datetime.now().astimezone()
+    base_name = timestamp.strftime("%Y-%m-%d-%H%M%S")
+    path = named_sessions_dir() / f"{base_name}.json"
+    counter = 2
+    while path.exists():
+        path = named_sessions_dir() / f"{base_name}-{counter}.json"
+        counter += 1
+    return path
+
+
 def capture_session(
     snapshot: Sequence[Mapping[str, Any]],
     *,
@@ -266,8 +332,14 @@ def capture_session(
             agent_window, agent = detect_tab_agent(content, resolver)
             agent_cwd = _optional_text(agent_window.get("cwd")) or record.cwd
             if len(content) > 1:
+                selected = (
+                    f"the resumable {agent.kind} pane"
+                    if agent.restorable and agent.kind in {"codex", "claude", "tmux"}
+                    else f"the {agent.identity} pane"
+                )
                 warnings.append(
-                    f"{logical_id}: {len(content)} content panes collapsed to the active pane"
+                    f"{logical_id}: {len(content)} content panes; "
+                    f"restore will use {selected}"
                 )
             if not agent.restorable:
                 warnings.append(f"{logical_id}: {agent.reason}")

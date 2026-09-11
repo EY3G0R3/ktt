@@ -193,6 +193,45 @@ class KittyWatcherStartupTests(unittest.TestCase):
         self.assertEqual(merged[0], "font_size 14")
         self.assertEqual(merged[1:], kitty_watcher.VERTICAL_FALLBACK_OVERRIDES)
 
+    def test_recovery_snapshot_is_requested_only_for_topology_changes(self) -> None:
+        boss = FakeBoss()
+        snapshotter = SimpleNamespace(request=unittest.mock.Mock())
+        setattr(boss, kitty_watcher.RECOVERY_SNAPSHOTTER_ATTRIBUTE, snapshotter)
+        manager = boss.all_tab_managers[0]
+
+        with patch.object(
+            kitty_watcher,
+            "_load_kitty_tabs",
+            return_value=SimpleNamespace(
+                tree_topology_signature=lambda value: tuple(value.tabs)
+            ),
+        ):
+            kitty_watcher._request_recovery_if_topology_changed(boss, manager)
+            kitty_watcher._request_recovery_if_topology_changed(boss, manager)
+            manager.tabs.append(SimpleNamespace(id=8))
+            kitty_watcher._request_recovery_if_topology_changed(boss, manager)
+
+        self.assertEqual(snapshotter.request.call_count, 2)
+
+    def test_recovery_snapshotter_uses_the_boss_socket(self) -> None:
+        boss = FakeBoss()
+        boss.listening_on = "unix:/tmp/kitty-current"
+        snapshotter = SimpleNamespace(start=unittest.mock.Mock())
+        remote = object()
+        recovery = SimpleNamespace(
+            RemoteControl=unittest.mock.Mock(return_value=remote),
+            RecoverySnapshotter=unittest.mock.Mock(return_value=snapshotter),
+        )
+
+        with patch.object(kitty_watcher, "_load_recovery_module", return_value=recovery):
+            kitty_watcher._start_recovery_snapshotter(boss)
+
+        recovery.RemoteControl.assert_called_once_with("unix:/tmp/kitty-current")
+        recovery.RecoverySnapshotter.assert_called_once_with(
+            remote, log_error=kitty_watcher._log_error
+        )
+        snapshotter.start.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

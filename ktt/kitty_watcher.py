@@ -17,6 +17,8 @@ NATIVE_MANAGED_ATTRIBUTE = "_ktt_native_vertical_tabs_managed"
 NATIVE_STYLE_RECOVERY_ATTRIBUTE = "_ktt_native_tabs_style_recovery"
 NATIVE_CARD_STATE_ATTRIBUTE = "_ktt_native_card_state"
 ORDER_TRANSACTION_ATTRIBUTE = "_ktt_tab_order_transaction"
+RECOVERY_SNAPSHOTTER_ATTRIBUTE = "_ktt_recovery_snapshotter"
+RECOVERY_SIGNATURES_ATTRIBUTE = "_ktt_recovery_topology_signatures"
 KTT_OVERRIDE_KEYS = frozenset({
     "tab_bar_edge",
     "tab_bar_align",
@@ -178,11 +180,54 @@ def _configure_from_kitty(boss: Any) -> None:
     )
 
 
+def _load_recovery_module():
+    package_root = str(PACKAGE_ROOT)
+    added = package_root not in sys.path
+    if added:
+        sys.path.insert(0, package_root)
+    try:
+        session = importlib.import_module("ktt.session")
+        importlib.reload(session)
+        recovery = importlib.import_module("ktt.recovery")
+        return importlib.reload(recovery)
+    finally:
+        if added:
+            try:
+                sys.path.remove(package_root)
+            except ValueError:
+                pass
+
+
+def _start_recovery_snapshotter(boss: Any, *, replace: bool = False) -> None:
+    existing = getattr(boss, RECOVERY_SNAPSHOTTER_ATTRIBUTE, None)
+    if existing is not None:
+        if not replace:
+            return
+        existing.stop()
+    recovery = _load_recovery_module()
+    snapshotter = recovery.RecoverySnapshotter(
+        recovery.RemoteControl(getattr(boss, "listening_on", None)),
+        log_error=_log_error,
+    )
+    setattr(boss, RECOVERY_SNAPSHOTTER_ATTRIBUTE, snapshotter)
+    snapshotter.start()
+
+
+def _finish_startup(boss: Any) -> None:
+    try:
+        _configure_from_kitty(boss)
+    finally:
+        try:
+            _start_recovery_snapshotter(boss)
+        except Exception as error:
+            _log_error(f"ktt recovery startup failed: {error}")
+
+
 def on_load(boss: Any, _data: dict[str, Any]) -> None:
     from kitty.fast_data_types import add_timer
 
     # Watchers load before Kitty finishes constructing its first window.
-    add_timer(lambda _timer_id: _configure_from_kitty(boss), 0, False)
+    add_timer(lambda _timer_id: _finish_startup(boss), 0, False)
 
 
 def _is_vertical_tab_bar() -> bool:
@@ -263,6 +308,23 @@ def _normalize_native_tab_order(boss, tab_manager) -> None:
     signatures[os_window_id] = kitty_tabs.tree_topology_signature(tab_manager)
 
 
+def _request_recovery_if_topology_changed(boss: Any, tab_manager: Any) -> None:
+    snapshotter = getattr(boss, RECOVERY_SNAPSHOTTER_ATTRIBUTE, None)
+    if snapshotter is None:
+        return
+    kitty_tabs = _load_kitty_tabs()
+    signatures = getattr(boss, RECOVERY_SIGNATURES_ATTRIBUTE, None)
+    if signatures is None:
+        signatures = {}
+        setattr(boss, RECOVERY_SIGNATURES_ATTRIBUTE, signatures)
+    os_window_id = tab_manager.os_window_id
+    signature = kitty_tabs.tree_topology_signature(tab_manager)
+    if signatures.get(os_window_id) == signature:
+        return
+    signatures[os_window_id] = signature
+    snapshotter.request()
+
+
 def on_tab_bar_dirty(boss, _window, data: dict) -> None:
     tab_manager = data.get("tab_manager")
     if tab_manager is None:
@@ -271,3 +333,7 @@ def on_tab_bar_dirty(boss, _window, data: dict) -> None:
         _normalize_native_tab_order(boss, tab_manager)
     except Exception as error:
         _log_error(f"ktt watcher: native tab ordering failed: {error}")
+    try:
+        _request_recovery_if_topology_changed(boss, tab_manager)
+    except Exception as error:
+        _log_error(f"ktt watcher: recovery tracking failed: {error}")

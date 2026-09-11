@@ -94,6 +94,17 @@ class RemoteControlTests(unittest.TestCase):
             remote.enable_native_vertical_tabs(12)
         self.assertEqual(raised.exception.version, (0, 47, 4))
 
+    def test_recovery_snapshotter_targets_the_source_process(self) -> None:
+        remote = RecordingRemote()
+        remote.start_recovery(12)
+        subcommand, arguments = remote.call
+        self.assertEqual(subcommand, "action")
+        self.assertEqual(arguments[:2], ("--match", "id:12"))
+        self.assertEqual(
+            arguments[-1],
+            str(Path(kitty_module.__file__).with_name("recovery_kitten.py")),
+        )
+
     def test_set_parent_updates_the_canonical_edge(self) -> None:
         remote = RecordingRemote()
         remote.set_parent(20, 10)

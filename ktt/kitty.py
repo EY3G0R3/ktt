@@ -155,6 +155,17 @@ class RemoteControl:
                 raise unsupported from error
             raise
 
+    def start_recovery(self, source_window_id: int) -> None:
+        """Start the rolling recovery snapshotter inside the Kitty process."""
+        kitten = Path(__file__).with_name("recovery_kitten.py")
+        self.run(
+            "action",
+            "--match",
+            f"id:{source_window_id}",
+            "kitten",
+            str(kitten),
+        )
+
     def set_parent(self, child_window_id: int, parent_window_id: int | None) -> None:
         value = "" if parent_window_id is None else str(parent_window_id)
         self.run(
