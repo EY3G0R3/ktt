@@ -8,8 +8,17 @@ from pathlib import Path
 from .kitty import KittyError, RemoteControl, find_tab_for_window
 from .model import choose_os_window, records_for_os_window, tree_rows
 from .native_tabs import NativeVerticalTabsUnsupported, format_version
-from .session import default_manifest_path
-from .session_cli import restore_saved_session, save_current_session
+from .session import (
+    generated_session_path,
+    named_session_path,
+)
+from .session_cli import (
+    list_saved_sessions,
+    resolve_saved_session_path,
+    restore_saved_session,
+    save_current_session,
+    show_saved_session,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -18,24 +27,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--to", help="Kitty remote-control socket address")
     subparsers = parser.add_subparsers(dest="command")
-    save_session = subparsers.add_parser(
-        "save-session", help="save Kitty tabs, ktt relationships, and resumable agents"
+    session = subparsers.add_parser(
+        "session", help="save, restore, or list terminal sessions"
     )
-    save_session.add_argument(
-        "path", nargs="?", type=Path, default=default_manifest_path()
+    session_commands = session.add_subparsers(dest="session_command", required=True)
+    session_save = session_commands.add_parser("save", help="save the current session")
+    session_save.add_argument("name", nargs="?")
+    session_restore = session_commands.add_parser(
+        "restore", help="restore the latest or a named session"
     )
-    restore_session = subparsers.add_parser(
-        "restore-session", help="restore a saved Kitty and ktt session"
+    session_restore.add_argument("name", nargs="?")
+    session_restore.add_argument("--dry-run", action="store_true")
+    session_restore.add_argument("--new-window", action="store_true")
+    session_commands.add_parser("list", help="list saved sessions")
+    session_show = session_commands.add_parser(
+        "show", help="show the tabs and launch details in a saved session"
     )
-    restore_session.add_argument("--dry-run", action="store_true")
-    restore_session.add_argument(
-        "--new-window",
-        action="store_true",
-        help="restore into newly created Kitty OS windows instead of replacing this tab",
-    )
-    restore_session.add_argument(
-        "path", nargs="?", type=Path, default=default_manifest_path()
-    )
+    session_show.add_argument("name", nargs="?")
     list_tree = subparsers.add_parser("list", help="print the current tree once")
     list_tree.add_argument(
         "--target-os-window", type=int, help="Kitty OS window ID to inspect"
@@ -131,15 +139,26 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     remote = RemoteControl(args.to)
     try:
-        if args.command == "save-session":
-            return save_current_session(remote, args.path)
-        if args.command == "restore-session":
-            return restore_saved_session(
-                remote,
-                args.path,
-                dry_run=args.dry_run,
-                current_window_id=None if args.new_window else _self_window_id(),
-            )
+        if args.command == "session":
+            if args.session_command == "save":
+                path = (
+                    named_session_path(args.name)
+                    if args.name
+                    else generated_session_path()
+                )
+                return save_current_session(remote, path, name=args.name or path.stem)
+            if args.session_command == "restore":
+                path = resolve_saved_session_path(args.name)
+                return restore_saved_session(
+                    remote,
+                    path,
+                    dry_run=args.dry_run,
+                    current_window_id=None if args.new_window else _self_window_id(),
+                )
+            if args.session_command == "list":
+                return list_saved_sessions()
+            if args.session_command == "show":
+                return show_saved_session(resolve_saved_session_path(args.name))
         if args.command == "watcher-path":
             print(Path(__file__).with_name("kitty_watcher.py"))
             return 0

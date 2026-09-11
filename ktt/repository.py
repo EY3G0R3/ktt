@@ -32,6 +32,50 @@ class RepositoryLocation:
     relative_path: str | None = None
 
 
+@dataclass(frozen=True)
+class RepositoryContext:
+    name: str
+    location: RepositoryLocation
+    inferred: bool = False
+
+
+def infer_repository_context(path: str) -> RepositoryContext | None:
+    """Infer repository labels from KTT's conventional saved cwd shapes."""
+    parts = Path(path).parts
+    for index, part in enumerate(parts[:-1]):
+        if part.endswith("__worktrees") and part != "__worktrees":
+            repository = part.removesuffix("__worktrees")
+            worktree = parts[index + 1]
+            relative_parts = parts[index + 2 :]
+            return RepositoryContext(
+                repository,
+                RepositoryLocation(
+                    worktree=worktree,
+                    relative_path=(
+                        f"{'/'.join(relative_parts)}/" if relative_parts else None
+                    ),
+                ),
+                inferred=True,
+            )
+    for root_name in ("work", "src"):
+        try:
+            root_index = parts.index(root_name)
+        except ValueError:
+            continue
+        if root_index + 1 >= len(parts):
+            continue
+        repository = parts[root_index + 1]
+        relative_parts = parts[root_index + 2 :]
+        return RepositoryContext(
+            repository,
+            RepositoryLocation(
+                relative_path=f"{'/'.join(relative_parts)}/" if relative_parts else None
+            ),
+            inferred=True,
+        )
+    return None
+
+
 def repository_summary_parts(
     lines: Iterable[str],
 ) -> tuple[str, str, str]:
@@ -61,9 +105,9 @@ def repository_summary_parts(
     return identity, branch, state
 
 
-def resolve_repository_location(
+def resolve_repository_context(
     path: str, timeout: float = 0.25
-) -> RepositoryLocation | None:
+) -> RepositoryContext | None:
     environment = os.environ.copy()
     environment["GIT_OPTIONAL_LOCKS"] = "0"
     try:
@@ -95,10 +139,21 @@ def resolve_repository_location(
     except ValueError:
         return None
     linked_worktree = common_directory != (root / ".git").resolve()
-    return RepositoryLocation(
-        worktree=root.name if linked_worktree else None,
-        relative_path=None if str(relative) == "." else f"{relative}/",
+    repository_name = common_directory.parent.name if linked_worktree else root.name
+    return RepositoryContext(
+        name=repository_name,
+        location=RepositoryLocation(
+            worktree=root.name if linked_worktree else None,
+            relative_path=None if str(relative) == "." else f"{relative}/",
+        ),
     )
+
+
+def resolve_repository_location(
+    path: str, timeout: float = 0.25
+) -> RepositoryLocation | None:
+    context = resolve_repository_context(path, timeout)
+    return context.location if context is not None else None
 
 
 class RepositoryLocationCache:

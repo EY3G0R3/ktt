@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-from ktt.cli import _parser
+from ktt.cli import _parser, main
 from ktt.model import PARENT_VAR
 from ktt.session import (
     AgentState,
@@ -17,11 +20,20 @@ from ktt.session import (
     SessionTab,
     capture_session,
     execute_restore,
+    generated_session_path,
+    named_autosave_path,
     plan_restore,
+    recovery_restore_path,
+    named_session_path,
     read_manifest,
     write_manifest,
 )
-from ktt.session_cli import restore_saved_session
+from ktt.session_cli import (
+    latest_saved_session_path,
+    list_saved_sessions,
+    restore_saved_session,
+    show_saved_session,
+)
 
 
 class FakeRemote:
@@ -69,18 +81,134 @@ def content_window(
 
 
 class SessionTests(unittest.TestCase):
-    def test_cli_exposes_save_and_dry_run_restore(self) -> None:
-        save = _parser().parse_args(["save-session"])
-        restore = _parser().parse_args(["restore-session", "--dry-run"])
+    def test_session_group_parses_save_restore_list_and_show(self) -> None:
+        save = _parser().parse_args(["session", "save", "before-upgrade"])
+        restore = _parser().parse_args(["session", "restore", "before-upgrade"])
+        listing = _parser().parse_args(["session", "list"])
+        show_latest = _parser().parse_args(["session", "show"])
+        show_named = _parser().parse_args(["session", "show", "before-upgrade"])
 
-        self.assertEqual(save.command, "save-session")
-        self.assertEqual(restore.command, "restore-session")
-        self.assertTrue(restore.dry_run)
+        self.assertEqual((save.session_command, save.name), ("save", "before-upgrade"))
+        self.assertEqual(
+            (restore.session_command, restore.name), ("restore", "before-upgrade")
+        )
+        self.assertEqual(listing.session_command, "list")
+        self.assertEqual((show_latest.session_command, show_latest.name), ("show", None))
+        self.assertEqual(
+            (show_named.session_command, show_named.name),
+            ("show", "before-upgrade"),
+        )
 
-    def test_cli_can_force_restore_into_new_os_windows(self) -> None:
-        restore = _parser().parse_args(["restore-session", "--new-window"])
+    def test_named_session_paths_reject_traversal_and_reserved_latest(self) -> None:
+        with self.assertRaises(ValueError):
+            named_session_path("../outside")
+        with self.assertRaises(ValueError):
+            named_session_path("latest")
+        with self.assertRaises(ValueError):
+            named_session_path("autosave")
+        with self.assertRaises(ValueError):
+            named_autosave_path("autosave-../../outside")
 
-        self.assertTrue(restore.new_window)
+    def test_generated_session_path_uses_timestamp_and_collision_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": temporary}):
+                now = datetime(2026, 9, 10, 19, 23, 53)
+                first = generated_session_path(now)
+                self.assertEqual(first.name, "2026-09-10-192353.json")
+                first.parent.mkdir(parents=True)
+                first.touch()
+                self.assertEqual(
+                    generated_session_path(now).name,
+                    "2026-09-10-192353-2.json",
+                )
+
+    def test_unnamed_save_creates_a_generated_session(self) -> None:
+        generated = Path("/tmp/2026-09-10-192353.json")
+        with (
+            mock.patch("ktt.cli.RemoteControl"),
+            mock.patch("ktt.cli.generated_session_path", return_value=generated),
+            mock.patch("ktt.cli.save_current_session", return_value=0) as save,
+        ):
+            self.assertEqual(main(["session", "save"]), 0)
+
+        save.assert_called_once()
+        self.assertEqual(save.call_args.args[1], generated)
+        self.assertEqual(save.call_args.kwargs["name"], "2026-09-10-192353")
+
+    def test_list_aligns_sessions_and_latest_selects_newest(self) -> None:
+        def manifest(created_at: str) -> SessionManifest:
+            return SessionManifest(
+                created_at=created_at,
+                hostname="host",
+                os_windows=(
+                    SessionOsWindow(
+                        "os-1",
+                        "main",
+                        (
+                            SessionTab(
+                                "tab-1",
+                                "shell",
+                                "/tmp",
+                                None,
+                                True,
+                                True,
+                                AgentState("shell", "zsh"),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": temporary}):
+                autosave = Path(temporary) / "ktt" / "recovery.json"
+                manual = named_session_path("newer")
+                write_manifest(autosave, manifest("2026-09-10T12:00:00-07:00"))
+                write_manifest(manual, manifest("2026-09-10T13:00:00-07:00"))
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(list_saved_sessions(), 0)
+
+                self.assertEqual(latest_saved_session_path(), manual)
+                lines = output.getvalue().splitlines()
+                self.assertNotIn("\t", output.getvalue())
+                self.assertEqual(lines[0].split(), ["NAME", "TYPE", "SAVED", "TABS"])
+                self.assertEqual(lines[1].split()[:2], ["newer", "manual"])
+                self.assertEqual(lines[2].split()[:2], ["autosave", "automatic"])
+
+                detail = io.StringIO()
+                with redirect_stdout(detail):
+                    self.assertEqual(show_saved_session(manual), 0)
+                shown = detail.getvalue()
+                self.assertTrue(shown.startswith("newer\n"))
+                self.assertIn("1 tab in 1 window", shown)
+                self.assertIn("Window 1: main", shown)
+                self.assertIn("╭─ Tab 1  shell", shown)
+                self.assertIn("│  Cwd     /tmp", shown)
+                self.assertIn("│  Agent   zsh (shell)", shown)
+                self.assertIn("│  Launch  <default shell>", shown)
+                self.assertIn("·  restorable  ·  tab-1", shown)
+                self.assertNotIn("\x1b[", shown)
+
+                colored = io.StringIO()
+                with (
+                    redirect_stdout(colored),
+                    mock.patch("ktt.session_cli._color_enabled", return_value=True),
+                ):
+                    self.assertEqual(show_saved_session(manual), 0)
+                self.assertIn("\x1b[", colored.getvalue())
+
+    def test_recovery_restore_prefers_the_previous_process_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state_home = Path(temporary)
+            current = state_home / "ktt" / "recovery.json"
+            previous = state_home / "ktt" / "recovery.previous.json"
+            current.parent.mkdir()
+            current.touch()
+            with mock.patch.dict(os.environ, {"XDG_STATE_HOME": temporary}):
+                self.assertEqual(recovery_restore_path(), current)
+                previous.touch()
+                self.assertEqual(recovery_restore_path(), previous)
 
     def test_capture_replaces_runtime_ids_with_logical_relationships(self) -> None:
         snapshot = [
@@ -190,46 +318,55 @@ class SessionTests(unittest.TestCase):
     def test_capture_prefers_a_resumable_agent_over_the_focused_utility_pane(
         self,
     ) -> None:
-        snapshot = [
-            {
-                "id": 91,
-                "wm_name": "work",
-                "is_focused": True,
-                "tabs": [
+        for utility in ("fancylog", "zsh"):
+            with self.subTest(utility=utility):
+                snapshot = [
                     {
-                        "id": 101,
-                        "title": "agent-with-fancylog",
-                        "is_active": True,
+                        "id": 91,
+                        "wm_name": "work",
                         "is_focused": True,
-                        "windows": [
-                            content_window(
-                                1001,
-                                "/work/project",
-                                ["fancylog"],
-                                focused=True,
-                            ),
-                            content_window(
-                                1002,
-                                "/work/project",
-                                ["codex"],
-                            ),
+                        "tabs": [
+                            {
+                                "id": 101,
+                                "title": f"agent-with-{utility}",
+                                "is_active": True,
+                                "is_focused": True,
+                                "windows": [
+                                    content_window(
+                                        1001,
+                                        "/work/project",
+                                        [utility],
+                                        focused=True,
+                                    ),
+                                    content_window(
+                                        1002,
+                                        "/work/project",
+                                        ["codex"],
+                                    ),
+                                ],
+                            }
                         ],
                     }
-                ],
-            }
-        ]
+                ]
 
-        manifest = capture_session(
-            snapshot,
-            hostname="host",
-            created_at="2026-08-27T12:00:00-07:00",
-            session_resolver=lambda kind, pid, cwd, argv: "codex-session",
-        )
+                manifest = capture_session(
+                    snapshot,
+                    hostname="host",
+                    created_at="2026-08-27T12:00:00-07:00",
+                    session_resolver=lambda kind, pid, cwd, argv: "codex-session",
+                )
 
-        tab = manifest.os_windows[0].tabs[0]
-        self.assertEqual(tab.agent.kind, "codex")
-        self.assertEqual(tab.agent.session_id, "codex-session")
-        self.assertEqual(tab.cwd, "/work/project")
+                tab = manifest.os_windows[0].tabs[0]
+                self.assertEqual(tab.agent.kind, "codex")
+                self.assertEqual(tab.agent.session_id, "codex-session")
+                self.assertEqual(tab.cwd, "/work/project")
+                self.assertEqual(
+                    manifest.warnings,
+                    (
+                        "tab-1-1: 2 content panes; restore will use "
+                        "the resumable codex pane",
+                    ),
+                )
 
     def test_restore_remaps_relationships_to_new_kitty_ids(self) -> None:
         manifest = SessionManifest(

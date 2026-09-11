@@ -145,14 +145,51 @@ color = "phase"
 
 ## Sessions
 
+When KTT's watcher is configured, it automatically maintains a rolling crash
+recovery snapshot at `$XDG_STATE_HOME/ktt/recovery.json` (normally
+`~/.local/state/ktt/recovery.json`). A tab topology change requests a snapshot
+after a one-second settle delay, and a 30-second refresh captures agents that
+start or change without opening a new tab. Snapshots use atomic replacement, so
+an interrupted write leaves the previous good snapshot intact.
+
+At the next Kitty startup, KTT moves that final snapshot to
+`recovery.previous.json` before recording the new process. `ktt session restore`
+prefers the preserved pre-startup file, preventing a new shell tab from
+overwriting the session needed after a reboot. If no previous-process snapshot
+exists, it uses the current rolling file.
+
 ```bash
-python3 -m ktt save-session
-python3 -m ktt restore-session --dry-run
-python3 -m ktt restore-session
+ktt session save [name]
+ktt session restore [name]
+ktt session list
+ktt session show [name]
 ```
 
+The `session` group is the stable interface for higher-level launchers. Saving
+without a name creates a timestamped snapshot such as `2026-09-10-192353`; a
+name creates or replaces a stable named snapshot. KTT also retains one
+hourly `autosave-YYYY-MM-DD-HH00-ZONE` snapshot for eight days, capped at 200
+files. The live crash snapshot still refreshes every 30 seconds. Restoring
+without a name selects the newest manual or automatic snapshot; restoring
+`autosave` explicitly selects the newest automatic snapshot. Add `--dry-run`
+to restore to preview its launch plan, or `--new-window` to avoid replacing
+the current tab. `show` displays each saved tab's title, hierarchy, state,
+working directory, agent session, and launch command without restoring it.
+
+Use automatic recovery after an abrupt reboot. It restores the latest automatically
+observed set, so tabs closed before that snapshot stay closed. Named snapshots
+remain separate from the rolling automatic snapshot.
+
+KTT uses rolling full snapshots instead of an open/close event journal. The
+manifest already captures tab hierarchy, focus, working directories, and
+resumable agent IDs in one atomic file. A journal would also need a baseline,
+replay, and compaction while still needing periodic full scans to notice an
+agent starting inside an existing tab.
+
 Restore recreates tabs and hierarchy, then enables native vertical tabs. It no
-longer starts a presentation daemon or embeds renderer panes.
+longer starts a presentation daemon or embeds renderer panes. The recovery file
+can lag a topology change by about one second, or an in-tab agent change by up
+to 30 seconds.
 
 ## Verification
 

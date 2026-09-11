@@ -10,13 +10,44 @@ from ktt.repository import (
     FancylogMonitor,
     RepositoryLocation,
     RepositoryLocationCache,
+    RepositoryContext,
+    infer_repository_context,
     repository_name_from_status,
     resolve_repository_location,
+    resolve_repository_context,
     with_repository_worktrees,
 )
 
 
 class RepositoryTests(unittest.TestCase):
+    def test_context_is_inferred_from_a_workmux_worktree_path(self) -> None:
+        self.assertEqual(
+            infer_repository_context(
+                "/home/me/work/quiver__worktrees/fixie-on-outpost/packages/app"
+            ),
+            RepositoryContext(
+                "quiver",
+                RepositoryLocation(
+                    worktree="fixie-on-outpost",
+                    relative_path="packages/app/",
+                ),
+                inferred=True,
+            ),
+        )
+
+    def test_context_is_inferred_from_a_main_source_checkout(self) -> None:
+        self.assertEqual(
+            infer_repository_context("/home/me/src/ktt/tests"),
+            RepositoryContext(
+                "ktt",
+                RepositoryLocation(relative_path="tests/"),
+                inferred=True,
+            ),
+        )
+
+    def test_context_is_not_inferred_from_an_arbitrary_directory(self) -> None:
+        self.assertIsNone(infer_repository_context("/home/me/Documents/notes"))
+
     def test_repository_name_comes_from_fancylog_identity(self) -> None:
         self.assertEqual(
             repository_name_from_status(
@@ -59,6 +90,28 @@ class RepositoryTests(unittest.TestCase):
                 "/home/me/work/quiver__worktrees/feature/build"
             ),
             RepositoryLocation(worktree="feature", relative_path="build/"),
+        )
+
+    @patch("ktt.repository.subprocess.run")
+    def test_context_identifies_repository_and_worktree(self, run) -> None:
+        run.return_value = subprocess.CompletedProcess(
+            [],
+            0,
+            (
+                "/home/me/work/quiver__worktrees/feature\n"
+                "/home/me/work/quiver/.git\n"
+            ),
+            "",
+        )
+
+        self.assertEqual(
+            resolve_repository_context(
+                "/home/me/work/quiver__worktrees/feature/build"
+            ),
+            RepositoryContext(
+                "quiver",
+                RepositoryLocation(worktree="feature", relative_path="build/"),
+            ),
         )
 
     @patch("ktt.repository.resolve_repository_location")
@@ -243,4 +296,3 @@ class SummaryPartsTests(unittest.TestCase):
             [" (quiver) /path  ◈ 1 unstaged  ·  2 untracked ", "  topic "]
         )
         self.assertEqual(state, "◈ 1 unstaged  ·  2 untracked")
-
