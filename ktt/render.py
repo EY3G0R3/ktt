@@ -930,7 +930,7 @@ def horizontal_index_at_mouse(
 # phases (needs human design, blocked, cancelled, the failure handoffs) are not
 # on the list and draw no track.
 PHASE_PIPELINE = (
-    "building",
+    "coding",
     "in_review",
     "fixing_review",
     "review_passed",
@@ -963,12 +963,12 @@ PHASE_TRACK_FORM = CONFIG.phase_track_form
 PHASE_TRACK_COLOR = CONFIG.phase_track_color
 PHASE_TRACK_TODO_FOREGROUND = REPOSITORY_META_FOREGROUND
 PHASE_TRACK_DIM_FOREGROUND = "4f5563"
-# Remediation sits between building's yellow and trouble's red: a fix batch is
+# Remediation sits between coding's yellow and trouble's red: a fix batch is
 # neither fresh work nor a stop, and the two phases used to share one yellow,
 # which hid whether a review had found anything at all.
 PHASE_FIXING_FOREGROUND = "ffb86c"
 PHASE_FOREGROUNDS = {
-    "building": REPOSITORY_DIRTY_FOREGROUND,
+    "coding": REPOSITORY_DIRTY_FOREGROUND,
     "in_review": REPOSITORY_BRANCH_FOREGROUND,
     "fixing_review": PHASE_FIXING_FOREGROUND,
     "review_passed": REPOSITORY_CLEAN_FOREGROUND,
@@ -979,9 +979,17 @@ PHASE_FOREGROUNDS = {
 }
 
 
+# The first phase was called `building` until 2026-09-07; it names the coding
+# stretch, and nothing in the pipeline compiles, so `coding` says what it is.
+# Children on the old skill text still publish the old name; map it here so
+# their cards keep their track instead of dropping off the pipeline.
+PHASE_ALIASES = {"building": "coding"}
+
+
 def phase_key(phase: str | None) -> str:
     """Normalize `in review`, `in-review`, and `in_review` to one key."""
-    return re.sub(r"[\s_-]+", "_", (phase or "").strip().casefold())
+    key = re.sub(r"[\s_-]+", "_", (phase or "").strip().casefold())
+    return PHASE_ALIASES.get(key, key)
 
 
 def phase_label(phase: str | None) -> str:

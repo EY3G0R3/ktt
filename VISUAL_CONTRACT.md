@@ -84,7 +84,7 @@ design.
   right-edge group claims its width first; branch and, on two-row cards,
   title center in what remains, and a lifted title starts at the middle
   row's text column even with the state beside it. A phase off the pipeline,
-  such as `needs human design`, shows its label with no track. Building is
+  such as `needs human design`, shows its label with no track. Coding is
   yellow and fixing review orange, so the two in-progress phases never share
   a color. The track's form and coloring are user-configurable (see README,
   "Configuration"); the contract fixes the placement, not the glyphs.

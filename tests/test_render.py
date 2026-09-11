@@ -35,6 +35,7 @@ from ktt.render import (
     horizontal_disclosure_column,
     panel_style,
     phase_foreground,
+    phase_key,
     phase_label,
     phase_progress,
     phase_progress_segments,
@@ -1372,7 +1373,7 @@ class RenderTests(unittest.TestCase):
 
     def test_phase_leaves_an_undisplaced_title_on_the_content_row(self) -> None:
         row = TreeRow(
-            TabRecord(2, 1, "ktt cards", (20,), status="working", phase="building"),
+            TabRecord(2, 1, "ktt cards", (20,), status="working", phase="coding"),
             0,
             None,
         )
@@ -1381,7 +1382,7 @@ class RenderTests(unittest.TestCase):
         )
         self.assertNotIn("ktt cards", card[0])
         self.assertIn("ktt cards", card[card_content_line(3)])
-        self.assertIn("building", card[2])
+        self.assertIn("coding", card[2])
 
     def test_two_row_card_shares_its_bottom_row_with_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=2)
@@ -1418,7 +1419,7 @@ class RenderTests(unittest.TestCase):
         def end_column(line: str, needle: str) -> int:
             return display_width(line[: line.rindex(needle) + len(needle)])
 
-        shallow = self._card(self._worktree_row("building"))
+        shallow = self._card(self._worktree_row("coding"))
         deep = self._card(
             TreeRow(self._worktree_row("ready_to_merge").tab, 2, None)
         )
@@ -1427,14 +1428,14 @@ class RenderTests(unittest.TestCase):
         )
         self.assertEqual(end_column(shallow[1], "□"), end_column(deep[1], "■"))
         self.assertEqual(
-            end_column(shallow[2], "building"),
+            end_column(shallow[2], "coding"),
             end_column(deep[2], "ready to merge"),
         )
         self.assertEqual(
             end_column(shallow[0], "✓ clean"), end_column(shallow[1], "□")
         )
         self.assertEqual(
-            end_column(shallow[1], "□"), end_column(shallow[2], "building")
+            end_column(shallow[1], "□"), end_column(shallow[2], "coding")
         )
 
     def test_every_row_keeps_the_card_width_under_a_long_title(self) -> None:
@@ -1481,7 +1482,7 @@ class RenderTests(unittest.TestCase):
 
     def test_phase_alone_still_fills_the_bottom_row(self) -> None:
         row = TreeRow(
-            TabRecord(2, 1, "ktt cards", (20,), status="working", phase="building"),
+            TabRecord(2, 1, "ktt cards", (20,), status="working", phase="coding"),
             0,
             None,
         )
@@ -1489,7 +1490,7 @@ class RenderTests(unittest.TestCase):
             row, selected=False, width=44, card_height=3, ansi=False
         )
         self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■□□□□□"))
-        self.assertTrue(card[2].rstrip().endswith("building"))
+        self.assertTrue(card[2].rstrip().endswith("coding"))
 
     def test_off_pipeline_phase_has_no_track(self) -> None:
         card = self._card(self._worktree_row("needs_human_design"))
@@ -1497,8 +1498,8 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("■", "".join(card))
         self.assertNotIn("□", "".join(card))
 
-    def test_phase_progress_fills_from_building_to_ready_to_merge(self) -> None:
-        self.assertEqual(phase_progress("building"), "■□□□□□")
+    def test_phase_progress_fills_from_coding_to_ready_to_merge(self) -> None:
+        self.assertEqual(phase_progress("coding"), "■□□□□□")
         self.assertEqual(phase_progress("Ready-To-Merge"), "■■■■■■")
         self.assertEqual(phase_progress("landed"), "")
         self.assertEqual(phase_progress("blocked"), "")
@@ -1559,10 +1560,15 @@ class RenderTests(unittest.TestCase):
             )
             self.assertGreaterEqual(_contrast_ratio(after, ACTIVE_BACKGROUND), 3.0)
 
-    def test_building_and_fixing_review_have_distinct_colors(self) -> None:
+    def test_coding_and_fixing_review_have_distinct_colors(self) -> None:
         self.assertNotEqual(
-            phase_foreground("building"), phase_foreground("fixing_review")
+            phase_foreground("coding"), phase_foreground("fixing_review")
         )
+
+    def test_legacy_building_phase_reads_as_coding(self) -> None:
+        self.assertEqual(phase_key("building"), "coding")
+        self.assertEqual(phase_label("Building"), "coding")
+        self.assertEqual(phase_progress("building"), phase_progress("coding"))
 
     def test_tall_card_uses_one_background_color(self) -> None:
         card = render_card(
