@@ -132,11 +132,10 @@ def update_vertical_tab_bar(
             screen.cursor.y = placement.start_row + line_index
             screen.cursor.bg = as_rgb(owner.draw_data.tab_bg(tab))
             screen.cursor.fg = as_rgb(owner.draw_data.tab_fg(tab))
-            screen.cursor.bold, screen.cursor.italic = (
-                owner.active_font_style
-                if tab.is_active
-                else owner.inactive_font_style
-            )
+            # KTT's colors and card shape already identify the active tab.
+            # Keeping this surface at normal weight avoids asking Kitty for a
+            # bold face that the configured family may not provide.
+            screen.cursor.bold = screen.cursor.italic = False
             extra_data = extra_data_type()
             extra_data.ktt_line_index = line_index
             extra_data.ktt_card_height = placement.card_height

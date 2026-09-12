@@ -1347,8 +1347,6 @@ def render_row(
         base = _bg(background, True) + _fg(
             foreground, True
         )
-        if tab.is_active:
-            base += "\x1b[1m"
     reset = "\x1b[0m" if ansi else ""
     restore = reset + base if ansi else ""
     unbold = "\x1b[22m" if ansi else ""

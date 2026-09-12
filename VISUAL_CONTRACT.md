@@ -90,6 +90,8 @@ design.
   "Configuration"); the contract fixes the placement, not the glyphs.
 - Active, active-descendant, working, waiting, ready, and blocked treatments
   retain the established colors, brightness, caps, and attention debounce.
+  Active and inactive card text use the same normal font weight; the active
+  background carries selection without requesting a different font face.
 - Cards adapt from three rows to two and then one without changing their field
   precedence. Tall cards have a one-row black separator; compact cards do not.
 

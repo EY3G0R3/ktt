@@ -37,9 +37,13 @@ class GridScreen(FakeScreen):
         self.cursor.bold = False
         self.cursor.italic = False
         self.drawn_at = []
+        self.styles_at = []
 
     def draw(self, value: str) -> None:
         self.drawn_at.append((self.cursor.y, self.cursor.x, value))
+        self.styles_at.append(
+            (self.cursor.y, value, self.cursor.bold, self.cursor.italic)
+        )
         super().draw(value)
 
     def erase_in_display(self, _mode: int, _private: bool) -> None:
@@ -214,6 +218,12 @@ class VerticalTabRendererTests(unittest.TestCase):
             row for row, _column, value in screen.drawn_at if value == "abc"
         ]
         self.assertEqual(title_rows, [3, 7, 11])
+        title_styles = [
+            (bold, italic)
+            for _row, value, bold, italic in screen.styles_at
+            if value == "abc"
+        ]
+        self.assertEqual(title_styles, [(False, False)] * 3)
         self.assertEqual(len(frame_tokens), 9)
         self.assertTrue(all(
             token is frame_tokens[0] for token in frame_tokens

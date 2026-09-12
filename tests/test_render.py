@@ -1680,14 +1680,14 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(vertical_padding(1, 12, 3), 4)
         self.assertEqual(vertical_bottom_padding(1, 12, 3), 5)
 
-    def test_active_tab_uses_moving_highlight_and_bold_text(self) -> None:
+    def test_active_tab_uses_moving_highlight_without_bold_text(self) -> None:
         active = TabRecord(1, 1, "active", (10,), is_active=True)
         rendered = render_row(
             TreeRow(active, 0, None), selected=False, width=80
         )
         self.assertIn("\x1b[48;2;100;113;139m", rendered)
         self.assertIn("\x1b[38;2;248;248;242m", rendered)
-        self.assertIn("\x1b[1m", rendered)
+        self.assertNotIn("\x1b[1m", rendered)
 
     def test_active_highlight_brightens_status_without_changing_its_hue(self) -> None:
         for status, inactive_background, active_background in (
