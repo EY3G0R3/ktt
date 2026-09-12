@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import inspect
+from pathlib import Path
 from typing import Any
 
 from . import model
@@ -92,6 +93,18 @@ def _title_signals_working(tab: Any, windows: Sequence[Any]) -> bool:
     return any(model.title_is_working(str(title or "")) for title in titles)
 
 
+def _expand_short_title(title: str, cwd: str | None) -> str:
+    """Recover a title shortened before KTT receives it when cwd proves it."""
+    if not cwd:
+        return title
+    marker = "…" if title.endswith("…") else "..." if title.endswith("...") else ""
+    if not marker:
+        return title
+    prefix = title[: -len(marker)].rstrip()
+    candidate = Path(cwd).name
+    return candidate if prefix and candidate.startswith(prefix) else title
+
+
 def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
     """Build tree records from Kitty's live tabs without a process snapshot."""
     records = []
@@ -107,7 +120,11 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         effective_title = getattr(tab, "effective_title", None)
         if effective_title is None:
             effective_title = getattr(tab, "title", "")
-        title = "" if agent_owned else str(effective_title)
+        title = (
+            str(getattr(tab, "name", "") or "")
+            if agent_owned
+            else str(effective_title)
+        )
         if not title or title == "surf":
             title = next(
                 (
@@ -133,10 +150,12 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             ),
             None,
         )
+        title = model.clean_title(title, cwd=cwd)
+        title = _expand_short_title(title, cwd)
         records.append(model.TabRecord(
             id=tab.id,
             os_window_id=tab_manager.os_window_id,
-            title=model.clean_title(title, cwd=cwd),
+            title=title,
             window_ids=tuple(window.id for window in windows),
             is_active=tab is tab_manager.active_tab,
             parent_window_id=_parent_window_id(metadata_windows),

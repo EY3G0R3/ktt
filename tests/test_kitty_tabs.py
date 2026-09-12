@@ -216,6 +216,45 @@ class TabOrderingTests(unittest.TestCase):
         self.assertIsNone(record.parent_window_id)
         self.assertIsNone(record.status)
 
+    def test_live_tree_prefers_explicit_name_for_tagged_agent(self) -> None:
+        agent = CwdWindow(
+            200,
+            "/work/safe-003-provisioned-worker-launch",
+            ktt_cockpit_role="agent",
+        )
+        agent.title = "safe-003-provisioned-..."
+        tab = LiveTab(20, [agent])
+        tab.name = " safe-003-provisioned-worker-launch"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "safe-003-provisioned-worker-launch")
+
+    def test_live_tree_expands_short_agent_title_from_cwd(self) -> None:
+        agent = CwdWindow(
+            200,
+            "/work/safe-003-provisioned-worker-launch",
+            ktt_cockpit_role="agent",
+        )
+        agent.title = "safe-003-provisioned-..."
+        tab = LiveTab(20, [agent])
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "safe-003-provisioned-worker-launch")
+
+    def test_live_tree_expands_short_ordinary_title_from_cwd(self) -> None:
+        window = CwdWindow(
+            200,
+            "/work/safe-003-provisioned-worker-launch",
+        )
+        tab = LiveTab(20, [window])
+        tab.title = "safe-003-provisioned-..."
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "safe-003-provisioned-worker-launch")
+
     def test_live_tree_records_include_content_window_cwd(self) -> None:
         tab = LiveTab(10, [CwdWindow(100, "/work/project")])
 
