@@ -79,14 +79,13 @@ REPOSITORY_NAME_FOREGROUND = "f8f8f2"
 # in review, and sage was passed over for sitting in the green the worktree
 # glyph and clean state already own.
 CARD_TITLE_FOREGROUND = "cddcec"
-# Cells of left text a row keeps when right-pinned segments compete for it.
-RIGHT_SEGMENTS_LEFT_RESERVE = 12
 REPOSITORY_META_FOREGROUND = "777d89"
 REPOSITORY_WORKTREE_FOREGROUND = "77b255"
 REPOSITORY_WORKTREE_GLYPH_FOREGROUND = "77b255"
 # Small-font alternatives tested in the live tab card:
 # 󰔱  🌲  @  ●  ◉  ◎  ⊙  🌳
 WORKTREE_GLYPH = "🌳"
+CLEAN_STATE_GLYPH = ""
 REPOSITORY_HEADING_FOREGROUND = "f1fa8c"
 REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
@@ -1158,9 +1157,14 @@ def repository_state_foreground(state: str | None) -> str:
         REPOSITORY_CONFLICT_FOREGROUND
         if state and state.startswith("✗")
         else REPOSITORY_CLEAN_FOREGROUND
-        if state and state.startswith("✓")
+        if state == CLEAN_STATE_GLYPH or state and state.startswith("✓")
         else REPOSITORY_DIRTY_FOREGROUND
     )
+
+
+def compact_repository_state(state: str) -> str:
+    """Keep the clean signal compact so the tab title remains primary."""
+    return CLEAN_STATE_GLYPH if state.strip() == "✓ clean" else state
 
 
 def render_row(
@@ -1608,19 +1612,18 @@ def render_card_context_row(
                 else 0
             )
             available = max(0, text_width - left_offset)
-            # The right side truncates before it squeezes the left text
-            # below a readable head, so a wide working-tree state never
-            # hides the title it shares the row with.
-            left_reserve = min(
+            # The title identifies the tab, so it claims its full width before
+            # right-pinned state. State uses only the space left over; only a
+            # title wider than the complete row should receive an ellipsis.
+            left_width = min(
+                available,
                 display_width("".join(text for text, _, _ in segments)),
-                RIGHT_SEGMENTS_LEFT_RESERVE,
-            ) if segments else 0
-            right_width = min(
-                right_width,
-                max(0, available - left_reserve - (2 if left_reserve else 0)),
             )
-            gap = 2 if segments and available - right_width >= 3 else 0
-            left_width = max(0, available - right_width - gap)
+            right_room = max(0, available - left_width)
+            gap = 2 if right_width and right_room >= 3 else 0
+            right_width = min(right_width, max(0, right_room - gap))
+            if not right_width:
+                gap = 0
             left_content = _render_repository_text(
                 segments, left_width, ansi=ansi
             )
@@ -1716,6 +1719,7 @@ def render_card(
     _, branch, state = repository_summary_parts(
         repository_lines or []
     )
+    state = compact_repository_state(state)
     worktree = (
         repository_location.worktree
         if repository_location and repository_location.worktree
@@ -1800,7 +1804,7 @@ def render_card(
             progress_segments.extend(track)
     top_right_segments: list[tuple[str, str, bool]] = (
         [(state, repository_state_foreground(state), False)]
-        if state_on_top and state
+        if state_on_top and state and state != CLEAN_STATE_GLYPH
         else []
     )
     if secondary_context_is_separate and useful_branch:
@@ -1824,6 +1828,13 @@ def render_card(
         secondary_context_is_separate or title_moves_to_top
     )
     top_segments: list[tuple[str, str, bool]] = []
+    clean_state_above_status = state_on_top and state == CLEAN_STATE_GLYPH
+    if clean_state_above_status:
+        top_segments.extend((
+            (" ", REPOSITORY_META_FOREGROUND, False),
+            (CLEAN_STATE_GLYPH, REPOSITORY_CLEAN_FOREGROUND, False),
+            ("  ", REPOSITORY_META_FOREGROUND, False),
+        ))
     if title_moves_to_top:
         top_segments.append((
             row.tab.title,
@@ -1885,7 +1896,7 @@ def render_card(
             edge_style=edge_style,
             line_index=line,
             card_height=card_height,
-            alignment="content",
+            alignment="left" if clean_state_above_status else "content",
             right_segments=top_right_segments,
             background_override=background_override,
         )

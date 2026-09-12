@@ -79,10 +79,12 @@ design.
   the bottom row as `fixing review ■■■□□□`. One-row cards omit the phase.
   Done cells take the phase color, the rest meta gray, both passed through
   the shared accent helper so they stay visible on the active card's light
-  slate. The right edge is the one column every card shares regardless of
-  tree depth, so state, tracks, and labels each line up down the bar. The
-  right-edge group claims its width first; branch and, on two-row cards,
-  title center in what remains, and a lifted title starts at the middle
+  slate. A clean tree is the one-cell filled check ``; on a three-row card
+  it sits in the top row's status lane directly above the spinner/status cell,
+  without consuming title width. Dirty and conflict states retain their detail
+  on the right. The right edge is the one column every card shares regardless
+  of tree depth, so phase tracks and labels line up down the bar. A lifted title
+  claims its full width before state uses what remains, and starts at the middle
   row's text column even with the state beside it. A phase off the pipeline,
   such as `needs human design`, shows its label with no track. Coding is
   yellow and fixing review orange, so the two in-progress phases never share
