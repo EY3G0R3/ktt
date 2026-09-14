@@ -82,7 +82,7 @@ map alt+p kitten /absolute/path/to/ktt/ktt/parent_chooser_kitten.py
 ```
 
 `next` and `previous` follow complete tree order. `attention` wraps through
-ready, blocked, waiting, and complete tabs. The move actions reorder a node
+ready, merged, blocked, waiting, and complete tabs. The move actions reorder a node
 among its siblings, moving its descendants as one subtree without changing any
 parent relationship.
 
@@ -98,7 +98,7 @@ Native cards retain the established visual contract:
 - custom Kitty tab titles and tagged agent ownership;
 - four-cell indentation per tree level;
 - fixed status width, repository identity, and worktree context;
-- active, waiting, working, ready, and blocked treatments;
+- active, waiting, working, ready, merged, and blocked treatments;
 - adaptive three-, two-, and one-row density with active-tab overflow handling.
 
 The native renderer reads pending `workmux_verdict` values immediately. A
@@ -131,12 +131,12 @@ falls back to it rather than breaking the tab bar. Apply a change with
 
 ```toml
 [phase_track]
-# form:  dots ●○  blocks ▰▱  squares ■□  bar ━─  thick ▮▯  stairs ▁▂▃
+# form:  dots ●○  blocks ▰▱  squares ■□  bar ━─  thick ▮▯  stairs ▁▂▃▄▅▆▇
 #        braille ⣿⣀  full █░
 form = "squares"
 # color: phase     done cells in the current phase's color (default)
-#        two_tone  yellow until ready to merge turns the track green
-#        gradient  yellow shading to green across the six steps
+#        two_tone  yellow until merged turns the track green
+#        gradient  yellow shading to green across the seven steps
 #        rainbow   each done cell in the color of its own phase
 #        accent    earlier steps dim, the current step bright
 #        fixed     one progress green regardless of phase

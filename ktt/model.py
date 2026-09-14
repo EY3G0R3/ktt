@@ -22,6 +22,7 @@ WAITING_STATUSES = frozenset({WAITING_STATUS, "waiting"})
 WORKING_STATUSES = frozenset({WORKING_STATUS, "working"})
 ATTENTION_STATUSES = frozenset({
     "ready_to_merge",
+    "merged",
     "blocked",
     WAITING_STATUS,
     "waiting",

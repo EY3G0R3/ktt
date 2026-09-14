@@ -72,11 +72,11 @@ design.
   helper moves to the nearer readable lightness, which on the active card's
   light slate is the dark end; a title must stay light on every card.
 - A worktree agent's reported phase (`workmux_phase`) stacks the right edge
-  of a three-row card: working-tree state on the top row, the six-cell track
-  (`■■■□□□` for fixing review by default) on the middle row, and the phase
+  of a three-row card: working-tree state on the top row, the seven-cell track
+  (`■■■□□□□` for fixing review by default) on the middle row, and the phase
   label on the bottom row, each at the same right column. A two-row card has
   no top row, so its state stays on the middle row and label and track share
-  the bottom row as `fixing review ■■■□□□`. One-row cards omit the phase.
+  the bottom row as `fixing review ■■■□□□□`. One-row cards omit the phase.
   Done cells take the phase color, the rest meta gray, both passed through
   the shared accent helper so they stay visible on the active card's light
   slate. A clean tree is the one-cell filled check ``; on a three-row card
@@ -90,7 +90,7 @@ design.
   yellow and fixing review orange, so the two in-progress phases never share
   a color. The track's form and coloring are user-configurable (see README,
   "Configuration"); the contract fixes the placement, not the glyphs.
-- Active, active-descendant, working, waiting, ready, and blocked treatments
+- Active, active-descendant, working, waiting, ready, merged, and blocked treatments
   retain the established colors, brightness, caps, and attention debounce.
   Active and inactive card text use the same normal font weight; the active
   background carries selection without requesting a different font face.

@@ -439,9 +439,11 @@ class ModelTests(unittest.TestCase):
             TabRecord(1, 1, "active", (10,), is_active=True),
             TabRecord(2, 1, "raw waiting", (20,), status="💬"),
             TabRecord(3, 1, "ready", (30,), status="ready_to_merge"),
+            TabRecord(4, 1, "merged", (40,), status="merged"),
         ])
 
         self.assertEqual(next_attention_tab_id(rows, {3}), 3)
+        self.assertEqual(next_attention_tab_id(rows, {4}), 4)
 
     def test_attention_navigation_ignores_suppressed_waiting(self) -> None:
         rows = tree_rows([

@@ -977,6 +977,7 @@ class RenderTests(unittest.TestCase):
 
     def test_statuses_match_existing_workmux_conventions(self) -> None:
         self.assertEqual(status_icon("ready_to_merge"), ("✓", "50fa7b"))
+        self.assertEqual(status_icon("merged"), ("✓", "69db7c"))
         self.assertEqual(status_icon("blocked"), ("✗", "ff5555"))
         self.assertEqual(status_icon("🤖", now=0.0)[0], "⠋")
 
@@ -1078,11 +1079,15 @@ class RenderTests(unittest.TestCase):
                 rendered,
             )
 
-    def test_ready_and_blocked_rows_have_verdict_backgrounds(self) -> None:
+    def test_verdict_rows_have_distinct_backgrounds(self) -> None:
         ready = TabRecord(2, 1, "ready", (20,), status="ready_to_merge")
+        merged = TabRecord(4, 1, "merged", (40,), status="merged")
         blocked = TabRecord(3, 1, "blocked", (30,), status="blocked")
         self.assertIn("\x1b[48;2;27;94;54m", render_row(
             TreeRow(ready, 0, None), selected=False, width=80
+        ))
+        self.assertIn("\x1b[48;2;36;92;42m", render_row(
+            TreeRow(merged, 0, None), selected=False, width=80
         ))
         self.assertIn("\x1b[48;2;122;32;41m", render_row(
             TreeRow(blocked, 0, None), selected=False, width=80
@@ -1397,7 +1402,7 @@ class RenderTests(unittest.TestCase):
         # The label and its track keep their columns, so the title that
         # shares the row survives only as its truncated head at this width.
         self.assertIn("· p", card[1])
-        self.assertTrue(card[1].rstrip().endswith("in review ■■□□□□"))
+        self.assertTrue(card[1].rstrip().endswith("in review ■■□□□□□"))
 
     def test_one_row_card_hides_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=1)
@@ -1416,14 +1421,14 @@ class RenderTests(unittest.TestCase):
             card[0].index(CLEAN_STATE_GLYPH),
             card[0].index("pi bundle gate") - 3,
         )
-        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■■■□□□"))
+        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■■■□□□□"))
         self.assertTrue(card[2].rstrip().endswith("fixing review"))
         self.assertNotIn(CLEAN_STATE_GLYPH, card[1])
 
     def test_two_row_card_keeps_state_and_pairs_label_with_track(self) -> None:
         card = self._card(self._worktree_row("fixing_review"), card_height=2)
         self.assertIn(CLEAN_STATE_GLYPH, card[0])
-        self.assertTrue(card[1].rstrip().endswith("fixing review ■■■□□□"))
+        self.assertTrue(card[1].rstrip().endswith("fixing review ■■■□□□□"))
 
     def test_clean_glyph_leaves_long_tab_title_intact(self) -> None:
         title = "safe-003-provisioned-worker-launch"
@@ -1470,7 +1475,7 @@ class RenderTests(unittest.TestCase):
                 card[0].index(CLEAN_STATE_GLYPH),
                 card[0].index("pi bundle gate") - 3,
             )
-        self.assertEqual(end_column(shallow[1], "□"), end_column(deep[1], "■"))
+        self.assertEqual(end_column(shallow[1], "□"), end_column(deep[1], "□"))
         self.assertEqual(
             end_column(shallow[2], "coding"),
             end_column(deep[2], "ready to merge"),
@@ -1530,7 +1535,7 @@ class RenderTests(unittest.TestCase):
         card = render_card(
             row, selected=False, width=44, card_height=3, ansi=False
         )
-        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■□□□□□"))
+        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■□□□□□□"))
         self.assertTrue(card[2].rstrip().endswith("coding"))
 
     def test_off_pipeline_phase_has_no_track(self) -> None:
@@ -1539,19 +1544,20 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("■", "".join(card))
         self.assertNotIn("□", "".join(card))
 
-    def test_phase_progress_fills_from_coding_to_ready_to_merge(self) -> None:
-        self.assertEqual(phase_progress("coding"), "■□□□□□")
-        self.assertEqual(phase_progress("Ready-To-Merge"), "■■■■■■")
+    def test_phase_progress_fills_from_coding_to_merged(self) -> None:
+        self.assertEqual(phase_progress("coding"), "■□□□□□□")
+        self.assertEqual(phase_progress("Ready-To-Merge"), "■■■■■■□")
+        self.assertEqual(phase_progress("Merged"), "■■■■■■■")
         self.assertEqual(phase_progress("landed"), "")
         self.assertEqual(phase_progress("blocked"), "")
         self.assertEqual(phase_progress(None), "")
 
-    def test_every_track_form_spans_six_cells(self) -> None:
+    def test_every_track_form_spans_seven_cells(self) -> None:
         for form in PHASE_TRACK_FORMS:
             with self.subTest(form=form):
                 for phase in PHASE_PIPELINE:
                     self.assertEqual(
-                        len(phase_progress(phase, form=form)), 6
+                        len(phase_progress(phase, form=form)), 7
                     )
 
     def test_track_color_modes(self) -> None:
@@ -1569,12 +1575,16 @@ class RenderTests(unittest.TestCase):
         )
         self.assertEqual(
             done_colors("ready_to_merge", "two_tone"),
-            [REPOSITORY_CLEAN_FOREGROUND] * 6,
+            [REPOSITORY_DIRTY_FOREGROUND] * 6,
         )
-        gradient = done_colors("ready_to_merge", "gradient")
+        self.assertEqual(
+            done_colors("merged", "two_tone"),
+            [REPOSITORY_CLEAN_FOREGROUND] * 7,
+        )
+        gradient = done_colors("merged", "gradient")
         self.assertEqual(gradient[0], REPOSITORY_DIRTY_FOREGROUND)
         self.assertEqual(gradient[-1], REPOSITORY_CLEAN_FOREGROUND)
-        self.assertEqual(len(set(gradient)), 6)
+        self.assertEqual(len(set(gradient)), 7)
         self.assertEqual(
             done_colors("fixing_review", "rainbow"),
             [phase_foreground(p) for p in PHASE_PIPELINE[:3]],
@@ -1644,7 +1654,19 @@ class RenderTests(unittest.TestCase):
             card_height=3,
             ansi=False,
         )
+        merged = render_card(
+            TreeRow(
+                TabRecord(3, 1, "merged", (30,), status="merged"),
+                0,
+                None,
+            ),
+            selected=False,
+            width=40,
+            card_height=3,
+            ansi=False,
+        )
         self.assertTrue(all(READY_RIGHT_CAP in line for line in ready))
+        self.assertTrue(all(READY_RIGHT_CAP in line for line in merged))
         self.assertTrue(all(FLAME_RIGHT_CAP in line for line in blocked))
 
     def test_screen_has_no_normal_header(self) -> None:
@@ -1738,6 +1760,11 @@ class RenderTests(unittest.TestCase):
                 "\x1b[48;2;47;156;92m",
             ),
             (
+                "merged",
+                "\x1b[48;2;36;92;42m",
+                "\x1b[48;2;63;159;73m",
+            ),
+            (
                 "blocked",
                 "\x1b[48;2;122;32;41m",
                 "\x1b[48;2;192;57;74m",
@@ -1828,7 +1855,7 @@ class RenderTests(unittest.TestCase):
         )
 
     def test_status_glyph_width_does_not_move_title(self) -> None:
-        statuses = [None, "🤖", "💬", "ready_to_merge", "blocked"]
+        statuses = [None, "🤖", "💬", "ready_to_merge", "merged", "blocked"]
         positions = []
         for status in statuses:
             rendered = render_row(
@@ -1895,14 +1922,20 @@ class RenderTests(unittest.TestCase):
             TreeRow(TabRecord(1, 1, "ready", (10,), status="ready_to_merge"), 0, None),
             selected=False, width=30, ansi=False,
         )
+        merged = render_row(
+            TreeRow(TabRecord(3, 1, "merged", (30,), status="merged"), 0, None),
+            selected=False, width=30, ansi=False,
+        )
         blocked = render_row(
             TreeRow(TabRecord(2, 1, "blocked", (20,), status="blocked"), 0, None),
             selected=False, width=30, ansi=False,
         )
         self.assertIn(READY_RIGHT_CAP, ready)
+        self.assertIn(READY_RIGHT_CAP, merged)
         self.assertEqual(READY_RIGHT_CAP, "\ue0c8")
         self.assertIn(FLAME_RIGHT_CAP, blocked)
         self.assertNotIn(RIGHT_CAP, ready)
+        self.assertNotIn(RIGHT_CAP, merged)
         self.assertNotIn(RIGHT_CAP, blocked)
 
 

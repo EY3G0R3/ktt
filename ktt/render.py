@@ -17,8 +17,10 @@ SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 SPINNER_INTERVAL = 0.12
 VERDICT_BACKGROUNDS = {
     "ready_to_merge": ("1b5e36", "2f9c5c"),
+    "merged": ("245c2a", "3f9f49"),
     "blocked": ("7a2029", "c0394a"),
 }
+SUCCESS_VERDICTS = frozenset({"ready_to_merge", "merged"})
 WAITING_BACKGROUNDS = ("55502e", "85804b")
 PANEL_BACKGROUND = "000000"
 ACTIVE_BACKGROUND = "64718b"
@@ -89,6 +91,7 @@ CLEAN_STATE_GLYPH = ""
 REPOSITORY_HEADING_FOREGROUND = "f1fa8c"
 REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
+MERGED_FOREGROUND = "69db7c"
 REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
 REPOSITORY_CONFLICT_FOREGROUND = "ff5555"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -758,6 +761,8 @@ def status_icon(status: str | None, now: float | None = None) -> tuple[str, str 
         return SPINNER_FRAMES[frame], "8be9fd"
     if status == "ready_to_merge":
         return "✓", "50fa7b"
+    if status == "merged":
+        return "✓", MERGED_FOREGROUND
     if status == "blocked":
         return "✗", "ff5555"
     if status == "💬":
@@ -935,6 +940,7 @@ PHASE_PIPELINE = (
     "review_passed",
     "final_verification",
     "ready_to_merge",
+    "merged",
 )
 # Track styles, selectable in `~/.config/ktt/config.toml` under
 # `[phase_track]` as `form` and `color`; see ktt/config.py for the vocabulary
@@ -953,7 +959,7 @@ PHASE_TRACK_FORMS = {
     "squares": ("■", "□"),
     "bar": ("━", "─"),
     "thick": ("▮", "▯"),
-    "stairs": (("▁", "▂", "▃", "▄", "▅", "▆"), "▁"),
+    "stairs": (("▁", "▂", "▃", "▄", "▅", "▆", "▇"), "▁"),
     "braille": ("⣿", "⣀"),
     "full": ("█", "░"),
 }
@@ -973,6 +979,7 @@ PHASE_FOREGROUNDS = {
     "review_passed": REPOSITORY_CLEAN_FOREGROUND,
     "final_verification": REPOSITORY_BRANCH_FOREGROUND,
     "ready_to_merge": REPOSITORY_CLEAN_FOREGROUND,
+    "merged": MERGED_FOREGROUND,
     "needs_human_design": REPOSITORY_CONFLICT_FOREGROUND,
     "blocked": REPOSITORY_CONFLICT_FOREGROUND,
 }
@@ -1391,7 +1398,7 @@ def render_row(
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"
     verdict_cap = (
         READY_RIGHT_CAP
-        if tab.status == "ready_to_merge"
+        if tab.status in SUCCESS_VERDICTS
         else FLAME_RIGHT_CAP
         if tab.status == "blocked"
         else None
@@ -1488,7 +1495,7 @@ def render_card_blank(
         return f"{panel_style(ansi)}{left}{base}{' ' * body_width}{reset}"
     verdict_cap = (
         READY_RIGHT_CAP
-        if row.tab.status == "ready_to_merge"
+        if row.tab.status in SUCCESS_VERDICTS
         else FLAME_RIGHT_CAP
         if row.tab.status == "blocked"
         else None
@@ -1669,7 +1676,7 @@ def render_card_context_row(
         return f"{panel_style(ansi)}{left}{body}{reset}"
     verdict_cap = (
         READY_RIGHT_CAP
-        if row.tab.status == "ready_to_merge"
+        if row.tab.status in SUCCESS_VERDICTS
         else FLAME_RIGHT_CAP
         if row.tab.status == "blocked"
         else None
@@ -1975,7 +1982,7 @@ def render_horizontal_card(
     cap_style = f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}"
     verdict_cap = (
         READY_RIGHT_CAP
-        if tab.status == "ready_to_merge"
+        if tab.status in SUCCESS_VERDICTS
         else FLAME_RIGHT_CAP
         if tab.status == "blocked"
         else None
