@@ -131,12 +131,12 @@ falls back to it rather than breaking the tab bar. Apply a change with
 
 ```toml
 [phase_track]
-# form:  dots ●○  blocks ▰▱  squares ■□  bar ━─  thick ▮▯  stairs ▁▂▃▄▅▆▇
+# form:  dots ●○  blocks ▰▱  squares ■□  bar ━─  thick ▮▯  stairs ▁▂▃▄▅▆▇█
 #        braille ⣿⣀  full █░
 form = "squares"
 # color: phase     done cells in the current phase's color (default)
 #        two_tone  yellow until merged turns the track green
-#        gradient  yellow shading to green across the seven steps
+#        gradient  yellow shading to green across the eight steps
 #        rainbow   each done cell in the color of its own phase
 #        accent    earlier steps dim, the current step bright
 #        fixed     one progress green regardless of phase

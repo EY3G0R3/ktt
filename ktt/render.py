@@ -92,6 +92,7 @@ REPOSITORY_HEADING_FOREGROUND = "f1fa8c"
 REPOSITORY_BRANCH_FOREGROUND = "8be9fd"
 REPOSITORY_CLEAN_FOREGROUND = "50fa7b"
 MERGED_FOREGROUND = "69db7c"
+LANDING_FOREGROUND = "5ee37a"
 REPOSITORY_DIRTY_FOREGROUND = "f1fa8c"
 REPOSITORY_CONFLICT_FOREGROUND = "ff5555"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -940,12 +941,13 @@ PHASE_PIPELINE = (
     "review_passed",
     "final_verification",
     "ready_to_merge",
+    "landing",
     "merged",
 )
 # Track styles, selectable in `~/.config/ktt/config.toml` under
 # `[phase_track]` as `form` and `color`; see ktt/config.py for the vocabulary
 # and the defaults. `form` is (done glyph, todo glyph) or, for a per-step
-# form, a tuple of six glyphs where done steps use the glyph at their index.
+# form, a tuple of per-step glyphs where done steps use the glyph at their index.
 # `color` picks how done steps are painted: "phase" in the current phase's
 # color, "two_tone" yellow until the last step turns the whole track green,
 # "gradient" walking from yellow to green across the steps, "rainbow" each in
@@ -959,7 +961,7 @@ PHASE_TRACK_FORMS = {
     "squares": ("■", "□"),
     "bar": ("━", "─"),
     "thick": ("▮", "▯"),
-    "stairs": (("▁", "▂", "▃", "▄", "▅", "▆", "▇"), "▁"),
+    "stairs": (("▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"), "▁"),
     "braille": ("⣿", "⣀"),
     "full": ("█", "░"),
 }
@@ -979,6 +981,7 @@ PHASE_FOREGROUNDS = {
     "review_passed": REPOSITORY_CLEAN_FOREGROUND,
     "final_verification": REPOSITORY_BRANCH_FOREGROUND,
     "ready_to_merge": REPOSITORY_CLEAN_FOREGROUND,
+    "landing": LANDING_FOREGROUND,
     "merged": MERGED_FOREGROUND,
     "needs_human_design": REPOSITORY_CONFLICT_FOREGROUND,
     "blocked": REPOSITORY_CONFLICT_FOREGROUND,

@@ -12,7 +12,9 @@ from ktt.render import (
     EDGE_STYLES,
     FLAME_RIGHT_CAP,
     INACTIVE_BACKGROUND,
+    LANDING_FOREGROUND,
     LEFT_CAP,
+    MERGED_FOREGROUND,
     PHASE_PIPELINE,
     PHASE_TRACK_FORMS,
     READY_RIGHT_CAP,
@@ -1402,7 +1404,7 @@ class RenderTests(unittest.TestCase):
         # The label and its track keep their columns, so the title that
         # shares the row survives only as its truncated head at this width.
         self.assertIn("· p", card[1])
-        self.assertTrue(card[1].rstrip().endswith("in review ■■□□□□□"))
+        self.assertTrue(card[1].rstrip().endswith("in review ■■□□□□□□"))
 
     def test_one_row_card_hides_the_phase(self) -> None:
         card = self._card(self._worktree_row("in_review"), card_height=1)
@@ -1421,14 +1423,14 @@ class RenderTests(unittest.TestCase):
             card[0].index(CLEAN_STATE_GLYPH),
             card[0].index("pi bundle gate") - 3,
         )
-        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■■■□□□□"))
+        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■■■□□□□□"))
         self.assertTrue(card[2].rstrip().endswith("fixing review"))
         self.assertNotIn(CLEAN_STATE_GLYPH, card[1])
 
     def test_two_row_card_keeps_state_and_pairs_label_with_track(self) -> None:
         card = self._card(self._worktree_row("fixing_review"), card_height=2)
         self.assertIn(CLEAN_STATE_GLYPH, card[0])
-        self.assertTrue(card[1].rstrip().endswith("fixing review ■■■□□□□"))
+        self.assertTrue(card[1].rstrip().endswith("fixing review ■■■□□□□□"))
 
     def test_clean_glyph_leaves_long_tab_title_intact(self) -> None:
         title = "safe-003-provisioned-worker-launch"
@@ -1535,7 +1537,7 @@ class RenderTests(unittest.TestCase):
         card = render_card(
             row, selected=False, width=44, card_height=3, ansi=False
         )
-        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■□□□□□□"))
+        self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■□□□□□□□"))
         self.assertTrue(card[2].rstrip().endswith("coding"))
 
     def test_off_pipeline_phase_has_no_track(self) -> None:
@@ -1545,19 +1547,20 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("□", "".join(card))
 
     def test_phase_progress_fills_from_coding_to_merged(self) -> None:
-        self.assertEqual(phase_progress("coding"), "■□□□□□□")
-        self.assertEqual(phase_progress("Ready-To-Merge"), "■■■■■■□")
-        self.assertEqual(phase_progress("Merged"), "■■■■■■■")
+        self.assertEqual(phase_progress("coding"), "■□□□□□□□")
+        self.assertEqual(phase_progress("Ready-To-Merge"), "■■■■■■□□")
+        self.assertEqual(phase_progress("Landing"), "■■■■■■■□")
+        self.assertEqual(phase_progress("Merged"), "■■■■■■■■")
         self.assertEqual(phase_progress("landed"), "")
         self.assertEqual(phase_progress("blocked"), "")
         self.assertEqual(phase_progress(None), "")
 
-    def test_every_track_form_spans_seven_cells(self) -> None:
+    def test_every_track_form_spans_eight_cells(self) -> None:
         for form in PHASE_TRACK_FORMS:
             with self.subTest(form=form):
                 for phase in PHASE_PIPELINE:
                     self.assertEqual(
-                        len(phase_progress(phase, form=form)), 7
+                        len(phase_progress(phase, form=form)), 8
                     )
 
     def test_track_color_modes(self) -> None:
@@ -1579,12 +1582,12 @@ class RenderTests(unittest.TestCase):
         )
         self.assertEqual(
             done_colors("merged", "two_tone"),
-            [REPOSITORY_CLEAN_FOREGROUND] * 7,
+            [REPOSITORY_CLEAN_FOREGROUND] * 8,
         )
         gradient = done_colors("merged", "gradient")
         self.assertEqual(gradient[0], REPOSITORY_DIRTY_FOREGROUND)
         self.assertEqual(gradient[-1], REPOSITORY_CLEAN_FOREGROUND)
-        self.assertEqual(len(set(gradient)), 7)
+        self.assertEqual(len(set(gradient)), 8)
         self.assertEqual(
             done_colors("fixing_review", "rainbow"),
             [phase_foreground(p) for p in PHASE_PIPELINE[:3]],
@@ -1615,6 +1618,11 @@ class RenderTests(unittest.TestCase):
         self.assertNotEqual(
             phase_foreground("coding"), phase_foreground("fixing_review")
         )
+
+    def test_landing_has_its_own_green(self) -> None:
+        self.assertEqual(phase_foreground("landing"), LANDING_FOREGROUND)
+        self.assertNotEqual(LANDING_FOREGROUND, REPOSITORY_CLEAN_FOREGROUND)
+        self.assertNotEqual(LANDING_FOREGROUND, MERGED_FOREGROUND)
 
     def test_legacy_building_phase_reads_as_coding(self) -> None:
         self.assertEqual(phase_key("building"), "coding")
