@@ -1812,11 +1812,17 @@ def render_card(
         if track and not state_on_top:
             progress_segments.append((" ", REPOSITORY_META_FOREGROUND, False))
             progress_segments.extend(track)
-    top_right_segments: list[tuple[str, str, bool]] = (
-        [(state, repository_state_foreground(state), False)]
-        if state_on_top and state and state != CLEAN_STATE_GLYPH
-        else []
-    )
+    top_right_segments: list[tuple[str, str, bool]] = []
+    if state_on_top and state:
+        top_right_segments.append((
+            state, repository_state_foreground(state), False
+        ))
+        if state == CLEAN_STATE_GLYPH:
+            # The cap occupies the structural edge cell. Keep one additional
+            # blank inside the card so the clean marker is visibly inset.
+            top_right_segments.append((
+                " ", REPOSITORY_META_FOREGROUND, False
+            ))
     if secondary_context_is_separate and useful_branch:
         secondary_segments.append((
             useful_branch, REPOSITORY_BRANCH_FOREGROUND, False
@@ -1838,13 +1844,6 @@ def render_card(
         secondary_context_is_separate or title_moves_to_top
     )
     top_segments: list[tuple[str, str, bool]] = []
-    clean_state_above_status = state_on_top and state == CLEAN_STATE_GLYPH
-    if clean_state_above_status:
-        top_segments.extend((
-            (" ", REPOSITORY_META_FOREGROUND, False),
-            (CLEAN_STATE_GLYPH, REPOSITORY_CLEAN_FOREGROUND, False),
-            ("  ", REPOSITORY_META_FOREGROUND, False),
-        ))
     if title_moves_to_top:
         top_segments.append((
             row.tab.title,
@@ -1906,7 +1905,7 @@ def render_card(
             edge_style=edge_style,
             line_index=line,
             card_height=card_height,
-            alignment="left" if clean_state_above_status else "content",
+            alignment="content",
             right_segments=top_right_segments,
             background_override=background_override,
         )

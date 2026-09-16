@@ -80,12 +80,13 @@ design.
   Done cells take the phase color, the rest meta gray, both passed through
   the shared accent helper so they stay visible on the active card's light
   slate. A clean tree is the one-cell filled check ``; on a three-row card
-  it sits in the top row's status lane directly above the spinner/status cell,
-  without consuming title width. Dirty and conflict states retain their detail
-  on the right. The right edge is the one column every card shares regardless
-  of tree depth, so phase tracks and labels line up down the bar. A lifted title
-  claims its full width before state uses what remains, and starts at the middle
-  row's text column even with the state beside it. A phase off the pipeline,
+  it sits at the top right with one interior blank cell between it and the
+  visible card edge, before the structural cap cell. Dirty and conflict states
+  retain their detail there. The right edge is the one column every card shares
+  regardless of tree depth, so state, phase tracks, and labels line up down the
+  bar. A lifted title claims its full width before state uses what remains, and
+  starts at the middle row's text column even with the state beside it. A phase
+  off the pipeline,
   such as `needs human design`, shows its label with no track. Coding is
   yellow and fixing review orange, so the two in-progress phases never share
   a color. The track's form and coloring are user-configurable (see README,
