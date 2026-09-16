@@ -18,7 +18,10 @@ install:
 	$(UV) tool install --editable $(CURDIR)
 
 autoupdate:
-	$(PYTHON) -m unittest discover -s tests -v
+	@config_dir="$$(mktemp -d)"; \
+		trap 'rm -rf "$$config_dir"' EXIT; \
+		XDG_CONFIG_HOME="$$config_dir" \
+		$(PYTHON) -m unittest discover -s tests -v
 
 # Kitty loads the watcher, renderer helpers, and navigation kitten from this
 # checkout. Fast-forwarding the validated checkout is therefore the
