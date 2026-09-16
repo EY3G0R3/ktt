@@ -15,6 +15,7 @@ from ktt.render import (
     LANDING_FOREGROUND,
     LEFT_CAP,
     MERGED_FOREGROUND,
+    ORPHAN_MARKER,
     PHASE_PIPELINE,
     PHASE_TRACK_FORMS,
     READY_RIGHT_CAP,
@@ -1001,6 +1002,35 @@ class RenderTests(unittest.TestCase):
         self.assertIn(f"        {LEFT_CAP}", rendered)
         self.assertIn("✗", rendered)
         self.assertIn("child", rendered)
+
+    def test_orphan_row_uses_missing_relationship_marker(self) -> None:
+        rendered = render_row(
+            TreeRow(
+                TabRecord(2, 1, "orphan", (20,)),
+                depth=0,
+                parent_tab_id=None,
+                orphaned=True,
+            ),
+            selected=False,
+            width=40,
+            ansi=False,
+        )
+
+        self.assertIn(ORPHAN_MARKER, rendered)
+        self.assertNotIn("?", rendered)
+        self.assertEqual(display_width(ORPHAN_MARKER), 2)
+
+        attached = render_row(
+            TreeRow(
+                TabRecord(3, 1, "attached", (30,)),
+                depth=0,
+                parent_tab_id=None,
+            ),
+            selected=False,
+            width=40,
+            ansi=False,
+        )
+        self.assertEqual(display_width(rendered), display_width(attached))
 
     def test_repository_badge_precedes_title_in_left_aligned_group(self) -> None:
         rendered = render_row(

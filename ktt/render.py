@@ -42,8 +42,10 @@ CHANGED_FILES_PLACEMENTS = ("inline", "bottom")
 DEFAULT_CHANGED_FILES_PLACEMENT = "bottom"
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
+ORPHAN_MARKER = "⛓️‍💥"
+ORPHAN_CELL_WIDTH = 2
 # Disclosure, orphan marker, status cell, and the space before the text.
-CARD_PREFIX_WIDTH = 1 + 1 + STATUS_CELL_WIDTH + 1
+CARD_PREFIX_WIDTH = 1 + ORPHAN_CELL_WIDTH + STATUS_CELL_WIDTH + 1
 HORIZONTAL_MIN_CARD_WIDTH = 14
 HORIZONTAL_MAX_CARD_WIDTH = 40
 HORIZONTAL_TREE_INDENT = 4
@@ -705,24 +707,65 @@ def render_attached_repository_context(
     return [f"{panel_style(ansi)}{indent}{line}" for line in context]
 
 
-def display_width(text: str) -> int:
-    return sum(
-        0 if unicodedata.combining(character)
-        else 2 if unicodedata.east_asian_width(character) in {"W", "F"}
+def _cell_clusters(text: str) -> list[str]:
+    clusters: list[str] = []
+    current = ""
+    join_next = False
+    for character in text:
+        extends_current = (
+            bool(current)
+            and (
+                join_next
+                or character == "\u200d"
+                or unicodedata.combining(character) != 0
+                or "\ufe00" <= character <= "\ufe0f"
+                or "\U0001f3fb" <= character <= "\U0001f3ff"
+            )
+        )
+        if current and not extends_current:
+            clusters.append(current)
+            current = ""
+        current += character
+        join_next = character == "\u200d"
+    if current:
+        clusters.append(current)
+    return clusters
+
+
+def _cluster_width(cluster: str) -> int:
+    character_widths = [
+        0
+        if (
+            character == "\u200d"
+            or unicodedata.combining(character) != 0
+            or "\ufe00" <= character <= "\ufe0f"
+            or "\U0001f3fb" <= character <= "\U0001f3ff"
+        )
+        else 2
+        if unicodedata.east_asian_width(character) in {"W", "F"}
         else 1
-        for character in text
-    )
+        for character in cluster
+    ]
+    if "\u200d" in cluster:
+        return max(character_widths, default=0)
+    if "\ufe0f" in cluster:
+        return max(2, sum(character_widths))
+    return sum(character_widths)
+
+
+def display_width(text: str) -> int:
+    return sum(_cluster_width(cluster) for cluster in _cell_clusters(text))
 
 
 def fit_cells(text: str, width: int) -> str:
     fitted: list[str] = []
     used = 0
-    for character in text:
-        character_width = display_width(character)
-        if used + character_width > width:
+    for cluster in _cell_clusters(text):
+        cluster_width = _cluster_width(cluster)
+        if used + cluster_width > width:
             break
-        fitted.append(character)
-        used += character_width
+        fitted.append(cluster)
+        used += cluster_width
     return "".join(fitted) + (" " * (width - used))
 
 
@@ -1202,7 +1245,7 @@ def render_row(
     background = background_override or card_background(row)
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
     indent = " " * (TREE_INDENT_WIDTH * row.depth)
-    orphan = "?" if row.orphaned else " "
+    orphan = fit_cells(ORPHAN_MARKER if row.orphaned else "", ORPHAN_CELL_WIDTH)
     icon, status_color = status_icon(tab.status, now)
     status_color = status_foreground(row, status_color)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
@@ -1936,13 +1979,13 @@ def render_horizontal_card(
         return ""
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
-    orphan = "?" if row.orphaned else " "
+    orphan = fit_cells(ORPHAN_MARKER if row.orphaned else "", ORPHAN_CELL_WIDTH)
     icon, status_color = status_icon(tab.status, now)
     status_color = status_foreground(row, status_color)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
     show_caps = width >= 3
     body_width = width - 2 if show_caps else width
-    prefix_width = 2 + STATUS_CELL_WIDTH + 1
+    prefix_width = 1 + ORPHAN_CELL_WIDTH + STATUS_CELL_WIDTH + 1
     title, repository, _ = tab_labels(
         tab, max(0, body_width - prefix_width)
     )
