@@ -1049,6 +1049,24 @@ def phase_label(phase: str | None) -> str:
     return phase_key(phase).replace("_", " ")
 
 
+def phase_elapsed_label(
+    phase_started_at: float | None, now: float | None
+) -> str:
+    """Return a compact, bounded age for a current phase."""
+    if phase_started_at is None or now is None:
+        return ""
+    seconds = max(0, int(now - phase_started_at))
+    if seconds < 60:
+        return "<1m"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    return f"{hours // 24}d"
+
+
 def phase_step(phase: str | None) -> int:
     """1-based pipeline position of a phase, or 0 for one off the pipeline."""
     key = phase_key(phase)
@@ -1759,6 +1777,7 @@ def render_card(
     width: int,
     card_height: int,
     now: float | None = None,
+    phase_now: float | None = None,
     ansi: bool = True,
     edge_style: str = DEFAULT_EDGE_STYLE,
     repository_hue: float | None = None,
@@ -1807,6 +1826,9 @@ def render_card(
         display_width(f" {WORKTREE_GLYPH}{worktree}") if worktree else 0,
     )
     phase = phase_label(row.tab.phase) if card_height >= 2 else ""
+    phase_age = phase_elapsed_label(row.tab.phase_started_at, phase_now)
+    if phase and phase_age:
+        phase = f"{phase} ({phase_age})"
     track = (
         phase_progress_segments(
             row.tab.phase, background_override or card_background(row)

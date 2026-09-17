@@ -135,6 +135,7 @@ class ModelTests(unittest.TestCase):
                         "user_vars": {
                             "workmux_status": "working",
                             "workmux_phase": "in_review",
+                            "workmux_phase_started_at": "2026-09-16T19:00:00Z",
                         },
                     },
                 ],
@@ -142,6 +143,7 @@ class ModelTests(unittest.TestCase):
         }
         record = records_for_os_window(os_window)[0]
         self.assertEqual(record.phase, "in_review")
+        self.assertEqual(record.phase_started_at, 1789585200.0)
 
     def test_record_without_phase_user_var_has_no_phase(self) -> None:
         os_window = {

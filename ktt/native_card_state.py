@@ -55,6 +55,7 @@ class NativeCardState:
                 dict[int, tuple[str, ...]],
             ],
         ] = {}
+        self._phase_refresh_deadlines: dict[int, float] = {}
 
     def render(
         self,
@@ -63,6 +64,7 @@ class NativeCardState:
         width: int,
         card_height: int,
         now: float | None = None,
+        wall_now: float | None = None,
         frame_token: object | None = None,
         background_overrides: Mapping[int, str] | None = None,
     ) -> dict[int, tuple[str, ...]]:
@@ -80,6 +82,7 @@ class NativeCardState:
         ):
             return cached_redraw[4]
         current = time.monotonic() if now is None else now
+        current_wall = time.time() if wall_now is None else wall_now
         records = [
             replace(record, status=STATUS_ALIASES.get(record.status, record.status))
             for record in kitty_tabs.live_tree_records(tab_manager)
@@ -93,6 +96,27 @@ class NativeCardState:
             records, self.identities.worktrees()
         )
         rows = model.tree_rows(records)
+        phase_minutes = tuple(
+            (
+                row.tab.id,
+                max(0, int(current_wall - row.tab.phase_started_at)) // 60,
+            )
+            for row in rows
+            if row.tab.phase and row.tab.phase_started_at is not None
+        )
+        if phase_minutes:
+            seconds_to_boundary = min(
+                60 - max(
+                    0, int(current_wall - row.tab.phase_started_at)
+                ) % 60
+                for row in rows
+                if row.tab.phase and row.tab.phase_started_at is not None
+            )
+            self._phase_refresh_deadlines[os_window_id] = (
+                current + seconds_to_boundary
+            )
+        else:
+            self._phase_refresh_deadlines.pop(os_window_id, None)
         active = next((row.tab for row in rows if row.tab.is_active), None)
         active_path = active.cwd if active is not None else None
         summary = self.summaries.setdefault(
@@ -115,6 +139,7 @@ class NativeCardState:
             background_override_key,
             tuple(repository_lines),
             active_location,
+            phase_minutes,
             (
                 int(current / render.SPINNER_INTERVAL)
                 % len(render.SPINNER_FRAMES)
@@ -145,6 +170,7 @@ class NativeCardState:
                     width=width,
                     card_height=card_height,
                     now=current,
+                    phase_now=current_wall,
                     repository_hue=hues.get(row.tab.repository or ""),
                     repository_location=(
                         active_location if row.tab.is_active else None
@@ -182,6 +208,10 @@ class NativeCardState:
                 self.waiting.next_deadline is not None
                 and current >= self.waiting.next_deadline
             )
+            or any(
+                current >= deadline
+                for deadline in self._phase_refresh_deadlines.values()
+            )
         )
 
     def close(self) -> None:
@@ -191,3 +221,4 @@ class NativeCardState:
         self.summaries.clear()
         self._frame_cache.clear()
         self._redraw_frames.clear()
+        self._phase_refresh_deadlines.clear()

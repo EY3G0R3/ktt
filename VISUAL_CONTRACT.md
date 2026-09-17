@@ -72,11 +72,14 @@ design.
   helper moves to the nearer readable lightness, which on the active card's
   light slate is the dark end; a title must stay light on every card.
 - A worktree agent's reported phase (`workmux_phase`) stacks the right edge
-  of a three-row card: working-tree state on the top row, the seven-cell track
-  (`■■■□□□□` for fixing review by default) on the middle row, and the phase
-  label on the bottom row, each at the same right column. A two-row card has
+  of a three-row card: working-tree state on the top row, the eight-cell track
+  (`■■■□□□□□` for fixing review by default) on the middle row, and the phase
+  label with compact elapsed time on the bottom row, such as `in review (12m)`,
+  each at the same right column. A two-row card has
   no top row, so its state stays on the middle row and label and track share
-  the bottom row as `fixing review ■■■□□□□`. One-row cards omit the phase.
+  the bottom row as `fixing review (12m) ■■■□□□□□`. One-row cards omit the phase
+  and its elapsed time. Elapsed time uses Workmux's durable phase-transition
+  timestamp, updates on minute boundaries, and compacts to hours and days.
   Done cells take the phase color, the rest meta gray, both passed through
   the shared accent helper so they stay visible on the active card's light
   slate. A clean tree is the one-cell filled check ``; on a three-row card

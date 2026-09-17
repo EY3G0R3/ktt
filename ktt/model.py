@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime
 from pathlib import Path
 import re
 from typing import Any, Iterable
@@ -12,6 +13,7 @@ PARENT_VAR = "ktt_parent_window_id"
 STATUS_VAR = "workmux_status"
 VERDICT_VAR = "workmux_verdict"
 PHASE_VAR = "workmux_phase"
+PHASE_STARTED_AT_VAR = "workmux_phase_started_at"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
 AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
@@ -51,6 +53,7 @@ class TabRecord:
     repository_worktree: str | None = None
     attention_suppressed: bool = False
     phase: str | None = None
+    phase_started_at: float | None = None
 
 
 @dataclass(frozen=True)
@@ -238,6 +241,18 @@ def _positive_int(value: str | None) -> int | None:
     return parsed if parsed > 0 else None
 
 
+def _timestamp(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.timestamp()
+
+
 def clean_title(
     title: str,
     *,
@@ -282,6 +297,9 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
             )
         status = _first_user_var(metadata_windows, STATUS_VAR)
         phase = _first_user_var(metadata_windows, PHASE_VAR)
+        phase_started_at = _timestamp(
+            _first_user_var(metadata_windows, PHASE_STARTED_AT_VAR)
+        )
         cwd = _first_cwd(metadata_windows)
         records.append(
             TabRecord(
@@ -300,6 +318,7 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                     status in WAITING_STATUSES and title_is_working(title)
                 ),
                 phase=phase,
+                phase_started_at=phase_started_at,
             )
         )
     return records

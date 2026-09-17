@@ -98,12 +98,17 @@ Native cards retain the established visual contract:
 - custom Kitty tab titles and tagged agent ownership;
 - four-cell indentation per tree level;
 - fixed status width, repository identity, and worktree context;
+- compact time in the current Workmux phase, such as `in review (12m)`;
 - active, waiting, working, ready, merged, and blocked treatments;
 - adaptive three-, two-, and one-row density with active-tab overflow handling.
 
 The native renderer reads pending `workmux_verdict` values immediately. A
 seven-second debounce prevents a freshly waiting agent from flashing amber
 while its title still shows a working spinner.
+
+Phase ages come from Workmux's durable `phaseStartedAt` timestamp, projected
+into Kitty as `workmux_phase_started_at`. They update at minute boundaries,
+compact to hours and days, and remain hidden with the phase in one-row cards.
 
 ## Preserved dormant designs
 

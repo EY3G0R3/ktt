@@ -193,6 +193,36 @@ class NativeCardStateTests(unittest.TestCase):
         self.assertIsNot(changed, first)
         self.assertTrue(any("renamed tab" in line for line in changed[1]))
 
+    def test_phase_age_refreshes_on_minute_boundary(self):
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+        manager = FakeManager([
+            FakeTab(
+                1,
+                "review",
+                FakeWindow(
+                    100,
+                    "/work/first",
+                    workmux_phase="in_review",
+                    workmux_phase_started_at="1970-01-01T00:16:40Z",
+                ),
+                active=True,
+            )
+        ])
+
+        first = state.render(
+            manager, width=40, card_height=3, now=20.0, wall_now=1_719.0
+        )
+        self.assertIn("in review (11m)", strip_ansi(first[1][2]))
+        self.assertFalse(state.needs_refresh(now=20.9))
+        self.assertTrue(state.needs_refresh(now=21.0))
+
+        second = state.render(
+            manager, width=40, card_height=3, now=21.0, wall_now=1_720.0
+        )
+        self.assertIn("in review (12m)", strip_ansi(second[1][2]))
+
     def test_background_override_recolors_existing_card_and_cache_key(self):
         state = NativeCardState(
             identities=FakeIdentities(), summary_factory=FakeSummary

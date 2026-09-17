@@ -1,3 +1,4 @@
+from dataclasses import replace
 import unittest
 import re
 
@@ -39,6 +40,7 @@ from ktt.render import (
     horizontal_disclosure_column,
     panel_style,
     phase_foreground,
+    phase_elapsed_label,
     phase_key,
     phase_label,
     phase_progress,
@@ -1455,6 +1457,31 @@ class RenderTests(unittest.TestCase):
             with self.subTest(raw=raw):
                 self.assertEqual(phase_label(raw), "in review")
         self.assertEqual(phase_label(None), "")
+
+    def test_phase_elapsed_label_is_compact(self) -> None:
+        started = 1_000.0
+        self.assertEqual(phase_elapsed_label(started, started + 12), "<1m")
+        self.assertEqual(phase_elapsed_label(started, started + 12 * 60), "12m")
+        self.assertEqual(phase_elapsed_label(started, started + 2 * 3600), "2h")
+        self.assertEqual(phase_elapsed_label(started, started + 3 * 86400), "3d")
+
+    def test_phase_label_includes_elapsed_time(self) -> None:
+        row = self._worktree_row("in_review")
+        row = TreeRow(
+            replace(row.tab, phase_started_at=1_000.0),
+            row.depth,
+            row.parent_tab_id,
+        )
+        card = render_card(
+            row,
+            selected=True,
+            width=44,
+            card_height=3,
+            phase_now=1_720.0,
+            ansi=False,
+            repository_lines=["quiver  ✓ working tree clean", "feature-branch"],
+        )
+        self.assertIn("in review (12m)", card[2])
 
     def test_tall_card_places_clean_above_status_and_phase_on_right(self) -> None:
         card = self._card(self._worktree_row("fixing_review"))

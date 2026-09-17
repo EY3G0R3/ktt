@@ -142,6 +142,9 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             metadata_windows, model.STATUS_VAR
         )
         phase = _first_user_var(metadata_windows, model.PHASE_VAR)
+        phase_started_at = model._timestamp(
+            _first_user_var(metadata_windows, model.PHASE_STARTED_AT_VAR)
+        )
         cwd = next(
             (
                 value
@@ -167,6 +170,7 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
                 and _title_signals_working(tab, metadata_windows)
             ),
             phase=phase,
+            phase_started_at=phase_started_at,
         ))
     return tuple(records)
 
