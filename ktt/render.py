@@ -1057,7 +1057,7 @@ def phase_elapsed_label(
         return ""
     seconds = max(0, int(now - phase_started_at))
     if seconds < 60:
-        return "<1m"
+        return ""
     minutes = seconds // 60
     if minutes < 60:
         return f"{minutes}m"
