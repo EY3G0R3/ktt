@@ -22,6 +22,7 @@ VERDICT_BACKGROUNDS = {
 }
 SUCCESS_VERDICTS = frozenset({"ready_to_merge", "merged"})
 WAITING_BACKGROUNDS = ("55502e", "85804b")
+NEEDS_HUMAN_DESIGN_BACKGROUNDS = WAITING_BACKGROUNDS
 PANEL_BACKGROUND = "000000"
 ACTIVE_BACKGROUND = "64718b"
 ACTIVE_DESCENDANT_BACKGROUND = "343b49"
@@ -820,6 +821,8 @@ def card_background(row: TreeRow) -> str:
     tab = row.tab
     if tab.status == "💬" and seeks_attention(tab):
         return WAITING_BACKGROUNDS[1 if tab.is_active else 0]
+    if phase_key(tab.phase) == "needs_human_design":
+        return NEEDS_HUMAN_DESIGN_BACKGROUNDS[1 if tab.is_active else 0]
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     if verdict:
         return verdict[1 if tab.is_active else 0]
@@ -835,7 +838,12 @@ def card_background(row: TreeRow) -> str:
 def card_foreground(row: TreeRow) -> str:
     tab = row.tab
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
-    if verdict or (tab.status == "💬" and seeks_attention(tab)) or tab.is_active:
+    if (
+        verdict
+        or (tab.status == "💬" and seeks_attention(tab))
+        or phase_key(tab.phase) == "needs_human_design"
+        or tab.is_active
+    ):
         return "f8f8f2"
     return "d8dee9"
 

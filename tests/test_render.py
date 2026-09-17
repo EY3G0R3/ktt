@@ -16,6 +16,7 @@ from ktt.render import (
     LANDING_FOREGROUND,
     LEFT_CAP,
     MERGED_FOREGROUND,
+    NEEDS_HUMAN_DESIGN_BACKGROUNDS,
     ORPHAN_MARKER,
     PHASE_PIPELINE,
     PHASE_TRACK_FORMS,
@@ -1221,6 +1222,40 @@ class RenderTests(unittest.TestCase):
             None,
         ))
         self.assertEqual((inactive, active), WAITING_BACKGROUNDS)
+
+    def test_needs_human_design_uses_yellow_card_background(self) -> None:
+        row = TreeRow(
+            TabRecord(
+                1,
+                1,
+                "design needed",
+                (10,),
+                status="blocked",
+                phase="needs_human_design",
+            ),
+            0,
+            None,
+        )
+        inactive = card_background(row)
+        active = card_background(TreeRow(
+            TabRecord(
+                2,
+                1,
+                "design needed",
+                (20,),
+                is_active=True,
+                status="blocked",
+                phase="needs_human_design",
+            ),
+            0,
+            None,
+        ))
+        self.assertEqual((inactive, active), NEEDS_HUMAN_DESIGN_BACKGROUNDS)
+        rgb = ";".join(
+            str(int(inactive[offset:offset + 2], 16)) for offset in (0, 2, 4)
+        )
+        card = render_card(row, selected=False, width=40, card_height=3)
+        self.assertTrue(all(f"\x1b[48;2;{rgb}m" in line for line in card))
 
     def test_horizontal_cards_separate_active_brightness_from_attention_hue(self) -> None:
         waiting = render_horizontal_card(

@@ -90,9 +90,10 @@ design.
   bar. A lifted title claims its full width before state uses what remains, and
   starts at the middle row's text column even with the state beside it. A phase
   off the pipeline,
-  such as `needs human design`, shows its label with no track. Coding is
-  yellow and fixing review orange, so the two in-progress phases never share
-  a color. The track's form and coloring are user-configurable (see README,
+  such as `needs human design`, shows its label with no track. Its whole card
+  uses the yellow attention background, even when its status is blocked;
+  ordinary blocked cards remain red. Coding is yellow and fixing review is
+  orange. The track's form and coloring are user-configurable (see README,
   "Configuration"); the contract fixes the placement, not the glyphs.
 - Active, active-descendant, working, waiting, ready, merged, and blocked treatments
   retain the established colors, brightness, caps, and attention debounce.
