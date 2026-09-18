@@ -22,7 +22,7 @@ VERDICT_BACKGROUNDS = {
 }
 SUCCESS_VERDICTS = frozenset({"ready_to_merge", "merged"})
 WAITING_BACKGROUNDS = ("55502e", "85804b")
-NEEDS_HUMAN_DESIGN_BACKGROUNDS = WAITING_BACKGROUNDS
+NEEDS_USER_INPUT_BACKGROUNDS = WAITING_BACKGROUNDS
 PANEL_BACKGROUND = "000000"
 ACTIVE_BACKGROUND = "64718b"
 ACTIVE_DESCENDANT_BACKGROUND = "343b49"
@@ -821,8 +821,8 @@ def card_background(row: TreeRow) -> str:
     tab = row.tab
     if tab.status == "💬" and seeks_attention(tab):
         return WAITING_BACKGROUNDS[1 if tab.is_active else 0]
-    if phase_key(tab.phase) == "needs_human_design":
-        return NEEDS_HUMAN_DESIGN_BACKGROUNDS[1 if tab.is_active else 0]
+    if phase_key(tab.phase) in {"needs_user_input", "needs_human_design"}:
+        return NEEDS_USER_INPUT_BACKGROUNDS[1 if tab.is_active else 0]
     verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     if verdict:
         return verdict[1 if tab.is_active else 0]
@@ -841,7 +841,7 @@ def card_foreground(row: TreeRow) -> str:
     if (
         verdict
         or (tab.status == "💬" and seeks_attention(tab))
-        or phase_key(tab.phase) == "needs_human_design"
+        or phase_key(tab.phase) in {"needs_user_input", "needs_human_design"}
         or tab.is_active
     ):
         return "f8f8f2"
@@ -1034,6 +1034,7 @@ PHASE_FOREGROUNDS = {
     "ready_to_merge": REPOSITORY_CLEAN_FOREGROUND,
     "landing": LANDING_FOREGROUND,
     "merged": MERGED_FOREGROUND,
+    "needs_user_input": REPOSITORY_CONFLICT_FOREGROUND,
     "needs_human_design": REPOSITORY_CONFLICT_FOREGROUND,
     "blocked": REPOSITORY_CONFLICT_FOREGROUND,
 }
