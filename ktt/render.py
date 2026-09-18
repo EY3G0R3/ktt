@@ -1159,8 +1159,15 @@ def phase_progress_segments(
     return segments
 
 
-def phase_foreground(phase: str | None) -> str:
-    return PHASE_FOREGROUNDS.get(phase_key(phase), REPOSITORY_META_FOREGROUND)
+def phase_foreground(
+    phase: str | None, background: str | None = None
+) -> str:
+    foreground = PHASE_FOREGROUNDS.get(
+        phase_key(phase), REPOSITORY_META_FOREGROUND
+    )
+    if background is None:
+        return foreground
+    return _adaptive_accent_foreground(foreground, background)
 
 
 def adaptive_card_height(row_count: int, height: int) -> int:
@@ -1796,6 +1803,7 @@ def render_card(
     background_override: str | None = None,
 ) -> list[str]:
     del hide_dirty_state
+    background = background_override or card_background(row)
     content_line = card_content_line(card_height)
     _, branch, state = repository_summary_parts(
         repository_lines or []
@@ -1839,9 +1847,7 @@ def render_card(
     if phase and phase_age:
         phase = f"{phase} ({phase_age})"
     track = (
-        phase_progress_segments(
-            row.tab.phase, background_override or card_background(row)
-        )
+        phase_progress_segments(row.tab.phase, background)
         if phase
         else []
     )
@@ -1881,7 +1887,9 @@ def render_card(
     progress_segments: list[tuple[str, str, bool]] = []
     if phase:
         progress_segments.append((
-            phase, phase_foreground(row.tab.phase), False
+            phase,
+            phase_foreground(row.tab.phase, background),
+            False,
         ))
         if track and not state_on_top:
             progress_segments.append((" ", REPOSITORY_META_FOREGROUND, False))

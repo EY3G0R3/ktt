@@ -1767,6 +1767,41 @@ class RenderTests(unittest.TestCase):
             phase_foreground("coding"), phase_foreground("fixing_review")
         )
 
+    def test_trouble_phase_uses_dark_red_on_active_yellow_card(self) -> None:
+        row = TreeRow(
+            TabRecord(
+                1,
+                1,
+                "question",
+                (10,),
+                is_active=True,
+                phase="needs_user_input",
+            ),
+            0,
+            None,
+        )
+        foreground = phase_foreground(
+            "needs_user_input", NEEDS_USER_INPUT_BACKGROUNDS[1]
+        )
+        red, green, blue = (
+            int(foreground[offset:offset + 2], 16) for offset in (0, 2, 4)
+        )
+
+        self.assertGreater(red, green)
+        self.assertGreater(red, blue)
+        self.assertLess(sum((red, green, blue)), sum((255, 85, 85)))
+        self.assertGreaterEqual(
+            _contrast_ratio(foreground, NEEDS_USER_INPUT_BACKGROUNDS[1]), 3.0
+        )
+        rgb = ";".join(
+            str(int(foreground[offset:offset + 2], 16))
+            for offset in (0, 2, 4)
+        )
+        self.assertIn(
+            f"\x1b[38;2;{rgb}mneeds user input",
+            "".join(render_card(row, selected=False, width=40, card_height=3)),
+        )
+
     def test_landing_has_its_own_green(self) -> None:
         self.assertEqual(phase_foreground("landing"), LANDING_FOREGROUND)
         self.assertNotEqual(LANDING_FOREGROUND, REPOSITORY_CLEAN_FOREGROUND)
