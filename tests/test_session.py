@@ -26,6 +26,7 @@ from ktt.session import (
     recovery_restore_path,
     named_session_path,
     read_manifest,
+    resolve_workmux_resume_prefix,
     write_manifest,
 )
 from ktt.session_cli import (
@@ -418,6 +419,83 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(second[-3:], ("claude", "--resume", "claude-id"))
         self.assertIn("--hold", second)
         self.assertEqual(remote.focused, [7002])
+
+    def test_restore_rebinds_resumed_workmux_agent(self) -> None:
+        manifest = SessionManifest(
+            "2026-08-27T12:00:00-07:00",
+            "host",
+            (
+                SessionOsWindow(
+                    "os-1",
+                    "",
+                    (
+                        SessionTab(
+                            "root",
+                            "Codex",
+                            "/work/task",
+                            None,
+                            True,
+                            True,
+                            AgentState("codex", "codex", "codex-id"),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        operations = plan_restore(
+            manifest,
+            workmux_resume_resolver=lambda cwd: (
+                "/hooks/task-bind",
+                "inherit",
+                "task-id",
+                "--",
+            ),
+        )
+
+        self.assertEqual(
+            operations[0].command,
+            (
+                "/hooks/task-bind",
+                "inherit",
+                "task-id",
+                "--",
+                "codex",
+                "resume",
+                "codex-id",
+            ),
+        )
+
+    def test_workmux_resume_prefix_uses_durable_task_id(self) -> None:
+        completed = mock.Mock(
+            returncode=0,
+            stdout=json.dumps({"taskId": "feat-task"}),
+        )
+        with mock.patch.dict(
+            os.environ,
+            {"WORKMUX_HOOKS_DIR": "/hooks"},
+        ), mock.patch("ktt.session.os.access", return_value=True), mock.patch(
+            "ktt.session.subprocess.run", return_value=completed
+        ) as run:
+            prefix = resolve_workmux_resume_prefix("/work/task")
+
+        self.assertEqual(
+            prefix,
+            ("/hooks/task-bind", "inherit", "feat-task", "--"),
+        )
+        run.assert_called_once_with(
+            (
+                "/hooks/task-state",
+                "resolve",
+                "--worktree",
+                "/work/task",
+                "--allow-missing",
+            ),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
 
     def test_tmux_reattaches_only_while_the_session_survives(self) -> None:
         manifest = SessionManifest(

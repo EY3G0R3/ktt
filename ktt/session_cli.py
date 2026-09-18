@@ -34,6 +34,7 @@ from .session import (
     named_session_path,
     plan_restore,
     read_manifest,
+    resolve_workmux_resume_prefix,
     recovery_restore_path,
     named_sessions_dir,
     write_manifest,
@@ -321,7 +322,10 @@ def restore_saved_session(
     manifest = read_manifest(path)
     for warning in manifest.warnings:
         print(f"ktt: saved warning: {warning}", file=sys.stderr)
-    operations = plan_restore(manifest)
+    operations = plan_restore(
+        manifest,
+        workmux_resume_resolver=resolve_workmux_resume_prefix,
+    )
     for operation in operations:
         print(operation.describe())
     if dry_run:

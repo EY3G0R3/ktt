@@ -196,6 +196,11 @@ longer starts a presentation daemon or embeds renderer panes. The recovery file
 can lag a topology change by about one second, or an in-tab agent change by up
 to 30 seconds.
 
+When a restored Codex or Claude tab's working directory belongs to durable
+Workmux task state, KTT resumes it through Workmux's `task-bind inherit`
+helper. This republishes the new Kitty window identity before the agent starts,
+so later dispatches can resolve that tab as their coordinator.
+
 ## Verification
 
 ```bash

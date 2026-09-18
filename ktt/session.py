@@ -212,11 +212,54 @@ class PlannedTab:
 
 SessionResolver = Callable[[str, int, str | None, Sequence[str]], str | None]
 TmuxChecker = Callable[[str], bool]
+WorkmuxResumeResolver = Callable[[str], tuple[str, ...]]
 
 
 def default_manifest_path() -> Path:
     state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
     return state_home / "ktt" / "session.json"
+
+
+def resolve_workmux_resume_prefix(cwd: str) -> tuple[str, ...]:
+    """Return an explicit task-binding prefix for a known Workmux worktree."""
+    hooks_dir = Path(
+        os.environ.get("WORKMUX_HOOKS_DIR")
+        or Path.home() / ".config" / "workmux" / "hooks"
+    )
+    task_state = Path(
+        os.environ.get("WORKMUX_TASK_STATE_COMMAND") or hooks_dir / "task-state"
+    )
+    task_bind = Path(
+        os.environ.get("WORKMUX_TASK_BIND_COMMAND") or hooks_dir / "task-bind"
+    )
+    if not os.access(task_state, os.X_OK) or not os.access(task_bind, os.X_OK):
+        return ()
+    try:
+        resolved = subprocess.run(
+            (
+                str(task_state),
+                "resolve",
+                "--worktree",
+                cwd,
+                "--allow-missing",
+            ),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ()
+    if resolved.returncode != 0:
+        return ()
+    try:
+        record = json.loads(resolved.stdout)
+    except json.JSONDecodeError:
+        return ()
+    task_id = record.get("taskId") if isinstance(record, Mapping) else None
+    if not isinstance(task_id, str) or not task_id:
+        return ()
+    return (str(task_bind), "inherit", task_id, "--")
 
 
 def default_recovery_path() -> Path:
@@ -467,6 +510,7 @@ def plan_restore(
     manifest: SessionManifest,
     *,
     tmux_checker: TmuxChecker | None = None,
+    workmux_resume_resolver: WorkmuxResumeResolver | None = None,
 ) -> tuple[PlannedTab, ...]:
     _validate_relationships(manifest)
     check_tmux = tmux_checker or tmux_session_exists
@@ -476,6 +520,13 @@ def plan_restore(
         previous: str | None = None
         for tab in ordered:
             command = tab.agent.resume_command()
+            if (
+                command
+                and tab.cwd
+                and tab.agent.kind in {"codex", "claude"}
+                and workmux_resume_resolver is not None
+            ):
+                command = (*workmux_resume_resolver(tab.cwd), *command)
             placeholder_reason = tab.agent.reason if not tab.agent.restorable else None
             if (
                 tab.agent.kind == "tmux"
