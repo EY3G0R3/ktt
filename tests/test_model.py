@@ -535,6 +535,28 @@ class ModelTests(unittest.TestCase):
     def test_clean_title_removes_existing_decorations(self) -> None:
         self.assertEqual(clean_title("⠋  feature-name"), "feature-name")
 
+    def test_records_ignore_fancylog_as_an_active_pane_title(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "fancylog",
+                "windows": [
+                    {"id": 101, "title": "agent task", "user_vars": {}},
+                    {
+                        "id": 102,
+                        "title": "fancylog",
+                        "is_active": True,
+                        "user_vars": {},
+                    },
+                ],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(record.title, "agent task")
+
     def test_clean_title_uses_tilde_for_home_directory_name(self) -> None:
         self.assertEqual(
             clean_title(

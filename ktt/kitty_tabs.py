@@ -120,18 +120,24 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         effective_title = getattr(tab, "effective_title", None)
         if effective_title is None:
             effective_title = getattr(tab, "title", "")
+        explicit_title = str(getattr(tab, "name", "") or "")
         title = (
-            str(getattr(tab, "name", "") or "")
+            explicit_title
             if agent_owned
             else str(effective_title)
         )
-        if not title or title == "surf":
+        if (
+            not title
+            or title == "surf"
+            or (not explicit_title and model.title_is_utility(title))
+        ):
             title = next(
                 (
                     str(window.title)
                     for window in metadata_windows
                     if getattr(window, "title", "")
                     and str(window.title) != "surf"
+                    and not model.title_is_utility(str(window.title))
                 ),
                 title,
             )

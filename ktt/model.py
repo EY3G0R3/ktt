@@ -17,6 +17,7 @@ PHASE_STARTED_AT_VAR = "workmux_phase_started_at"
 COCKPIT_ROLE_VAR = "ktt_cockpit_role"
 AGENT_ROLE = "agent"
 AGENT_COMMANDS = frozenset({"claude", "codex", "gemini", "opencode"})
+UTILITY_TITLES = frozenset({"fancylog"})
 WAITING_STATUS = "💬"
 WORKING_STATUS = "🤖"
 WAITING_DEBOUNCE_SECONDS = 7.0
@@ -276,6 +277,11 @@ def title_is_working(title: str) -> bool:
     return bool(title) and title[0] in CLAUDE_SPINNER_CHARS
 
 
+def title_is_utility(title: str) -> bool:
+    """Identify pane titles that should not replace a tab's content title."""
+    return title.strip().casefold() in UTILITY_TITLES
+
+
 def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
     records: list[TabRecord] = []
     os_window_id = int(os_window["id"])
@@ -286,12 +292,13 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
         metadata_windows = _metadata_windows(windows)
         window_ids = tuple(int(window["id"]) for window in windows)
         title = _effective_tab_title(tab, metadata_windows)
-        if title == "surf" or not title:
+        if title == "surf" or not title or title_is_utility(title):
             title = next(
                 (
                     str(window.get("title") or "")
                     for window in metadata_windows
                     if window.get("title") and window.get("title") != "surf"
+                    and not title_is_utility(str(window.get("title") or ""))
                 ),
                 title,
             )

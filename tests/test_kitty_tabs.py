@@ -307,6 +307,30 @@ class TabOrderingTests(unittest.TestCase):
 
         self.assertEqual(record.title, "implement auth")
 
+    def test_live_tree_ignores_fancylog_as_an_active_pane_title(self) -> None:
+        content = FakeWindow(100)
+        content.title = "implement auth"
+        utility = FakeWindow(101)
+        utility.title = "fancylog"
+        tab = LiveTab(10, [content, utility], active=1)
+        tab.title = "fancylog"
+        tab.effective_title = "fancylog"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "implement auth")
+
+    def test_live_tree_keeps_an_explicit_fancylog_tab_name(self) -> None:
+        content = FakeWindow(100)
+        content.title = "implement auth"
+        tab = LiveTab(10, [content])
+        tab.name = "fancylog"
+        tab.effective_title = "fancylog"
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.title, "fancylog")
+
     def test_live_tree_prefers_custom_effective_title(self) -> None:
         content = FakeWindow(100)
         content.title = "⠼ qri-apps"
