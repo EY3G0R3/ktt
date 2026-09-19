@@ -3,6 +3,7 @@ import unittest
 from ktt.model import (
     TabRecord,
     WaitingStatusDebouncer,
+    WORKING_STATUS,
     adjacent_tree_tab_id,
     choose_os_window,
     clean_title,
@@ -594,6 +595,20 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(record.title, "ktt")
         self.assertEqual(record.status, "💬")
         self.assertTrue(record.attention_suppressed)
+
+    def test_working_title_supplies_missing_status(self) -> None:
+        os_window = {
+            "id": 7,
+            "tabs": [{
+                "id": 10,
+                "title": "⠋ ktt",
+                "windows": [{"id": 101, "is_active": True}],
+            }],
+        }
+
+        record = records_for_os_window(os_window)[0]
+
+        self.assertEqual(record.status, WORKING_STATUS)
 
     def test_waiting_remains_when_title_has_no_working_spinner(self) -> None:
         os_window = {

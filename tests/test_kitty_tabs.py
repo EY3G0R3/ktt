@@ -296,6 +296,15 @@ class TabOrderingTests(unittest.TestCase):
 
         self.assertEqual(record.status, "ready_to_merge")
 
+    def test_live_tree_infers_working_status_from_spinner_title(self) -> None:
+        window = FakeWindow(100)
+        window.title = "⠸ KTT cards | ktt"
+        tab = LiveTab(10, [window])
+
+        record = live_tree_records(LiveTabManager([tab]))[0]
+
+        self.assertEqual(record.status, model.WORKING_STATUS)
+
     def test_live_tree_uses_content_title_when_tab_title_is_surf(self) -> None:
         content = FakeWindow(100)
         content.title = "implement auth"

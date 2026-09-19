@@ -147,6 +147,11 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         ) or _first_user_var(
             metadata_windows, model.STATUS_VAR
         )
+        title_signals_working = _title_signals_working(
+            tab, metadata_windows
+        )
+        if not status and title_signals_working:
+            status = model.WORKING_STATUS
         phase = _first_user_var(metadata_windows, model.PHASE_VAR)
         phase_started_at = model._timestamp(
             _first_user_var(metadata_windows, model.PHASE_STARTED_AT_VAR)
@@ -173,7 +178,7 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             cwd=cwd,
             attention_suppressed=(
                 status in model.WAITING_STATUSES
-                and _title_signals_working(tab, metadata_windows)
+                and title_signals_working
             ),
             phase=phase,
             phase_started_at=phase_started_at,
