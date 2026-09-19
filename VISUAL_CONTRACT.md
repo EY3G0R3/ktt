@@ -55,19 +55,27 @@ design.
   the deliberate exception: it exclusively owns that tab's title and metadata.
 - Tree depth shifts a child card four cells per level. Status always occupies
   two cells, so titles remain aligned across spinner, emoji, and empty states.
-- Every card shows repository identity before other labels. Tall cards place
-  repository/worktree on the middle row and useful branch/title on the bottom
-  row, omitting redundant labels. On a three-row card the working-tree state
-  sits at the right end of the top row, beside the title; two-row cards keep
-  it at the right end of the middle row.
-- A three-row card always heads itself with its tab title, on the top row, in
-  its own pale cool color, starting at the same column as the middle row's
-  text rather than centered. The middle row is then repository identity and the
-  bottom row branch and phase, either of which may be empty. A title that
-  merely repeats the worktree name is omitted entirely, and a card with no
-  repository identity keeps its title on the middle row rather than leaving a
-  lone status glyph there. Two-row cards have no top row, so their title shares
-  the bottom row, and only when worktree context displaced it.
+- Three-row cards collect their dynamic values once in an immutable snapshot.
+  Their widgets only format that snapshot; they never query Kitty, Git,
+  Workmux, the clock, or configuration independently.
+- `THREE_ROW_CARD_WIDGETS` is the complete placement declaration:
+
+  | left | center | right |
+  | --- | --- | --- |
+  | status space | title | repository state |
+  | status | identity | phase track |
+  | status space | repository context | phase label |
+
+  The fixed-width left column is reserved for status; its top and bottom cells
+  are empty. Center widgets therefore share one starting column, while the
+  right widget is pinned to the right. There is no per-widget alignment
+  metadata. If a row is tight, left-flow content truncates before the pinned
+  right widget according to the shared row compositor.
+- The identity widget is the worktree when one exists, otherwise the title. A
+  worktree lifts a non-redundant title to the top-center widget, aligned with
+  the identity below; a title that repeats the worktree is omitted. Repository
+  starts at the bottom-left inset, before the useful branch. Two-row cards
+  retain their compact shared-row behavior.
 - The title color only ever brightens to reach contrast. The shared accent
   helper moves to the nearer readable lightness, which on the active card's
   light slate is the dark end; a title must stay light on every card.

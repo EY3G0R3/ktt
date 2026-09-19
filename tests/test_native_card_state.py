@@ -315,7 +315,8 @@ class NativeCardStateTests(unittest.TestCase):
         root = [strip_ansi(line) for line in cards[1]]
         child = [strip_ansi(line) for line in cards[2]]
 
-        self.assertIn("/repo/", root[1])
+        self.assertNotIn("/repo/", root[1])
+        self.assertIn("/repo/", root[2])
         self.assertIn("🌳feature", root[1])
         self.assertIn(render.CLEAN_STATE_GLYPH, root[0])
         self.assertIn("implement auth", root[0])
