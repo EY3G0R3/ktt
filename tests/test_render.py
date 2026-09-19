@@ -557,11 +557,11 @@ class RenderTests(unittest.TestCase):
 
         self.assertEqual(first_file_index, state_index + 1)
         self.assertTrue(lines[state_index].strip().endswith(":"))
-        self.assertIn(WORKTREE_GLYPH, lines[state_index - 2])
+        self.assertIn(WORKTREE_GLYPH, lines[state_index - 3])
         self.assertNotIn("unstaged", lines[state_index - 1])
         self.assertNotIn("unstaged", lines[state_index - 2])
         self.assertIn("1 unstaged", lines[state_index - 3])
-        self.assertIn("one", lines[state_index - 3])
+        self.assertIn("one", lines[state_index - 2])
 
     def test_dirty_state_stays_in_card_when_only_one_attachment_row_fits(self) -> None:
         screen = render_screen(
@@ -613,22 +613,22 @@ class RenderTests(unittest.TestCase):
             ),
         )
         lines = screen.split("\n")
-        secondary = next(line for line in lines if "runner" in line)
-        middle = next(
+        title = next(line for line in lines if "runner" in line)
+        worktree = next(
             line for line in lines if f"{WORKTREE_GLYPH}feature" in line
         )
         summary = next(line for line in lines if CLEAN_STATE_GLYPH in line)
 
-        self.assertIn(f"{WORKTREE_GLYPH}feature", middle)
-        self.assertNotIn("/quiver/", middle)
-        self.assertIn("runner", secondary)
-        self.assertLess(lines.index(secondary), lines.index(middle))
+        self.assertIn(f"{WORKTREE_GLYPH}feature", worktree)
+        self.assertNotIn("/quiver/", worktree)
+        self.assertIn("runner", title)
+        self.assertLess(lines.index(worktree), lines.index(title))
         self.assertIn(
-            "/quiver/ ·  topic/branch", lines[lines.index(middle) + 1]
+            "/quiver/ ·  topic/branch", lines[lines.index(worktree) + 2]
         )
-        self.assertEqual(summary, secondary)
+        self.assertEqual(summary, worktree)
         self.assertGreater(
-            summary.index(CLEAN_STATE_GLYPH), summary.index("runner")
+            summary.index(CLEAN_STATE_GLYPH), summary.index(WORKTREE_GLYPH)
         )
         self.assertTrue(summary.rstrip().endswith(CLEAN_STATE_GLYPH))
 
@@ -791,12 +791,12 @@ class RenderTests(unittest.TestCase):
 
         self.assertIn(f"{WORKTREE_GLYPH}feature", tab_line)
         self.assertNotIn("", tab_line)
-        self.assertEqual(lines.index(summary), lines.index(tab_line) - 1)
+        self.assertEqual(lines.index(summary), lines.index(tab_line))
         self.assertNotIn("", summary)
-        self.assertIn("/quiver/ ·  topic/br", screen)
+        self.assertIn("/quiver/ ·  topic/", screen)
         self.assertIn("…", screen)
         self.assertGreater(
-            summary.index(CLEAN_STATE_GLYPH), summary.index("runner")
+            summary.index(CLEAN_STATE_GLYPH), summary.index(WORKTREE_GLYPH)
         )
         self.assertTrue(summary.rstrip().endswith(CLEAN_STATE_GLYPH))
 
@@ -844,7 +844,7 @@ class RenderTests(unittest.TestCase):
 
         self.assertIn(f"{WORKTREE_GLYPH}feature-two", inactive_middle)
         self.assertNotIn("/quiver/", inactive_middle)
-        self.assertIn("/quiver/", lines[lines.index(inactive_middle) + 1])
+        self.assertIn("/quiver/", lines[lines.index(inactive_middle) + 2])
         self.assertNotIn("clean", inactive_middle)
         self.assertNotIn("unstaged", inactive_middle)
         self.assertIn("two", inactive_secondary)
@@ -1028,8 +1028,8 @@ class RenderTests(unittest.TestCase):
 
         self.assertIn(ORPHAN_MARKER, rendered)
         self.assertNotIn("?", rendered)
-        self.assertEqual(len(ORPHAN_MARKER), 1)
-        self.assertEqual(display_width(ORPHAN_MARKER), 1)
+        self.assertEqual(ORPHAN_MARKER, "⛓️‍💥")
+        self.assertEqual(display_width(ORPHAN_MARKER), 2)
 
         attached = render_row(
             TreeRow(
@@ -1402,23 +1402,23 @@ class RenderTests(unittest.TestCase):
                     repository_location=RepositoryLocation(worktree="feature"),
                 )
 
-                self.assertNotIn(f"{WORKTREE_GLYPH}feature", card[0])
+                self.assertIn(f"{WORKTREE_GLYPH}feature", card[0])
                 self.assertNotIn(" main", card[0])
-                self.assertIn(f"{WORKTREE_GLYPH}feature", card[1])
+                self.assertNotIn(f"{WORKTREE_GLYPH}feature", card[1])
                 self.assertNotIn("/quiver/", card[1])
                 self.assertIn("/quiver/", card[2])
                 self.assertIn(CLEAN_STATE_GLYPH, card[0])
                 self.assertNotIn(" main", card[1])
                 self.assertGreater(
                     card[0].index(CLEAN_STATE_GLYPH),
-                    card[0].index("runner"),
+                    card[0].index(WORKTREE_GLYPH),
                 )
                 self.assertEqual(
                     card[0][-4:-1], f"{CLEAN_STATE_GLYPH}  "
                 )
                 self.assertNotIn(CLEAN_STATE_GLYPH, card[1])
                 self.assertNotIn(CLEAN_STATE_GLYPH, card[2])
-                self.assertIn("runner", card[0])
+                self.assertIn("runner", card[1])
                 # `main` is not useful branch context here, so the bottom row
                 # contains only the repository identity.
                 self.assertNotIn("runner", card[2])
@@ -1450,8 +1450,8 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(
             THREE_ROW_CARD_WIDGETS,
             (
-                ("status_space", "title", "repository_state"),
-                ("status", "identity", "phase_track"),
+                ("status_space", "worktree", "repository_state"),
+                ("status", "title", "phase_track"),
                 ("status_space", "repository_context", "phase"),
             ),
         )
@@ -1498,34 +1498,41 @@ class RenderTests(unittest.TestCase):
             repository_lines=["quiver  ✓ working tree clean", "feature-branch"],
         )
 
-    def test_lifted_title_starts_at_the_middle_row_text_column(self) -> None:
+    def test_center_text_aligns_after_the_worktree_glyph(self) -> None:
         card = self._card(self._worktree_row("in_review"))
-        self.assertEqual(
-            card[0].index("pi bundle gate"), card[1].index(WORKTREE_GLYPH)
-        )
+        columns = [
+            display_width(card[0][:card[0].index("gate-001-pi")]),
+            display_width(card[1][:card[1].index("pi bundle gate")]),
+            display_width(card[2][:card[2].index("/quiver/")]),
+        ]
+        self.assertEqual(len(set(columns)), 1)
 
     def test_three_row_card_moves_repository_below_worktree(self) -> None:
         card = self._card(self._worktree_row("in_review"))
         self.assertNotIn("/quiver/", card[1])
-        self.assertIn("/quiver/ · feature-bra…", card[2])
-        self.assertEqual(
-            card[2].index("/quiver/"), card[1].index(WORKTREE_GLYPH)
-        )
+        self.assertIn("/quiver/", card[2])
+        self.assertIn("feature-", card[2])
 
-    def test_phase_takes_the_bottom_row_and_lifts_the_title(self) -> None:
+    def test_three_row_card_does_not_show_a_disclosure_triangle(self) -> None:
         card = self._card(self._worktree_row("in_review"))
-        self.assertIn("pi bundle gate", card[0])
-        self.assertIn(WORKTREE_GLYPH, card[1])
+        self.assertNotIn("▾", "".join(card))
+        self.assertNotIn("▸", "".join(card))
+
+    def test_phase_and_title_keep_their_declared_rows(self) -> None:
+        card = self._card(self._worktree_row("in_review"))
+        self.assertIn(WORKTREE_GLYPH, card[0])
+        self.assertIn("pi bundle gate", card[1])
         self.assertIn("in review", card[2])
         self.assertNotIn("pi bundle gate", card[2])
 
-    def test_worktree_card_lifts_the_title_without_a_phase_too(self) -> None:
+    def test_worktree_and_title_keep_their_rows_without_a_phase(self) -> None:
         card = self._card(self._worktree_row())
-        self.assertIn("pi bundle gate", card[0])
+        self.assertIn(WORKTREE_GLYPH, card[0])
+        self.assertIn("pi bundle gate", card[1])
         self.assertIn("feature-branch", card[2])
         self.assertNotIn("pi bundle gate", card[2])
 
-    def test_title_matching_the_worktree_is_not_repeated_on_top(self) -> None:
+    def test_title_matching_the_worktree_is_not_repeated_in_middle(self) -> None:
         row = TreeRow(
             TabRecord(
                 1,
@@ -1539,7 +1546,9 @@ class RenderTests(unittest.TestCase):
             0,
             None,
         )
-        self.assertNotIn("gate-001-pi", self._card(row)[0])
+        card = self._card(row)
+        self.assertIn("gate-001-pi", card[0])
+        self.assertNotIn("gate-001-pi", card[1])
 
     def test_phase_keeps_title_in_middle_without_worktree(self) -> None:
         row = TreeRow(
@@ -1620,7 +1629,7 @@ class RenderTests(unittest.TestCase):
     def test_tall_card_places_clean_above_status_and_phase_on_right(self) -> None:
         card = self._card(self._worktree_row("fixing_review"))
         self.assertGreater(
-            card[0].index(CLEAN_STATE_GLYPH), card[0].index("pi bundle gate")
+            card[0].index(CLEAN_STATE_GLYPH), card[0].index(WORKTREE_GLYPH)
         )
         self.assertTrue(card[0].rstrip().endswith(CLEAN_STATE_GLYPH))
         self.assertTrue(card[1].rstrip(" " + RIGHT_CAP).endswith("■■■□□□□□"))
@@ -1647,7 +1656,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn(CLEAN_STATE_GLYPH, card[0])
         self.assertTrue(card[1].rstrip().endswith("fixing review ■■■□□□□□"))
 
-    def test_clean_glyph_leaves_long_tab_title_intact(self) -> None:
+    def test_clean_glyph_leaves_the_separate_title_row_intact(self) -> None:
         title = "safe-003-provisioned-worker-launch"
         row = TreeRow(
             TabRecord(
@@ -1673,9 +1682,11 @@ class RenderTests(unittest.TestCase):
             ],
         )
 
-        self.assertIn(title, card[0])
-        self.assertNotIn("…", card[0])
-        self.assertGreater(card[0].index(CLEAN_STATE_GLYPH), card[0].index(title))
+        self.assertIn(title, card[1])
+        self.assertNotIn("…", card[1])
+        self.assertGreater(
+            card[0].index(CLEAN_STATE_GLYPH), card[0].index(WORKTREE_GLYPH)
+        )
         self.assertTrue(card[0].rstrip().endswith(CLEAN_STATE_GLYPH))
 
     def test_right_edge_columns_line_up_across_tree_depth(self) -> None:
@@ -1689,7 +1700,7 @@ class RenderTests(unittest.TestCase):
         for card in (shallow, deep):
             self.assertGreater(
                 card[0].index(CLEAN_STATE_GLYPH),
-                card[0].index("pi bundle gate"),
+                card[0].index(WORKTREE_GLYPH),
             )
             self.assertTrue(card[0].rstrip().endswith(CLEAN_STATE_GLYPH))
         self.assertEqual(end_column(shallow[1], "□"), end_column(deep[1], "□"))
@@ -1702,8 +1713,8 @@ class RenderTests(unittest.TestCase):
         )
 
     def test_every_row_keeps_the_card_width_under_a_long_title(self) -> None:
-        # A lifted title starts four cells in; it used to be measured against
-        # the full text width and spill past the card's right edge.
+        # Center widgets start after the status rail; measuring against the
+        # full row width would let long text spill past the card's right edge.
         row = TreeRow(
             TabRecord(
                 1,

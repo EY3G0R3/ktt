@@ -62,20 +62,23 @@ design.
 
   | left | center | right |
   | --- | --- | --- |
-  | status space | title | repository state |
-  | status | identity | phase track |
+  | status space | worktree | repository state |
+  | status | title | phase track |
   | status space | repository context | phase label |
 
   The fixed-width left column is reserved for status; its top and bottom cells
   are empty. Center widgets therefore share one starting column, while the
-  right widget is pinned to the right. There is no per-widget alignment
-  metadata. If a row is tight, left-flow content truncates before the pinned
-  right widget according to the shared row compositor.
-- The identity widget is the worktree when one exists, otherwise the title. A
-  worktree lifts a non-redundant title to the top-center widget, aligned with
-  the identity below; a title that repeats the worktree is omitted. Repository
-  starts at the bottom-left inset, before the useful branch. Two-row cards
-  retain their compact shared-row behavior.
+  right widget is pinned to the right. When a worktree is shown, title and
+  repository text receive a spacer matching the worktree glyph so their text
+  aligns after that glyph. There is no per-widget alignment metadata. If a row
+  is tight, left-flow content truncates before the pinned right widget
+  according to the shared row compositor.
+- Native cards do not show a disclosure triangle or reserve space for one.
+  Native trees are always expanded; indentation already communicates the tree.
+- Worktree, title, and repository context have fixed top, middle, and bottom
+  positions. Missing values leave their declared slot empty; widgets never
+  move between rows. A title that repeats the worktree is omitted. Two-row
+  cards retain their compact shared-row behavior.
 - The title color only ever brightens to reach contrast. The shared accent
   helper moves to the nearer readable lightness, which on the active card's
   light slate is the dark end; a title must stay light on every card.

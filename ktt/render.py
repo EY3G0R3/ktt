@@ -43,16 +43,17 @@ CHANGED_FILES_PLACEMENTS = ("inline", "bottom")
 DEFAULT_CHANGED_FILES_PLACEMENT = "bottom"
 TREE_INDENT_WIDTH = 4
 STATUS_CELL_WIDTH = 2
-ORPHAN_MARKER = "󰌸"
+ORPHAN_MARKER = "⛓️‍💥"
 ORPHAN_CELL_WIDTH = 2
-# Disclosure, orphan marker, status cell, and the space before the text.
-CARD_PREFIX_WIDTH = 1 + ORPHAN_CELL_WIDTH + STATUS_CELL_WIDTH + 1
+# Orphan marker, status cell, and the space before the text. Native cards are
+# always expanded, so they do not reserve a decorative disclosure column.
+CARD_PREFIX_WIDTH = ORPHAN_CELL_WIDTH + STATUS_CELL_WIDTH + 1
 # The tall-card renderer resolves these nine cells from one immutable snapshot.
 # Moving a widget between quadrants should require changing only this grid;
 # widget formatters never query Kitty, Git, Workmux, the clock, or config.
 THREE_ROW_CARD_WIDGETS = (
-    ("status_space", "title", "repository_state"),
-    ("status", "identity", "phase_track"),
+    ("status_space", "worktree", "repository_state"),
+    ("status", "title", "phase_track"),
     ("status_space", "repository_context", "phase"),
 )
 CardSegments = tuple[tuple[str, str, bool], ...]
@@ -527,12 +528,12 @@ def _render_repository_text(
         remaining = max(0, budget - used)
         fitted_characters: list[str] = []
         fitted_width = 0
-        for character in segment_text:
-            character_width = display_width(character)
-            if fitted_width + character_width > remaining:
+        for cluster in _cell_clusters(segment_text):
+            cluster_width = _cluster_width(cluster)
+            if fitted_width + cluster_width > remaining:
                 break
-            fitted_characters.append(character)
-            fitted_width += character_width
+            fitted_characters.append(cluster)
+            fitted_width += cluster_width
         fitted = "".join(fitted_characters)
         if not fitted:
             continue
@@ -1716,20 +1717,28 @@ def three_row_card_widgets(
         if snapshot.phase
         else ()
     )
+    worktree_text_padding: CardSegments = (
+        ((" " * display_width(WORKTREE_GLYPH), snapshot.status[0][1], False),)
+        if snapshot.worktree
+        else ()
+    )
     return {
-        # Context rows reserve one leading cell, so five cells place title and
-        # worktree at the same column as the six-cell status prefix used today.
+        # Empty status cells keep all three center widgets in one fixed column.
         "status_space": ((
             " " * CARD_PREFIX_WIDTH,
             snapshot.status[0][1],
             False,
         ),),
-        "title": title if snapshot.worktree else (),
+        "worktree": worktree,
         "repository_state": repository_state,
         "status": snapshot.status,
-        "identity": worktree or title,
+        "title": worktree_text_padding + title if title else (),
         "phase_track": snapshot.track,
-        "repository_context": repository_context,
+        "repository_context": (
+            worktree_text_padding + repository_context
+            if repository_context
+            else ()
+        ),
         "phase": phase,
     }
 
@@ -2020,9 +2029,6 @@ def render_card(
         else []
     )
     if card_height == 3:
-        disclosure = (
-            "▸" if row.is_collapsed else "▾" if row.has_children else " "
-        )
         orphan = fit_cells(
             ORPHAN_MARKER if row.orphaned else "", ORPHAN_CELL_WIDTH
         )
@@ -2040,7 +2046,7 @@ def render_card(
             phase_name=row.tab.phase,
             track=tuple(track),
             status=(
-                (disclosure + orphan, foreground, False),
+                (orphan, foreground, False),
                 (
                     fit_cells(icon, STATUS_CELL_WIDTH),
                     status_color or foreground,

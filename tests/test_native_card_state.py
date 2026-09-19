@@ -317,9 +317,9 @@ class NativeCardStateTests(unittest.TestCase):
 
         self.assertNotIn("/repo/", root[1])
         self.assertIn("/repo/", root[2])
-        self.assertIn("🌳feature", root[1])
+        self.assertIn("🌳feature", root[0])
         self.assertIn(render.CLEAN_STATE_GLYPH, root[0])
-        self.assertIn("implement auth", root[0])
+        self.assertIn("implement auth", root[1])
         self.assertIn("topic", root[2])
         self.assertNotIn("implement auth", root[2])
         self.assertTrue(any(READY_RIGHT_CAP in line for line in root))
