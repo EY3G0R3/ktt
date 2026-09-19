@@ -2,7 +2,10 @@ import unittest
 from unittest.mock import patch
 
 from ktt import model, render
-from ktt.native_card_state import NativeCardState
+from ktt.native_card_state import (
+    INACTIVE_CARD_RIGHT_INSET,
+    NativeCardState,
+)
 from ktt.repository import RepositoryLocation
 from ktt.render import READY_RIGHT_CAP, render_screen, strip_ansi
 
@@ -326,6 +329,33 @@ class NativeCardStateTests(unittest.TestCase):
         self.assertIn("💬", child[1])
         self.assertTrue(child[1].startswith("    "))
 
+    def test_active_card_is_three_cells_longer_than_inactive_cards(self):
+        manager = FakeManager([
+            FakeTab(
+                1,
+                "active",
+                FakeWindow(100, "/work/first"),
+                active=True,
+            ),
+            FakeTab(2, "inactive", FakeWindow(200, "/work/second")),
+        ])
+        state = NativeCardState(
+            identities=FakeIdentities(), summary_factory=FakeSummary
+        )
+
+        cards = state.render(manager, width=40, card_height=3, now=20.0)
+        active_widths = [
+            render.display_width(strip_ansi(line)) for line in cards[1]
+        ]
+        inactive_widths = [
+            render.display_width(strip_ansi(line)) for line in cards[2]
+        ]
+
+        self.assertEqual(
+            active_widths,
+            [width + INACTIVE_CARD_RIGHT_INSET for width in inactive_widths],
+        )
+
     def test_native_cards_match_legacy_visual_output(self):
         path = "/work/repo__worktrees/feature"
         root_window = FakeWindow(
@@ -392,7 +422,7 @@ class NativeCardStateTests(unittest.TestCase):
         ).splitlines()
 
         self.assertEqual(native[1], tuple(legacy_lines[:3]))
-        self.assertEqual(native[2], tuple(legacy_lines[4:7]))
+        self.assertNotEqual(native[2], tuple(legacy_lines[4:7]))
 
     def test_repository_summaries_are_isolated_per_os_window(self):
         summaries = iter((FakeSummary("first"), FakeSummary("second")))

@@ -75,6 +75,9 @@ design.
   according to the shared row compositor.
 - Native cards do not show a disclosure triangle or reserve space for one.
   Native trees are always expanded; indentation already communicates the tree.
+- The active native card uses the full available width. Every inactive card is
+  three cells shorter at the right edge; its widgets receive that reduced width
+  so truncation and right alignment remain inside the visible card.
 - Worktree, title, and repository context have fixed top, middle, and bottom
   positions. Missing values leave their declared slot empty; widgets never
   move between rows. A title that repeats the worktree is omitted. Two-row

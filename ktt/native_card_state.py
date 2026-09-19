@@ -22,6 +22,7 @@ STATUS_ALIASES = {
     "complete": "✅",
 }
 FRAME_CACHE_LIMIT = len(render.SPINNER_FRAMES) + 2
+INACTIVE_CARD_RIGHT_INSET = 3
 
 
 class NativeCardState:
@@ -167,7 +168,11 @@ class NativeCardState:
                 row.tab.id: tuple(render.render_card(
                     row,
                     selected=row.tab.is_active,
-                    width=width,
+                    width=max(
+                        1,
+                        width
+                        - (0 if row.tab.is_active else INACTIVE_CARD_RIGHT_INSET),
+                    ),
                     card_height=card_height,
                     now=current,
                     phase_now=current_wall,
