@@ -7,6 +7,8 @@ import shlex
 import sqlite3
 import subprocess
 import tempfile
+import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +20,13 @@ from .model import PARENT_VAR, records_for_os_window
 
 MANIFEST_VERSION = 1
 SESSION_MATCH_WINDOW_MS = 120_000
+# Every agent tab scans the same session transcripts on every snapshot, so the
+# parsed header of each file is cached until the file itself changes.
+JSONL_METADATA_CACHE_LIMIT = 2_000
+# One snapshot resolves every agent tab against the same directory listing, so
+# the scan is shared for slightly longer than a single capture pass takes.
+TRANSCRIPT_SCAN_TTL_SECONDS = 1.0
+TRANSCRIPT_SCAN_LIMIT = 500
 
 
 class SessionManifestError(ValueError):
@@ -875,20 +884,40 @@ def _codex_session_near(cwd: str, started_at_ms: int) -> str | None:
     return matches[0][0] if len(matches) == 1 else None
 
 
-def _claude_session_near(cwd: str, started_at_ms: int) -> str | None:
+_claude_scan_cache: tuple[float, tuple[tuple[Path, os.stat_result], ...]] | None = None
+
+
+def _claude_transcripts(
+    now: float | None = None,
+) -> tuple[tuple[Path, os.stat_result], ...]:
+    """List the newest Claude transcripts, reusing the scan across tabs."""
+    global _claude_scan_cache
+    current = time.monotonic() if now is None else now
+    if _claude_scan_cache is not None and current < _claude_scan_cache[0]:
+        return _claude_scan_cache[1]
     root = Path.home() / ".claude/projects"
-    if not root.is_dir():
-        return None
+    scanned: list[tuple[float, Path, os.stat_result]] = []
+    if root.is_dir():
+        for path in root.glob("*/*.jsonl"):
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            scanned.append((stat.st_mtime, path, stat))
+    newest = sorted(scanned, key=lambda entry: entry[0], reverse=True)
+    candidates = tuple(
+        (path, stat) for _, path, stat in newest[:TRANSCRIPT_SCAN_LIMIT]
+    )
+    _claude_scan_cache = (current + TRANSCRIPT_SCAN_TTL_SECONDS, candidates)
+    return candidates
+
+
+def _claude_session_near(
+    cwd: str, started_at_ms: int, now: float | None = None
+) -> str | None:
     matches: list[str] = []
-    candidates_with_mtime: list[tuple[float, Path]] = []
-    for path in root.glob("*/*.jsonl"):
-        try:
-            candidates_with_mtime.append((path.stat().st_mtime, path))
-        except OSError:
-            continue
-    candidates = [path for _, path in sorted(candidates_with_mtime, reverse=True)[:500]]
-    for path in candidates:
-        metadata = _jsonl_metadata(path)
+    for path, stat in _claude_transcripts(now):
+        metadata = _jsonl_metadata(path, stat)
         if metadata.get("cwd") != cwd or metadata.get("created_at_ms") is None:
             continue
         if (
@@ -901,7 +930,36 @@ def _claude_session_near(cwd: str, started_at_ms: int) -> str | None:
     return matches[0] if len(matches) == 1 else None
 
 
-def _jsonl_metadata(path: Path) -> dict[str, Any]:
+_jsonl_metadata_cache: OrderedDict[
+    str, tuple[tuple[int, int], dict[str, Any]]
+] = OrderedDict()
+
+
+def _jsonl_metadata(
+    path: Path, stat: os.stat_result | None = None
+) -> dict[str, Any]:
+    """Read a transcript's header, reusing the parse until the file changes."""
+    key = str(path)
+    if stat is None:
+        try:
+            stat = path.stat()
+        except OSError:
+            _jsonl_metadata_cache.pop(key, None)
+            return {}
+    fingerprint = (stat.st_mtime_ns, stat.st_size)
+    cached = _jsonl_metadata_cache.get(key)
+    if cached is not None and cached[0] == fingerprint:
+        _jsonl_metadata_cache.move_to_end(key)
+        return cached[1]
+    metadata = _read_jsonl_metadata(path)
+    _jsonl_metadata_cache[key] = (fingerprint, metadata)
+    _jsonl_metadata_cache.move_to_end(key)
+    while len(_jsonl_metadata_cache) > JSONL_METADATA_CACHE_LIMIT:
+        _jsonl_metadata_cache.popitem(last=False)
+    return metadata
+
+
+def _read_jsonl_metadata(path: Path) -> dict[str, Any]:
     try:
         with path.open(errors="replace") as handle:
             for _ in range(20):

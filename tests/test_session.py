@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
+from ktt import session
 from ktt.cli import _parser, main
 from ktt.model import PARENT_VAR
 from ktt.session import (
@@ -736,3 +737,65 @@ class SessionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TranscriptScanTests(unittest.TestCase):
+    """Resolving every agent tab must not reread the same transcripts."""
+
+    def setUp(self) -> None:
+        session._claude_scan_cache = None
+        session._jsonl_metadata_cache.clear()
+
+    tearDown = setUp
+
+    @staticmethod
+    def _write_transcript(root: Path, name: str, session_id: str) -> Path:
+        project = root / ".claude" / "projects" / "-work-repo"
+        project.mkdir(parents=True, exist_ok=True)
+        path = project / name
+        path.write_text(json.dumps({
+            "sessionId": session_id,
+            "cwd": "/work/repo",
+            "timestamp": "2026-09-21T10:00:00Z",
+        }) + "\n")
+        return path
+
+    def test_metadata_is_reparsed_only_after_the_file_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._write_transcript(Path(temporary), "a.jsonl", "first")
+
+            first = session._jsonl_metadata(path)
+            with mock.patch.object(
+                session, "_read_jsonl_metadata", side_effect=AssertionError
+            ):
+                cached = session._jsonl_metadata(path)
+            self._write_transcript(Path(temporary), "a.jsonl", "second")
+            os.utime(path, (1, 1))
+            reparsed = session._jsonl_metadata(path)
+
+        self.assertEqual(first.get("session_id"), "first")
+        self.assertEqual(cached.get("session_id"), "first")
+        self.assertEqual(reparsed.get("session_id"), "second")
+
+    def test_scan_is_shared_across_tabs_then_refreshed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            self._write_transcript(home, "a.jsonl", "first")
+            with mock.patch("ktt.session.Path.home", return_value=home):
+                initial = session._claude_transcripts(now=0.0)
+                self._write_transcript(home, "b.jsonl", "second")
+                reused = session._claude_transcripts(now=0.5)
+                refreshed = session._claude_transcripts(
+                    now=session.TRANSCRIPT_SCAN_TTL_SECONDS + 0.1
+                )
+
+        self.assertEqual(len(initial), 1)
+        self.assertEqual(len(reused), 1)
+        self.assertEqual(len(refreshed), 2)
+
+    def test_missing_transcript_directory_scans_to_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch(
+                "ktt.session.Path.home", return_value=Path(temporary)
+            ):
+                self.assertEqual(session._claude_transcripts(now=0.0), ())
