@@ -1,5 +1,8 @@
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
+import os
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -231,6 +234,43 @@ class KittyWatcherStartupTests(unittest.TestCase):
             remote, log_error=kitty_watcher._log_error
         )
         snapshotter.start.assert_called_once_with()
+
+
+class WatcherLogTests(unittest.TestCase):
+    def test_errors_are_appended_to_the_state_log(self) -> None:
+        with tempfile.TemporaryDirectory() as state_home:
+            log_path = Path(state_home) / "ktt" / "watcher.log"
+            with patch.dict(os.environ, {"XDG_STATE_HOME": state_home}):
+                kitty_watcher._append_to_watcher_log("first failure")
+                kitty_watcher._append_to_watcher_log("second failure")
+
+            lines = log_path.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(lines[0].endswith(" first failure"))
+        self.assertTrue(lines[1].endswith(" second failure"))
+
+    def test_an_oversized_log_is_rotated_before_the_next_append(self) -> None:
+        with tempfile.TemporaryDirectory() as state_home:
+            log_path = Path(state_home) / "ktt" / "watcher.log"
+            log_path.parent.mkdir(parents=True)
+            log_path.write_text(
+                "x" * (kitty_watcher.WATCHER_LOG_MAX_BYTES + 1), encoding="utf-8"
+            )
+            with patch.dict(os.environ, {"XDG_STATE_HOME": state_home}):
+                kitty_watcher._append_to_watcher_log("after rotation")
+
+            rotated = log_path.with_name(f"{log_path.name}.1")
+            self.assertTrue(rotated.exists())
+            self.assertTrue(
+                log_path.read_text(encoding="utf-8").endswith(" after rotation\n")
+            )
+
+    def test_an_unwritable_log_never_raises(self) -> None:
+        with patch.object(
+            kitty_watcher, "watcher_log_path", side_effect=OSError("read-only")
+        ):
+            kitty_watcher._append_to_watcher_log("unreportable failure")
 
 
 if __name__ == "__main__":

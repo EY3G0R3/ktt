@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 from pathlib import Path
 import sys
 import time
@@ -20,6 +21,7 @@ NATIVE_CARD_STATE_ATTRIBUTE = "_ktt_native_card_state"
 ORDER_TRANSACTION_ATTRIBUTE = "_ktt_tab_order_transaction"
 RECOVERY_SNAPSHOTTER_ATTRIBUTE = "_ktt_recovery_snapshotter"
 RECOVERY_SIGNATURES_ATTRIBUTE = "_ktt_recovery_topology_signatures"
+WATCHER_LOG_MAX_BYTES = 1 << 20
 KTT_OVERRIDE_KEYS = frozenset({
     "tab_bar_edge",
     "tab_bar_align",
@@ -262,7 +264,28 @@ def _load_ktt_module(name: str):
                 pass
 
 
+def watcher_log_path() -> Path:
+    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+    return state_home / "ktt" / "watcher.log"
+
+
+def _append_to_watcher_log(message: str) -> None:
+    """Keep a durable copy: Kitty's stderr is /dev/null in a desktop session."""
+    try:
+        path = watcher_log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists() and path.stat().st_size > WATCHER_LOG_MAX_BYTES:
+            path.replace(path.with_name(f"{path.name}.1"))
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        with path.open("a", encoding="utf-8") as log:
+            log.write(f"{stamp} {message}\n")
+    except Exception:
+        # Logging must never break the watcher that reported the failure.
+        pass
+
+
 def _log_error(message: str) -> None:
+    _append_to_watcher_log(message)
     try:
         from kitty.utils import log_error
     except ImportError:
