@@ -106,6 +106,11 @@ The native renderer reads pending `workmux_verdict` values immediately. A
 seven-second debounce prevents a freshly waiting agent from flashing amber
 while its title still shows a working spinner.
 
+Agents that publish no status still animate their tab titles, so a title
+Kitty reports with a spinner glyph stands in for a working status. The signal is
+the report, not the glyph: a spinner left frozen in the title by an agent that
+has stopped produces no further events and never animates the card.
+
 Phase ages come from Workmux's durable `phaseStartedAt` timestamp, projected
 into Kitty as `workmux_phase_started_at`. They update at minute boundaries,
 compact to hours and days, and remain hidden with the phase in one-row cards.

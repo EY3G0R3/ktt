@@ -148,6 +148,16 @@ current spinner frame. ktt repaints only when that signature changes. Without a
 working row, input waits until the next poll or source deadline rather than a
 fixed 50 ms timer; working rows add their next 120 ms frame boundary.
 
+Agents that publish no status still report activity, by animating their own
+titles. Read that from Kitty's `on_title_change` watcher event rather than by
+sampling titles: agents leave a spinner glyph frozen in the title after they
+stop, so a snapshot cannot tell work from a stale decoration, and polling to
+compare glyphs costs a read per frame for a signal Kitty already delivers. A
+title carrying a spinner glyph marks its window as working for a short grace
+period; a title without one ends activity at once. Shell and log panes retitle
+themselves too, so the spinner glyph, not the retitling, is what qualifies.
+An idle window costs nothing: no event, no deadline, no repaint.
+
 Development reload is separate from Kitty-state delivery: a source change
 automatically restarts the running TUI in place after restoring terminal mode.
 `ktt refresh` replaces an older sidebar process inside the same Kitty OS

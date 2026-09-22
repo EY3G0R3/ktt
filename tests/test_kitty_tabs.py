@@ -296,14 +296,16 @@ class TabOrderingTests(unittest.TestCase):
 
         self.assertEqual(record.status, "ready_to_merge")
 
-    def test_live_tree_infers_working_status_from_spinner_title(self) -> None:
+    def test_live_tree_does_not_claim_work_from_a_spinner_title(
+        self,
+    ) -> None:
         window = FakeWindow(100)
         window.title = "⠸ KTT cards | ktt"
         tab = LiveTab(10, [window])
 
         record = live_tree_records(LiveTabManager([tab]))[0]
 
-        self.assertEqual(record.status, model.WORKING_STATUS)
+        self.assertIsNone(record.status)
 
     def test_live_tree_uses_content_title_when_tab_title_is_surf(self) -> None:
         content = FakeWindow(100)
@@ -361,9 +363,11 @@ class TabOrderingTests(unittest.TestCase):
         record = live_tree_records(LiveTabManager([tab]))[0]
 
         self.assertEqual(record.title, "Hirayama supervisor")
-        self.assertTrue(record.attention_suppressed)
+        self.assertFalse(record.attention_suppressed)
 
-    def test_live_tree_suppresses_fresh_waiting_spinner_attention(self) -> None:
+    def test_live_tree_leaves_waiting_attention_to_the_activity_tracker(
+        self,
+    ) -> None:
         active = LiveTab(10, [FakeWindow(100)])
         waiting = LiveTab(20, [FakeWindow(200, workmux_status="waiting")])
         waiting.title = "✳ still working"
@@ -372,8 +376,7 @@ class TabOrderingTests(unittest.TestCase):
         records = live_tree_records(manager)
 
         self.assertEqual(records[1].status, "waiting")
-        self.assertTrue(records[1].attention_suppressed)
-        self.assertIsNone(model.next_attention_tab_id(model.tree_rows(records)))
+        self.assertFalse(records[1].attention_suppressed)
 
     def test_topology_signature_ignores_paint_but_tracks_membership(self) -> None:
         window = FakeWindow(100, workmux_status="working")

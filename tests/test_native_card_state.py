@@ -7,6 +7,7 @@ from ktt.native_card_state import (
     NativeCardState,
 )
 from ktt.repository import RepositoryLocation
+from ktt.title_activity import TitleActivity
 from ktt.render import READY_RIGHT_CAP, render_screen, strip_ansi
 
 
@@ -279,12 +280,16 @@ class NativeCardStateTests(unittest.TestCase):
             effective_title="Review agent",
         )
         manager = FakeManager([active, waiting])
+        activity = TitleActivity()
         state = NativeCardState(
-            identities=FakeIdentities(), summary_factory=FakeSummary
+            identities=FakeIdentities(),
+            summary_factory=FakeSummary,
+            activity=activity,
         )
 
+        activity.record(200, "⠼ review", 0.0)
         working = state.render(manager, width=40, card_height=3, now=0.0)
-        waiting.title = "review"
+        activity.record(200, "review", 0.9)
         pending = state.render(manager, width=40, card_height=3, now=1.0)
         elapsed = state.render(manager, width=40, card_height=3, now=8.0)
 

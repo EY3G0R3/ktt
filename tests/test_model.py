@@ -576,7 +576,7 @@ class ModelTests(unittest.TestCase):
             "igorg",
         )
 
-    def test_working_title_suppresses_attention_without_hiding_waiting(self) -> None:
+    def test_snapshot_records_defer_spinner_attention_to_the_tracker(self) -> None:
         os_window = {
             "id": 7,
             "tabs": [{
@@ -594,9 +594,9 @@ class ModelTests(unittest.TestCase):
 
         self.assertEqual(record.title, "ktt")
         self.assertEqual(record.status, "💬")
-        self.assertTrue(record.attention_suppressed)
+        self.assertFalse(record.attention_suppressed)
 
-    def test_working_title_supplies_missing_status(self) -> None:
+    def test_spinner_title_is_reported_without_supplying_status(self) -> None:
         os_window = {
             "id": 7,
             "tabs": [{
@@ -608,7 +608,7 @@ class ModelTests(unittest.TestCase):
 
         record = records_for_os_window(os_window)[0]
 
-        self.assertEqual(record.status, WORKING_STATUS)
+        self.assertIsNone(record.status)
 
     def test_waiting_remains_when_title_has_no_working_spinner(self) -> None:
         os_window = {

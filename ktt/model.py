@@ -272,9 +272,10 @@ def clean_title(
     return title or "untitled"
 
 
-def title_is_working(title: str) -> bool:
+def title_spinner(title: str) -> str:
+    """Return the spinner glyph a title currently publishes, if any."""
     title = title.lstrip()
-    return bool(title) and title[0] in CLAUDE_SPINNER_CHARS
+    return title[0] if title and title[0] in CLAUDE_SPINNER_CHARS else ""
 
 
 def title_is_utility(title: str) -> bool:
@@ -303,9 +304,6 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 title,
             )
         status = _first_user_var(metadata_windows, STATUS_VAR)
-        title_signals_working = title_is_working(title)
-        if not status and title_signals_working:
-            status = WORKING_STATUS
         phase = _first_user_var(metadata_windows, PHASE_VAR)
         phase_started_at = _timestamp(
             _first_user_var(metadata_windows, PHASE_STARTED_AT_VAR)
@@ -324,9 +322,6 @@ def records_for_os_window(os_window: dict[str, Any]) -> list[TabRecord]:
                 status=status,
                 source_index=index,
                 cwd=cwd,
-            attention_suppressed=(
-                status in WAITING_STATUSES and title_signals_working
-            ),
                 phase=phase,
                 phase_started_at=phase_started_at,
             )

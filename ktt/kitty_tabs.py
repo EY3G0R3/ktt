@@ -84,15 +84,6 @@ def _window_cwd(window: Any) -> str | None:
     return None
 
 
-def _title_signals_working(tab: Any, windows: Sequence[Any]) -> bool:
-    """Read activity from live titles without replacing the display title."""
-    titles = (
-        getattr(tab, "title", ""),
-        *(getattr(window, "title", "") for window in windows),
-    )
-    return any(model.title_is_working(str(title or "")) for title in titles)
-
-
 def _expand_short_title(title: str, cwd: str | None) -> str:
     """Recover a title shortened before KTT receives it when cwd proves it."""
     if not cwd:
@@ -147,11 +138,6 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
         ) or _first_user_var(
             metadata_windows, model.STATUS_VAR
         )
-        title_signals_working = _title_signals_working(
-            tab, metadata_windows
-        )
-        if not status and title_signals_working:
-            status = model.WORKING_STATUS
         phase = _first_user_var(metadata_windows, model.PHASE_VAR)
         phase_started_at = model._timestamp(
             _first_user_var(metadata_windows, model.PHASE_STARTED_AT_VAR)
@@ -176,10 +162,6 @@ def live_tree_records(tab_manager: Any) -> tuple[model.TabRecord, ...]:
             status=status,
             source_index=source_index,
             cwd=cwd,
-            attention_suppressed=(
-                status in model.WAITING_STATUSES
-                and title_signals_working
-            ),
             phase=phase,
             phase_started_at=phase_started_at,
         ))

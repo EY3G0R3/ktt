@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 import sys
+import time
 from typing import Any, Callable
 
 
@@ -239,12 +240,20 @@ def _is_vertical_tab_bar() -> bool:
 
 
 def _load_kitty_tabs():
+    return _load_ktt_module("ktt.kitty_tabs")
+
+
+def _load_title_activity():
+    return _load_ktt_module("ktt.title_activity")
+
+
+def _load_ktt_module(name: str):
     package_root = str(PACKAGE_ROOT)
     added = package_root not in sys.path
     if added:
         sys.path.insert(0, package_root)
     try:
-        return importlib.import_module("ktt.kitty_tabs")
+        return importlib.import_module(name)
     finally:
         if added:
             try:
@@ -323,6 +332,25 @@ def _request_recovery_if_topology_changed(boss: Any, tab_manager: Any) -> None:
         return
     signatures[os_window_id] = signature
     snapshotter.request()
+
+
+def on_title_change(_boss: Any, window: Any, data: dict[str, Any]) -> None:
+    """Record the activity an agent reports by animating its own title."""
+    try:
+        _load_title_activity().activity().record(
+            int(window.id),
+            str(data.get("title") or getattr(window, "title", "") or ""),
+            time.monotonic(),
+        )
+    except Exception as error:
+        _log_error(f"ktt watcher: title activity tracking failed: {error}")
+
+
+def on_close(_boss: Any, window: Any, _data: dict[str, Any]) -> None:
+    try:
+        _load_title_activity().activity().forget(int(window.id))
+    except Exception as error:
+        _log_error(f"ktt watcher: title activity cleanup failed: {error}")
 
 
 def on_tab_bar_dirty(boss, _window, data: dict) -> None:

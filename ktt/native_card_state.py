@@ -7,7 +7,7 @@ from dataclasses import replace
 import time
 from typing import Any, Callable, Mapping
 
-from . import kitty_tabs, model, render
+from . import kitty_tabs, model, render, title_activity
 from .repository import (
     AsyncFancylogMonitor,
     FancylogIdentityCache,
@@ -33,10 +33,12 @@ class NativeCardState:
         *,
         identities: FancylogIdentityCache | None = None,
         summary_factory: Callable[[], AsyncFancylogMonitor] = AsyncFancylogMonitor,
+        activity: title_activity.TitleActivity | None = None,
     ) -> None:
         self.identities = identities or FancylogIdentityCache()
         self.summary_factory = summary_factory
         self.summaries: dict[int, AsyncFancylogMonitor] = {}
+        self.activity = activity or title_activity.activity()
         self.waiting = model.WaitingStatusDebouncer()
         self._frame_key: tuple[Any, ...] | None = None
         self._frame: dict[int, tuple[str, ...]] = {}
@@ -88,6 +90,7 @@ class NativeCardState:
             replace(record, status=STATUS_ALIASES.get(record.status, record.status))
             for record in kitty_tabs.live_tree_records(tab_manager)
         ]
+        records = self.activity.apply(records, current)
         records = self.waiting.update(records, current)
         names = self.identities.update(
             (record.cwd for record in records), current
@@ -212,6 +215,10 @@ class NativeCardState:
             or (
                 self.waiting.next_deadline is not None
                 and current >= self.waiting.next_deadline
+            )
+            or (
+                self.activity.next_deadline is not None
+                and current >= self.activity.next_deadline
             )
             or any(
                 current >= deadline
