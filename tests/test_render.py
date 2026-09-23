@@ -996,6 +996,8 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(panel_style(), "\x1b[48;2;0;0;0m\x1b[38;2;248;248;242m")
 
     def test_statuses_match_existing_workmux_conventions(self) -> None:
+        self.assertEqual(status_icon("idle"), ("○", None))
+        self.assertEqual(status_icon(None), ("○", None))
         self.assertEqual(status_icon("ready_to_merge"), ("✓", "50fa7b"))
         self.assertEqual(status_icon("merged"), ("✓", "69db7c"))
         self.assertEqual(status_icon("blocked"), ("✗", "ff5555"))

@@ -12,6 +12,7 @@ from .config import load_config
 from .model import (
     DISPLAY_BLOCKED,
     DISPLAY_COMPLETE,
+    DISPLAY_IDLE,
     DISPLAY_MERGED,
     DISPLAY_NEEDS_USER_INPUT,
     DISPLAY_READY,
@@ -824,6 +825,8 @@ def render_control_line(
 
 
 def status_icon(status: str | None, now: float | None = None) -> tuple[str, str | None]:
+    if status in {None, "", DISPLAY_IDLE}:
+        return "○", None
     if status in {"🤖", DISPLAY_WORKING}:
         current = time.monotonic() if now is None else now
         frame = int(current / SPINNER_INTERVAL) % len(SPINNER_FRAMES)
