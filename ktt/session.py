@@ -867,8 +867,15 @@ def _codex_session_near(cwd: str, started_at_ms: int) -> str | None:
     try:
         connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
         try:
+            columns = {
+                row[1] for row in connection.execute("pragma table_info(threads)")
+            }
+            source_column = (
+                "thread_source" if "thread_source" in columns else "null"
+            )
             rows = connection.execute(
-                "select id, created_at_ms from threads where cwd = ? and archived = 0",
+                f"select id, created_at_ms, {source_column} from threads "
+                "where cwd = ? and archived = 0",
                 (cwd,),
             ).fetchall()
         finally:
@@ -876,12 +883,14 @@ def _codex_session_near(cwd: str, started_at_ms: int) -> str | None:
     except (OSError, sqlite3.Error):
         return None
     matches = [
-        (str(session_id), abs(int(created_at_ms) - started_at_ms))
-        for session_id, created_at_ms in rows
+        (str(session_id), thread_source)
+        for session_id, created_at_ms, thread_source in rows
         if created_at_ms is not None
         and abs(int(created_at_ms) - started_at_ms) <= SESSION_MATCH_WINDOW_MS
     ]
-    return matches[0][0] if len(matches) == 1 else None
+    user_matches = [match for match in matches if match[1] == "user"]
+    candidates = user_matches or matches
+    return candidates[0][0] if len(candidates) == 1 else None
 
 
 _claude_scan_cache: tuple[float, tuple[tuple[Path, os.stat_result], ...]] | None = None

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import io
 import os
+import sqlite3
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -83,6 +84,53 @@ def content_window(
 
 
 class SessionTests(unittest.TestCase):
+    def test_codex_session_near_ignores_guardian_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            codex_dir = Path(temporary) / ".codex"
+            codex_dir.mkdir()
+            database = codex_dir / "state_5.sqlite"
+            with sqlite3.connect(database) as connection:
+                connection.execute(
+                    "create table threads (id text, cwd text, archived integer, "
+                    "created_at_ms integer, thread_source text)"
+                )
+                connection.executemany(
+                    "insert into threads values (?, '/work/project', 0, ?, ?)",
+                    [
+                        ("main-session", 1000, "user"),
+                        ("guardian-session", 1050, "guardian_review"),
+                    ],
+                )
+            with mock.patch.object(session.Path, "home", return_value=Path(temporary)):
+                self.assertEqual(
+                    session._codex_session_near("/work/project", 1000),
+                    "main-session",
+                )
+                self.assertEqual(
+                    session._codex_session_near("/work/project", 1050),
+                    "main-session",
+                )
+
+    def test_codex_session_near_accepts_unique_guardian_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            codex_dir = Path(temporary) / ".codex"
+            codex_dir.mkdir()
+            database = codex_dir / "state_5.sqlite"
+            with sqlite3.connect(database) as connection:
+                connection.execute(
+                    "create table threads (id text, cwd text, archived integer, "
+                    "created_at_ms integer, thread_source text)"
+                )
+                connection.execute(
+                    "insert into threads values "
+                    "('guardian-session', '/work/project', 0, 1000, 'guardian_review')"
+                )
+            with mock.patch.object(session.Path, "home", return_value=Path(temporary)):
+                self.assertEqual(
+                    session._codex_session_near("/work/project", 1000),
+                    "guardian-session",
+                )
+
     def test_session_group_parses_save_restore_list_and_show(self) -> None:
         save = _parser().parse_args(["session", "save", "before-upgrade"])
         restore = _parser().parse_args(["session", "restore", "before-upgrade"])
