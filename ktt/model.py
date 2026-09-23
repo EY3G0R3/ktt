@@ -23,15 +23,25 @@ WORKING_STATUS = "🤖"
 WAITING_DEBOUNCE_SECONDS = 7.0
 WAITING_STATUSES = frozenset({WAITING_STATUS, "waiting"})
 WORKING_STATUSES = frozenset({WORKING_STATUS, "working"})
-ATTENTION_STATUSES = frozenset({
-    "ready_to_merge",
-    "merged",
-    "blocked",
-    WAITING_STATUS,
-    "waiting",
-    "✅",
-    "done",
-    "complete",
+DISPLAY_IDLE = "idle"
+DISPLAY_WORKING = "working"
+DISPLAY_WAITING = "waiting"
+DISPLAY_NEEDS_USER_INPUT = "needs_user_input"
+DISPLAY_BLOCKED = "blocked"
+DISPLAY_READY = "ready_to_merge"
+DISPLAY_MERGED = "merged"
+DISPLAY_COMPLETE = "complete"
+NEEDS_USER_INPUT_PHASES = frozenset({
+    "needs_user_input",
+    "needs_human_design",
+})
+ATTENTION_DISPLAY_STATES = frozenset({
+    DISPLAY_WAITING,
+    DISPLAY_NEEDS_USER_INPUT,
+    DISPLAY_BLOCKED,
+    DISPLAY_READY,
+    DISPLAY_MERGED,
+    DISPLAY_COMPLETE,
 })
 
 CLAUDE_SPINNER_CHARS = frozenset(
@@ -66,6 +76,32 @@ class TreeRow:
     has_children: bool = False
     is_collapsed: bool = False
     has_active_descendant: bool = False
+
+
+def _semantic_key(value: str | None) -> str:
+    return re.sub(r"[\s_-]+", "_", (value or "").strip().casefold())
+
+
+def display_state(record: TabRecord) -> str:
+    """Resolve raw Workmux signals to the one state KTT should display."""
+    if _semantic_key(record.phase) in NEEDS_USER_INPUT_PHASES:
+        return DISPLAY_NEEDS_USER_INPUT
+
+    status = record.status or ""
+    key = _semantic_key(status)
+    if status == WORKING_STATUS or key == DISPLAY_WORKING:
+        return DISPLAY_WORKING
+    if status == WAITING_STATUS or key == DISPLAY_WAITING:
+        return DISPLAY_WAITING
+    if key == DISPLAY_BLOCKED:
+        return DISPLAY_BLOCKED
+    if key == DISPLAY_READY:
+        return DISPLAY_READY
+    if key == DISPLAY_MERGED:
+        return DISPLAY_MERGED
+    if status == "✅" or key in {"done", DISPLAY_COMPLETE}:
+        return DISPLAY_COMPLETE
+    return status or DISPLAY_IDLE
 
 
 class WaitingStatusDebouncer:
@@ -131,9 +167,9 @@ class WaitingStatusDebouncer:
 
 
 def seeks_attention(record: TabRecord) -> bool:
-    return (
-        not record.attention_suppressed
-        and record.status in ATTENTION_STATUSES
+    state = display_state(record)
+    return state in ATTENTION_DISPLAY_STATES and not (
+        state == DISPLAY_WAITING and record.attention_suppressed
     )
 
 

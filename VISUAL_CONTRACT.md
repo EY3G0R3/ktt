@@ -104,11 +104,14 @@ design.
   bar. A lifted title claims its full width before state uses what remains, and
   starts at the middle row's text column even with the state beside it. A phase
   off the pipeline,
-  such as `needs human design`, shows its label with no track. Its whole card
-  uses the yellow attention background, even when its status is blocked;
-  ordinary blocked cards remain red. Coding is yellow and fixing review is
-  orange. The track's form and coloring are user-configurable (see README,
-  "Configuration"); the contract fixes the placement, not the glyphs.
+  such as `needs user input`, shows its label with no track. Status, verdict,
+  and phase are resolved to one display state before choosing semantic visuals.
+  A needs-input phase takes precedence over a generic blocked verdict and uses
+  a yellow attention card, chat icon, attention-colored label, and normal edge;
+  ordinary blocked cards remain red with an X and flame edge. Coding is yellow
+  and fixing review is orange. The track's form and coloring are
+  user-configurable (see README, "Configuration"); the contract fixes the
+  placement, not the glyphs.
 - Active, active-descendant, working, waiting, ready, merged, and blocked treatments
   retain the established colors, brightness, caps, and attention debounce.
   Active and inactive card text use the same normal font weight; the active

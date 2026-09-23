@@ -8,6 +8,7 @@ from ktt.model import (
     choose_os_window,
     clean_title,
     content_window_cwd,
+    display_state,
     next_attention_tab_id,
     records_for_os_window,
     reordered_tree_tab_ids,
@@ -18,6 +19,53 @@ from ktt.model import (
 
 
 class ModelTests(unittest.TestCase):
+    def test_display_state_prefers_user_input_phase_over_blocked_status(self) -> None:
+        record = TabRecord(
+            1,
+            1,
+            "question",
+            (10,),
+            status="blocked",
+            phase="Needs User Input",
+        )
+
+        self.assertEqual(display_state(record), "needs_user_input")
+
+    def test_display_state_leaves_new_workflow_phases_orthogonal(self) -> None:
+        for phase in ("Investigating", "Rebasing", "Squashing"):
+            with self.subTest(phase=phase):
+                record = TabRecord(
+                    1, 1, phase, (10,), status="working", phase=phase
+                )
+                self.assertEqual(display_state(record), "working")
+
+    def test_needs_user_input_phase_seeks_attention_without_blocked_status(self) -> None:
+        record = TabRecord(
+            1, 1, "question", (10,), phase="needs_user_input"
+        )
+        rows = tree_rows([
+            TabRecord(2, 1, "active", (20,), is_active=True),
+            record,
+        ])
+
+        self.assertEqual(next_attention_tab_id(rows), 1)
+
+    def test_explicit_user_input_phase_is_not_hidden_by_waiting_debounce(self) -> None:
+        records = [
+            TabRecord(1, 1, "active", (10,), is_active=True),
+            TabRecord(
+                2,
+                1,
+                "question",
+                (20,),
+                status="waiting",
+                phase="needs_user_input",
+                attention_suppressed=True,
+            ),
+        ]
+
+        self.assertEqual(next_attention_tab_id(tree_rows(records)), 2)
+
     def test_waiting_attention_is_delayed_without_hiding_icon(self) -> None:
         debouncer = WaitingStatusDebouncer(delay=7.0)
         working = TabRecord(1, 1, "agent", (10,), status="🤖")

@@ -9,7 +9,19 @@ import time
 import unicodedata
 
 from .config import load_config
-from .model import TabRecord, TreeRow, seeks_attention
+from .model import (
+    DISPLAY_BLOCKED,
+    DISPLAY_COMPLETE,
+    DISPLAY_MERGED,
+    DISPLAY_NEEDS_USER_INPUT,
+    DISPLAY_READY,
+    DISPLAY_WAITING,
+    DISPLAY_WORKING,
+    TabRecord,
+    TreeRow,
+    display_state,
+    seeks_attention,
+)
 from .repository import RepositoryLocation, repository_summary_parts
 
 
@@ -20,9 +32,11 @@ VERDICT_BACKGROUNDS = {
     "merged": ("245c2a", "3f9f49"),
     "blocked": ("7a2029", "c0394a"),
 }
-SUCCESS_VERDICTS = frozenset({"ready_to_merge", "merged"})
+SUCCESS_DISPLAY_STATES = frozenset({DISPLAY_READY, DISPLAY_MERGED})
 WAITING_BACKGROUNDS = ("55502e", "85804b")
 NEEDS_USER_INPUT_BACKGROUNDS = WAITING_BACKGROUNDS
+ATTENTION_FOREGROUND = "f1fa8c"
+ACTIVE_ATTENTION_FOREGROUND = "ffffa5"
 PANEL_BACKGROUND = "000000"
 ACTIVE_BACKGROUND = "64718b"
 ACTIVE_DESCENDANT_BACKGROUND = "343b49"
@@ -810,30 +824,31 @@ def render_control_line(
 
 
 def status_icon(status: str | None, now: float | None = None) -> tuple[str, str | None]:
-    if status == "🤖":
+    if status in {"🤖", DISPLAY_WORKING}:
         current = time.monotonic() if now is None else now
         frame = int(current / SPINNER_INTERVAL) % len(SPINNER_FRAMES)
         return SPINNER_FRAMES[frame], "8be9fd"
-    if status == "ready_to_merge":
+    if status == DISPLAY_READY:
         return "✓", "50fa7b"
-    if status == "merged":
+    if status == DISPLAY_MERGED:
         return "✓", MERGED_FOREGROUND
-    if status == "blocked":
+    if status == DISPLAY_BLOCKED:
         return "✗", "ff5555"
-    if status == "💬":
+    if status in {"💬", DISPLAY_WAITING, DISPLAY_NEEDS_USER_INPUT}:
         return "💬", "20232a"
-    if status == "✅":
+    if status in {"✅", "done", DISPLAY_COMPLETE}:
         return "✓", None
     return (status or " "), None
 
 
 def card_background(row: TreeRow) -> str:
     tab = row.tab
-    if tab.status == "💬" and seeks_attention(tab):
+    state = display_state(tab)
+    if state == DISPLAY_NEEDS_USER_INPUT:
         return WAITING_BACKGROUNDS[1 if tab.is_active else 0]
-    if phase_key(tab.phase) in {"needs_user_input", "needs_human_design"}:
-        return NEEDS_USER_INPUT_BACKGROUNDS[1 if tab.is_active else 0]
-    verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
+    if state == DISPLAY_WAITING and seeks_attention(tab):
+        return WAITING_BACKGROUNDS[1 if tab.is_active else 0]
+    verdict = VERDICT_BACKGROUNDS.get(state)
     if verdict:
         return verdict[1 if tab.is_active else 0]
     return (
@@ -847,11 +862,12 @@ def card_background(row: TreeRow) -> str:
 
 def card_foreground(row: TreeRow) -> str:
     tab = row.tab
-    verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
+    state = display_state(tab)
+    verdict = VERDICT_BACKGROUNDS.get(state)
     if (
         verdict
-        or (tab.status == "💬" and seeks_attention(tab))
-        or phase_key(tab.phase) in {"needs_user_input", "needs_human_design"}
+        or (state == DISPLAY_WAITING and seeks_attention(tab))
+        or state == DISPLAY_NEEDS_USER_INPUT
         or tab.is_active
     ):
         return "f8f8f2"
@@ -859,9 +875,22 @@ def card_foreground(row: TreeRow) -> str:
 
 
 def status_foreground(row: TreeRow, default: str | None) -> str | None:
-    if row.tab.status == "💬":
-        return "ffffa5" if row.tab.is_active else "f1fa8c"
+    if display_state(row.tab) in {DISPLAY_WAITING, DISPLAY_NEEDS_USER_INPUT}:
+        return (
+            ACTIVE_ATTENTION_FOREGROUND
+            if row.tab.is_active
+            else ATTENTION_FOREGROUND
+        )
     return default
+
+
+def status_cap(tab: TabRecord) -> str | None:
+    state = display_state(tab)
+    if state in SUCCESS_DISPLAY_STATES:
+        return READY_RIGHT_CAP
+    if state == DISPLAY_BLOCKED:
+        return FLAME_RIGHT_CAP
+    return None
 
 
 @dataclass(frozen=True)
@@ -1044,8 +1073,8 @@ PHASE_FOREGROUNDS = {
     "ready_to_merge": REPOSITORY_CLEAN_FOREGROUND,
     "landing": LANDING_FOREGROUND,
     "merged": MERGED_FOREGROUND,
-    "needs_user_input": REPOSITORY_CONFLICT_FOREGROUND,
-    "needs_human_design": REPOSITORY_CONFLICT_FOREGROUND,
+    "needs_user_input": ATTENTION_FOREGROUND,
+    "needs_human_design": ATTENTION_FOREGROUND,
     "blocked": REPOSITORY_CONFLICT_FOREGROUND,
 }
 
@@ -1291,7 +1320,7 @@ def render_row(
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
     indent = " " * (TREE_INDENT_WIDTH * row.depth)
     orphan = fit_cells(ORPHAN_MARKER if row.orphaned else "", ORPHAN_CELL_WIDTH)
-    icon, status_color = status_icon(tab.status, now)
+    icon, status_color = status_icon(display_state(tab), now)
     status_color = status_foreground(row, status_color)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
     left = indent
@@ -1448,7 +1477,6 @@ def render_row(
     elif worktree:
         metadata_width += display_width(worktree)
     base = ""
-    verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     if ansi:
         foreground = card_foreground(row)
         base = _bg(background, True) + _fg(
@@ -1492,13 +1520,7 @@ def render_row(
         f"{inline_context_label or worktree_label}"
     )
     cap_style = f"{_bg('000000', ansi)}{_fg(background, ansi)}"
-    verdict_cap = (
-        READY_RIGHT_CAP
-        if tab.status in SUCCESS_VERDICTS
-        else FLAME_RIGHT_CAP
-        if tab.status == "blocked"
-        else None
-    )
+    verdict_cap = status_cap(tab)
     effective_style = (
         DEFAULT_EDGE_STYLE
         if card_height == 1 and edge_style in {"rounded", "wedge"}
@@ -1589,13 +1611,7 @@ def render_card_blank(
     reset = "\x1b[0m" if ansi else ""
     if not show_caps:
         return f"{panel_style(ansi)}{left}{base}{' ' * body_width}{reset}"
-    verdict_cap = (
-        READY_RIGHT_CAP
-        if row.tab.status in SUCCESS_VERDICTS
-        else FLAME_RIGHT_CAP
-        if row.tab.status == "blocked"
-        else None
-    )
+    verdict_cap = status_cap(row.tab)
     cap_style = f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}"
     if edge_style == "tapered":
         right_edge = (
@@ -1910,13 +1926,7 @@ def render_card_context_row(
         )
     if not show_caps:
         return f"{panel_style(ansi)}{left}{body}{reset}"
-    verdict_cap = (
-        READY_RIGHT_CAP
-        if row.tab.status in SUCCESS_VERDICTS
-        else FLAME_RIGHT_CAP
-        if row.tab.status == "blocked"
-        else None
-    )
+    verdict_cap = status_cap(row.tab)
     cap_style = f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}"
     if edge_style == "tapered":
         middle = line_index == card_content_line(card_height)
@@ -2032,7 +2042,7 @@ def render_card(
         orphan = fit_cells(
             ORPHAN_MARKER if row.orphaned else "", ORPHAN_CELL_WIDTH
         )
-        icon, status_color = status_icon(row.tab.status, now)
+        icon, status_color = status_icon(display_state(row.tab), now)
         status_color = status_foreground(row, status_color)
         foreground = card_foreground(row)
         snapshot = CardRenderSnapshot(
@@ -2192,7 +2202,7 @@ def render_horizontal_card(
     tab = row.tab
     disclosure = "▸" if row.is_collapsed else "▾" if row.has_children else " "
     orphan = fit_cells(ORPHAN_MARKER if row.orphaned else "", ORPHAN_CELL_WIDTH)
-    icon, status_color = status_icon(tab.status, now)
+    icon, status_color = status_icon(display_state(tab), now)
     status_color = status_foreground(row, status_color)
     status_text = fit_cells(icon, STATUS_CELL_WIDTH)
     show_caps = width >= 3
@@ -2210,7 +2220,6 @@ def render_horizontal_card(
     right_padding = max(0, body_width - content_width - left_padding)
 
     background = card_background(row)
-    verdict = VERDICT_BACKGROUNDS.get(tab.status or "")
     foreground = card_foreground(row)
     base = _bg(background, ansi) + _fg(foreground, ansi)
     if ansi and tab.is_active:
@@ -2237,13 +2246,7 @@ def render_horizontal_card(
         return f"{base}{fit_cells(content, body_width)}{reset}"
 
     cap_style = f"{_bg(PANEL_BACKGROUND, ansi)}{_fg(background, ansi)}"
-    verdict_cap = (
-        READY_RIGHT_CAP
-        if tab.status in SUCCESS_VERDICTS
-        else FLAME_RIGHT_CAP
-        if tab.status == "blocked"
-        else None
-    )
+    verdict_cap = status_cap(tab)
     effective_style = (
         DEFAULT_EDGE_STYLE if edge_style in {"rounded", "wedge"} else edge_style
     )

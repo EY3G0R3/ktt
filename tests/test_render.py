@@ -7,6 +7,7 @@ from ktt.model import TabRecord, TreeRow
 from ktt.repository import RepositoryLocation
 from ktt.render import (
     ACTIVE_BACKGROUND,
+    ATTENTION_FOREGROUND,
     CLEAN_STATE_GLYPH,
     CONTROL_ACTION_FOREGROUND,
     CONTROL_LINES,
@@ -999,6 +1000,9 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(status_icon("merged"), ("✓", "69db7c"))
         self.assertEqual(status_icon("blocked"), ("✗", "ff5555"))
         self.assertEqual(status_icon("🤖", now=0.0)[0], "⠋")
+        self.assertEqual(status_icon("working", now=0.0)[0], "⠋")
+        self.assertEqual(status_icon("waiting")[0], "💬")
+        self.assertEqual(status_icon("complete")[0], "✓")
 
     def test_child_row_is_indented(self) -> None:
         tab = TabRecord(2, 1, "child", (20,), status="blocked")
@@ -1289,6 +1293,10 @@ class RenderTests(unittest.TestCase):
         )
         card = render_card(row, selected=False, width=40, card_height=3)
         self.assertTrue(all(f"\x1b[48;2;{rgb}m" in line for line in card))
+        self.assertIn("💬", "".join(card))
+        self.assertNotIn("✗", "".join(card))
+        self.assertTrue(all(FLAME_RIGHT_CAP not in line for line in card))
+        self.assertIn(RIGHT_CAP, "".join(card))
 
         legacy = TreeRow(
             TabRecord(
@@ -1846,7 +1854,7 @@ class RenderTests(unittest.TestCase):
             phase_foreground("coding"), phase_foreground("fixing_review")
         )
 
-    def test_trouble_phase_uses_dark_red_on_active_yellow_card(self) -> None:
+    def test_user_input_phase_uses_readable_attention_color(self) -> None:
         row = TreeRow(
             TabRecord(
                 1,
@@ -1866,9 +1874,11 @@ class RenderTests(unittest.TestCase):
             int(foreground[offset:offset + 2], 16) for offset in (0, 2, 4)
         )
 
-        self.assertGreater(red, green)
-        self.assertGreater(red, blue)
-        self.assertLess(sum((red, green, blue)), sum((255, 85, 85)))
+        self.assertEqual(
+            phase_foreground("needs_user_input"), ATTENTION_FOREGROUND
+        )
+        self.assertGreaterEqual(green, red)
+        self.assertGreater(green, blue)
         self.assertGreaterEqual(
             _contrast_ratio(foreground, NEEDS_USER_INPUT_BACKGROUNDS[1]), 3.0
         )
